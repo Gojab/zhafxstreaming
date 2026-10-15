@@ -1,0 +1,8 @@
+{
+  "name": "Zhafx",
+  "description": "Platform streaming film, serial TV, dan anime modern dengan rekomendasi bertenaga AI.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

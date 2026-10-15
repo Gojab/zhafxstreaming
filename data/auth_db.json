@@ -1,0 +1,34 @@
+{
+  "users": [
+    {
+      "id": "usr_1791971970777_06ebe4fd",
+      "name": "Budi Santoso",
+      "username": "budisantoso",
+      "email": "budi@example.com",
+      "passwordHash": "c2a02f35c4d28f9fe350723e56bcf1ea:1128fa71816afa8b2368e3dde3293becc8bddf07a6e77b52f2ffe012b4507f7072b69a8e7e1a1f7ad08979458472e080fc1d9b6f501d0a5346d0a6ed643a480c",
+      "joinedAt": 1791971970861
+    },
+    {
+      "id": "usr_1791972316166_6bda0ee4",
+      "name": "Ahmad Fauzi",
+      "username": "ahmadfauzi",
+      "email": "ahmad@example.com",
+      "passwordHash": "c5c273d127ecf3b54c0b221fdb41af92:5e57ee004854cf5ef9cc57726ebc2fe11a381fc056b515f9fa60725170eadb0c57e4edf8bbb0663b85ca30c1152577a736c4b71054f11c98b3fa079593e4991a",
+      "joinedAt": 1791972316264
+    }
+  ],
+  "sessions": [
+    {
+      "token": "016cb01858e30e2573fbb5245d8348ac58329364327956d0c65283dc8e167099",
+      "userId": "usr_1791971970777_06ebe4fd",
+      "createdAt": 1791971970861,
+      "expiresAt": 1794563970861
+    },
+    {
+      "token": "426404314a465dd03a9324350368261ae5dc132962650fb844c335989690b444",
+      "userId": "usr_1791972316166_6bda0ee4",
+      "createdAt": 1791972316264,
+      "expiresAt": 1794564316264
+    }
+  ]
+}
