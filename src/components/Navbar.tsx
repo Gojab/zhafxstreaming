@@ -1,19 +1,29 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Search, Sparkles, Bookmark, History, User as UserIcon } from 'lucide-react';
+import { Search, Sparkles, User as UserIcon } from 'lucide-react';
 import { Logo } from './Logo';
 import { useAuth } from '../hooks/useAuth';
 
 interface NavbarProps {
   onOpenAI: () => void;
+  onOpenFeatures: () => void;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ onOpenAI }) => {
+export const Navbar: React.FC<NavbarProps> = ({ onOpenAI, onOpenFeatures }) => {
   const navigate = useNavigate();
-  const searchInputRef = useRef<HTMLInputElement>(null);
   const { user, isAuthenticated } = useAuth();
+  const [hasScrolled, setHasScrolled] = useState(false);
 
-  // Global hotkey "/" to focus search
+  // Densify glass on scroll
+  useEffect(() => {
+    const handleScroll = () => {
+      setHasScrolled(window.scrollY > 25);
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Global "/" hotkey for search
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (
@@ -30,20 +40,26 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAI }) => {
   }, [navigate]);
 
   const navLinkStyle = ({ isActive }: { isActive: boolean }) =>
-    `text-xs sm:text-sm font-medium transition-all px-3 py-1.5 rounded-xl ${
+    `text-xs sm:text-[13px] font-medium transition-all px-3.5 py-1.5 rounded-full ios-spring ${
       isActive
-        ? 'text-white font-semibold bg-white/[0.08] border border-white/10'
-        : 'text-zinc-400 hover:text-white hover:bg-white/[0.04]'
+        ? 'text-white font-semibold liquid-glass-active shadow-sm'
+        : 'text-white/70 hover:text-white hover:bg-white/[0.06]'
     }`;
 
   return (
-    <header className="sticky top-0 z-40 w-full bg-[#090A0E]/85 backdrop-blur-xl border-b border-white/[0.08] transition-all">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8 h-16 flex items-center justify-between gap-4">
-        {/* Left: Brand & Navigation */}
-        <div className="flex items-center gap-6 md:gap-8">
+    <header className="fixed top-2.5 sm:top-4 left-3 right-3 sm:left-6 sm:right-6 max-w-7xl mx-auto z-40 transition-all duration-300">
+      <div
+        className={`w-full px-3.5 sm:px-6 h-14 sm:h-16 rounded-[26px] sm:rounded-full flex items-center justify-between gap-3 sm:gap-4 transition-all duration-300 ${
+          hasScrolled
+            ? 'liquid-glass-dense liquid-specular shadow-2xl'
+            : 'liquid-glass liquid-specular shadow-lg'
+        }`}
+      >
+        {/* Left: Official ZHAFX Logo & Navigation Links */}
+        <div className="flex items-center gap-5 sm:gap-7">
           <Logo size="md" />
 
-          {/* Desktop Navigation Links */}
+          {/* Desktop iOS Glass Navigation Pills */}
           <nav className="hidden md:flex items-center gap-1" aria-label="Menu Utama">
             <NavLink to="/" className={navLinkStyle}>
               Beranda
@@ -66,48 +82,65 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAI }) => {
           </nav>
         </div>
 
-        {/* Right: Search, Tanya AI, and actions */}
-        <div className="flex items-center gap-2 sm:gap-3">
-          {/* Search Trigger Button */}
+        {/* Right: Search, Tanya AI, and Profile Actions */}
+        <div className="flex items-center gap-2 sm:gap-2.5">
+          {/* Glass Search Button */}
           <button
             onClick={() => navigate('/search')}
-            aria-label="Pencarian tayangan (tekan / untuk jalan pintas)"
-            className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-[#111319] hover:bg-[#181A22] border border-white/[0.08] hover:border-white/20 text-zinc-400 hover:text-white text-xs transition-all cursor-pointer min-h-[38px]"
+            aria-label="Pencarian tayangan"
+            className="flex items-center gap-2 px-3 py-1.5 sm:px-3.5 rounded-full bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-white/70 hover:text-white text-xs transition-all cursor-pointer h-9 ios-spring"
           >
-            <Search className="w-4 h-4 text-zinc-400" />
-            <span className="hidden sm:inline">Cari film, serial...</span>
-            <kbd className="hidden sm:inline-block px-1.5 py-0.5 rounded-md bg-black/40 border border-white/[0.08] text-[10px] text-zinc-400">
+            <Search className="w-3.5 h-3.5 text-white/80" />
+            <span className="hidden sm:inline text-[12px]">Cari...</span>
+            <kbd className="hidden lg:inline-block px-1.5 py-0.5 rounded-full bg-white/10 text-[9px] text-white/60">
               /
             </kbd>
           </button>
 
-          {/* Tanya AI Button */}
+          {/* Titik 3 Logo X - Akses Semua Fitur */}
           <button
-            onClick={onOpenAI}
-            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[#181A22] hover:bg-[#232632] border border-white/10 hover:border-white/25 text-zinc-200 hover:text-white font-medium text-xs transition-all duration-200 active:scale-95 cursor-pointer min-h-[38px]"
-            title="Buka asisten rekomendasi AI"
+            type="button"
+            onClick={onOpenFeatures}
+            aria-label="Semua Fitur Zhafx (Titik 3 X)"
+            title="Akses Semua Fitur Zhafx"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/[0.08] hover:bg-white/[0.16] border border-white/20 text-white font-medium text-xs transition-all cursor-pointer h-9 ios-spring shadow-sm"
           >
-            <Sparkles className="w-3.5 h-3.5 text-zinc-300" />
-            <span>Tanya AI</span>
+            <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 fill-none" stroke="currentColor">
+              <path d="M5 5L19 19M19 5L5 19" strokeWidth="2.4" strokeLinecap="round" />
+              <circle cx="5" cy="5" r="1.8" fill="#FFB224" stroke="none" />
+              <circle cx="12" cy="12" r="2" fill="#FFFFFF" stroke="none" />
+              <circle cx="19" cy="19" r="1.8" fill="#FFB224" stroke="none" />
+            </svg>
+            <span className="hidden sm:inline text-[12px] text-[#FFB224] font-semibold">Fitur X</span>
           </button>
 
-          {/* User Account / Login Button */}
+          {/* Tanya AI Glass Pill */}
+          <button
+            onClick={onOpenAI}
+            className="inline-flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 rounded-full bg-white/[0.08] hover:bg-white/[0.16] border border-white/15 text-white font-medium text-xs transition-all cursor-pointer h-9 ios-spring shadow-sm"
+            title="Buka Tanya Zhafx AI"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-[#FFB224]" />
+            <span className="hidden sm:inline text-[12px]">Tanya AI</span>
+          </button>
+
+          {/* User Account Pill */}
           <NavLink
             to="/login"
-            className="inline-flex items-center gap-2 p-1.5 sm:px-3 sm:py-1.5 rounded-xl bg-[#111319] hover:bg-[#181A22] border border-white/[0.08] hover:border-white/20 text-xs font-medium text-zinc-200 hover:text-white transition-all cursor-pointer min-h-[38px]"
-            title={isAuthenticated ? `Akun: ${user?.name}` : 'Masuk ke Zhafx'}
+            className="inline-flex items-center gap-2 px-2.5 sm:px-3 py-1.5 rounded-full bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-xs font-medium text-white transition-all cursor-pointer h-9 ios-spring"
+            title={isAuthenticated && user ? `Akun: ${user.name}` : 'Masuk ke Zhafx'}
           >
             {isAuthenticated && user ? (
               <>
-                <div className="w-6 h-6 rounded-lg bg-zinc-700 text-white flex items-center justify-center font-bold text-[10px] shrink-0">
+                <div className="w-5 h-5 rounded-full bg-[#FFB224] text-[#06070B] flex items-center justify-center font-bold text-[10px] shrink-0">
                   {user.name.charAt(0).toUpperCase()}
                 </div>
-                <span className="hidden sm:inline max-w-[100px] truncate text-white">{user.name}</span>
+                <span className="hidden sm:inline max-w-[90px] truncate text-[12px]">{user.name}</span>
               </>
             ) : (
               <>
-                <UserIcon className="w-4 h-4 text-zinc-400" />
-                <span className="hidden sm:inline">Masuk</span>
+                <UserIcon className="w-3.5 h-3.5 text-white/80" />
+                <span className="hidden sm:inline text-[12px]">Masuk</span>
               </>
             )}
           </NavLink>

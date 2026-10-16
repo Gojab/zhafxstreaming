@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Play, Info, Star, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Play, Info, Star, Bookmark, BookmarkCheck, ChevronLeft, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Title } from '../types';
+import { useMyList } from '../hooks/useMyList';
+import { useActiveMedia } from '../context/ActiveMediaContext';
 
 interface HeroBillboardProps {
   items: Title[];
@@ -10,16 +12,26 @@ interface HeroBillboardProps {
 
 export const HeroBillboard: React.FC<HeroBillboardProps> = ({ items }) => {
   const navigate = useNavigate();
+  const { isSaved, toggle } = useMyList();
+  const { setActiveMedia } = useActiveMedia();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const touchStartX = useRef<number | null>(null);
 
-  // Check prefers-reduced-motion
-  const prefersReducedMotion = typeof window !== 'undefined'
-    ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    : false;
+  const prefersReducedMotion =
+    typeof window !== 'undefined'
+      ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      : false;
 
   const validItems = items && items.length > 0 ? items.slice(0, 6) : [];
+
+  // Synchronize active background poster whenever current item changes
+  useEffect(() => {
+    if (validItems.length > 0 && validItems[currentIndex]) {
+      const active = validItems[currentIndex];
+      setActiveMedia(active.backdrop || active.poster, active.title);
+    }
+  }, [currentIndex, validItems, setActiveMedia]);
 
   const handleNext = useCallback(() => {
     if (validItems.length <= 1) return;
@@ -31,18 +43,18 @@ export const HeroBillboard: React.FC<HeroBillboardProps> = ({ items }) => {
     setCurrentIndex((prev) => (prev - 1 + validItems.length) % validItems.length);
   }, [validItems.length]);
 
-  // Autoplay every 7 seconds, pauses on hover/focus and reduced-motion
+  // Autoplay crossfade every 8 seconds
   useEffect(() => {
     if (validItems.length <= 1 || isPaused || prefersReducedMotion) return;
 
     const interval = setInterval(() => {
       handleNext();
-    }, 7000);
+    }, 8000);
 
     return () => clearInterval(interval);
   }, [validItems.length, isPaused, prefersReducedMotion, handleNext]);
 
-  // Touch swipe support
+  // Touch swipe support for iOS gestures
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartX.current = e.touches[0].clientX;
   };
@@ -50,7 +62,7 @@ export const HeroBillboard: React.FC<HeroBillboardProps> = ({ items }) => {
   const handleTouchEnd = (e: React.TouchEvent) => {
     if (touchStartX.current === null) return;
     const diff = touchStartX.current - e.changedTouches[0].clientX;
-    if (Math.abs(diff) > 50) {
+    if (Math.abs(diff) > 45) {
       if (diff > 0) handleNext();
       else handlePrev();
     }
@@ -61,110 +73,142 @@ export const HeroBillboard: React.FC<HeroBillboardProps> = ({ items }) => {
 
   const current = validItems[currentIndex];
   const typeLabel = current.type === 'anime' ? 'Anime' : current.type === 'tv' ? 'Serial TV' : 'Film';
+  const saved = isSaved(current.id);
+
+  const handleToggleMyList = () => {
+    toggle({
+      id: current.id,
+      type: current.type,
+      title: current.title,
+      poster: current.poster,
+      backdrop: current.backdrop,
+      year: current.year,
+      rating: current.rating,
+    });
+  };
 
   return (
     <section
-      className="relative w-full h-[65vh] sm:h-[75vh] min-h-[480px] max-h-[740px] overflow-hidden bg-[#090A0E] select-none"
+      className="relative w-full h-[70vh] sm:h-[80vh] min-h-[520px] max-h-[820px] overflow-hidden bg-transparent select-none pt-16 sm:pt-20"
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
       onFocus={() => setIsPaused(true)}
       onBlur={() => setIsPaused(false)}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
-      aria-label="Pilihan Tayangan Unggulan"
+      aria-label="Tayangan Unggulan"
     >
       <AnimatePresence mode="wait">
         <motion.div
           key={current.id || currentIndex}
-          initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, scale: 1.04 }}
+          initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, scale: 1.05 }}
           animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.6, ease: 'easeOut' }}
+          exit={{ opacity: 0, scale: 0.98 }}
+          transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
           className="absolute inset-0"
         >
-          {/* Backdrop Image */}
+          {/* Main Backdrop Artwork */}
           <img
             src={current.backdrop || current.poster}
             alt={current.title}
             className="w-full h-full object-cover object-center"
           />
 
-          {/* Cinematic vignettes / gradient overlays */}
-          <div className="absolute inset-0 bg-gradient-to-t from-[#090A0E] via-[#090A0E]/60 to-transparent" />
-          <div className="absolute inset-0 bg-gradient-to-r from-[#090A0E]/95 via-[#090A0E]/60 to-transparent sm:w-3/4" />
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_transparent_40%,_#090A0E_90%)]" />
+          {/* Seamless Apple iOS Vignette Blend */}
+          <div className="absolute inset-0 bg-gradient-to-t from-[#06070B] via-[#06070B]/50 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-r from-[#06070B]/90 via-[#06070B]/40 to-transparent sm:w-2/3" />
         </motion.div>
       </AnimatePresence>
 
-      {/* Hero Content Information */}
-      <div className="relative z-10 h-full max-w-7xl mx-auto px-4 sm:px-6 md:px-8 flex flex-col justify-end pb-12 sm:pb-16 max-w-2xl">
+      {/* Hero Content Information - SF Pro typography */}
+      <div className="relative z-10 h-full max-w-7xl mx-auto px-4 sm:px-6 md:px-8 flex flex-col justify-end pb-14 sm:pb-20 max-w-3xl">
         <motion.div
           key={`content-${current.id}`}
           initial={prefersReducedMotion ? {} : { opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.45, delay: 0.1 }}
-          className="space-y-3.5"
+          transition={{ duration: 0.5, delay: 0.1, ease: 'easeOut' }}
+          className="space-y-4"
         >
-          {/* Tag Badges */}
-          <div className="flex items-center gap-2.5 flex-wrap">
-            <span className="px-2.5 py-0.5 rounded-lg bg-black/60 backdrop-blur-md border border-white/10 text-zinc-300 text-xs font-medium uppercase tracking-wider">
+          {/* Metadata Badges */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="px-3 py-1 rounded-full liquid-glass text-white/90 text-[11px] font-semibold uppercase tracking-wider shadow-sm">
               {typeLabel}
             </span>
             {current.rating && parseFloat(current.rating) > 0 && (
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-black/60 backdrop-blur-md border border-white/10 text-amber-400 text-xs font-semibold">
-                <Star className="w-3.5 h-3.5 fill-current" />
-                {current.rating}
+              <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full liquid-glass text-amber-300 text-[11px] font-bold shadow-sm">
+                <Star className="w-3 h-3 fill-current" />
+                <span>{current.rating}</span>
               </span>
             )}
-            <span className="text-xs text-zinc-400 font-medium">{current.year}</span>
+            <span className="text-xs text-white/70 font-medium px-1.5">{current.year}</span>
             {current.genres && current.genres.length > 0 && (
-              <span className="text-xs text-zinc-400 hidden sm:inline">
+              <span className="text-xs text-white/60 hidden sm:inline">
                 • {current.genres.slice(0, 3).join(', ')}
               </span>
             )}
           </div>
 
           {/* Title */}
-          <h1
-            style={{ fontFamily: 'var(--font-heading)' }}
-            className="text-2xl sm:text-4xl md:text-5xl font-semibold text-white tracking-tight leading-tight line-clamp-2"
-          >
+          <h1 className="text-3xl sm:text-5xl md:text-6xl font-bold text-white tracking-[-0.035em] leading-[1.08] line-clamp-2 drop-shadow-md">
             {current.title}
           </h1>
 
-          {/* Overview */}
-          <p className="text-xs sm:text-sm text-zinc-300 line-clamp-3 leading-relaxed max-w-xl">
+          {/* Synopsis */}
+          <p className="text-xs sm:text-sm text-white/75 line-clamp-2 sm:line-clamp-3 leading-relaxed max-w-xl font-normal">
             {current.overview || 'Sinopsis belum tersedia untuk tayangan ini.'}
           </p>
 
-          {/* Action Buttons */}
-          <div className="flex items-center gap-3 pt-2">
+          {/* Liquid Glass Action Buttons with Apple Spring Physics */}
+          <div className="flex items-center gap-3 pt-3 flex-wrap">
+            {/* Putar Button (White Liquid Glass Pill with bounce) */}
             <button
               onClick={() => navigate(`/watch/${current.type}/${current.id}`)}
-              className="inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-black font-semibold text-sm transition-all duration-200 shadow-md active:scale-95 cursor-pointer min-h-[42px]"
+              className="inline-flex items-center justify-center gap-2 px-7 py-3 rounded-full bg-white text-[#06070B] hover:bg-white/90 font-bold text-sm shadow-[0_8px_25px_rgba(255,255,255,0.25)] ios-spring cursor-pointer min-h-[46px]"
             >
-              <Play className="w-4 h-4 fill-current" />
-              Putar sekarang
+              <Play className="w-4 h-4 fill-current ml-0.5 text-[#06070B]" />
+              <span>Putar</span>
             </button>
 
+            {/* Daftar Saya (Liquid Glass Pill) */}
+            <button
+              onClick={handleToggleMyList}
+              className={`inline-flex items-center justify-center gap-2 px-5 py-3 rounded-full liquid-glass liquid-specular text-sm font-semibold transition-all cursor-pointer min-h-[46px] ios-spring ${
+                saved ? 'text-[#FFB224] bg-white/[0.16]' : 'text-white hover:bg-white/[0.14]'
+              }`}
+            >
+              {saved ? (
+                <>
+                  <BookmarkCheck className="w-4 h-4 text-[#FFB224]" />
+                  <span>Tersimpan</span>
+                </>
+              ) : (
+                <>
+                  <Bookmark className="w-4 h-4" />
+                  <span>Daftar Saya</span>
+                </>
+              )}
+            </button>
+
+            {/* Detail Button (Liquid Glass Circular / Pill) */}
             <button
               onClick={() => navigate(`/detail/${current.type}/${current.id}`)}
-              className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-white border border-white/10 font-medium text-sm transition-all duration-200 backdrop-blur-md active:scale-95 cursor-pointer min-h-[42px]"
+              className="inline-flex items-center justify-center gap-1.5 px-4 py-3 rounded-full liquid-glass liquid-specular text-white/80 hover:text-white text-sm font-medium transition-all cursor-pointer min-h-[46px] ios-spring"
+              title="Informasi tayangan"
             >
-              <Info className="w-4 h-4 text-zinc-300" />
-              Detail
+              <Info className="w-4 h-4" />
+              <span className="hidden sm:inline">Detail</span>
             </button>
           </div>
         </motion.div>
       </div>
 
-      {/* Navigation Arrows for Desktop */}
+      {/* Floating Glass Navigation Arrows (Desktop) */}
       {validItems.length > 1 && (
         <>
           <button
             onClick={handlePrev}
             aria-label="Tayangan sebelumnya"
-            className="absolute left-4 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-black/60 hover:bg-black/90 text-white border border-white/10 hidden md:flex items-center justify-center transition-all cursor-pointer backdrop-blur-md active:scale-95"
+            className="absolute left-4 sm:left-6 top-1/2 -translate-y-1/2 z-20 w-11 h-11 rounded-full liquid-glass liquid-specular text-white hidden md:flex items-center justify-center cursor-pointer ios-spring shadow-xl"
           >
             <ChevronLeft className="w-5 h-5" />
           </button>
@@ -172,25 +216,23 @@ export const HeroBillboard: React.FC<HeroBillboardProps> = ({ items }) => {
           <button
             onClick={handleNext}
             aria-label="Tayangan berikutnya"
-            className="absolute right-4 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-black/60 hover:bg-black/90 text-white border border-white/10 hidden md:flex items-center justify-center transition-all cursor-pointer backdrop-blur-md active:scale-95"
+            className="absolute right-4 sm:right-6 top-1/2 -translate-y-1/2 z-20 w-11 h-11 rounded-full liquid-glass liquid-specular text-white hidden md:flex items-center justify-center cursor-pointer ios-spring shadow-xl"
           >
             <ChevronRight className="w-5 h-5" />
           </button>
         </>
       )}
 
-      {/* Bottom Navigation Dots */}
+      {/* Bottom Glass Navigation Indicator Pills */}
       {validItems.length > 1 && (
-        <div className="absolute bottom-5 right-5 sm:right-10 z-20 flex items-center gap-2">
+        <div className="absolute bottom-6 right-5 sm:right-10 z-20 flex items-center gap-1.5 p-1 rounded-full liquid-glass backdrop-blur-md">
           {validItems.map((_, idx) => (
             <button
               key={idx}
               onClick={() => setCurrentIndex(idx)}
               aria-label={`Pilih slide ${idx + 1}`}
-              className={`h-1.5 transition-all duration-300 rounded-full cursor-pointer ${
-                idx === currentIndex
-                  ? 'w-7 bg-white'
-                  : 'w-2 bg-white/20 hover:bg-white/40'
+              className={`h-2 transition-all duration-300 rounded-full cursor-pointer ios-spring ${
+                idx === currentIndex ? 'w-6 bg-white shadow-sm' : 'w-2 bg-white/30 hover:bg-white/60'
               }`}
             />
           ))}

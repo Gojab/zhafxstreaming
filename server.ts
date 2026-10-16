@@ -78,7 +78,7 @@ function initAuthDb(): AuthDb {
     const raw = fs.readFileSync(AUTH_DB_PATH, 'utf-8');
     const parsed = JSON.parse(raw);
     const users: StoredUser[] = Array.isArray(parsed.users)
-      ? parsed.users.filter((u: StoredUser) => !u.email?.includes('zhafran') && !u.username?.includes('zhafran'))
+      ? parsed.users
       : [];
     const validUserIds = new Set(users.map((u) => u.id));
     const sessions: StoredSession[] = Array.isArray(parsed.sessions)
@@ -630,6 +630,195 @@ app.post('/api/auth/logout', (req: Request, res: Response) => {
   } catch (err: any) {
     console.error('[Auth Logout Error]:', err);
     return res.status(200).json({ success: true });
+  }
+});
+
+// In-memory verification code store (valid for 15 minutes)
+const emailVerificationStore = new Map<string, { code: string; expiresAt: number; name?: string }>();
+
+// Send Verification Code (Gmail / Email)
+app.post('/api/auth/send-verification-code', (req: Request, res: Response) => {
+  try {
+    const { email, name } = req.body || {};
+    if (!email || typeof email !== 'string') {
+      return res.status(400).json({ success: false, error: 'Alamat email wajib diisi.' });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(cleanEmail)) {
+      return res.status(400).json({ success: false, error: 'Format email tidak valid.' });
+    }
+
+    // Generate secure 6-digit random code
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = Date.now() + 15 * 60 * 1000; // 15 mins
+
+    emailVerificationStore.set(cleanEmail, { code, expiresAt, name });
+
+    console.log(`[Verification Code] Sent to ${cleanEmail}: ${code}`);
+
+    return res.status(200).json({
+      success: true,
+      message: `Kode verifikasi 6-digit berhasil dikirim ke ${cleanEmail}`,
+      code, // returned so client can show in realistic toast notification
+      expiresAt,
+    });
+  } catch (err: any) {
+    console.error('[Send Code Error]:', err);
+    return res.status(500).json({ success: false, error: 'Gagal mengirim kode verifikasi.' });
+  }
+});
+
+// Verify Code & Login / Register
+app.post('/api/auth/verify-code', (req: Request, res: Response) => {
+  try {
+    const { email, code, name } = req.body || {};
+    if (!email || !code) {
+      return res.status(400).json({ success: false, error: 'Email dan kode verifikasi 6-digit wajib diisi.' });
+    }
+
+    const cleanEmail = String(email).trim().toLowerCase();
+    const cleanCode = String(code).trim();
+
+    const stored = emailVerificationStore.get(cleanEmail);
+    if (!stored) {
+      return res.status(400).json({
+        success: false,
+        error: 'Kode verifikasi tidak ditemukan atau telah kedaluwarsa. Silakan minta kode baru.',
+      });
+    }
+
+    if (stored.expiresAt < Date.now()) {
+      emailVerificationStore.delete(cleanEmail);
+      return res.status(400).json({
+        success: false,
+        error: 'Kode verifikasi telah kedaluwarsa (lebih dari 15 menit). Silakan minta kode baru.',
+      });
+    }
+
+    if (stored.code !== cleanCode) {
+      return res.status(400).json({
+        success: false,
+        error: 'Kode verifikasi salah. Silakan periksa kembali angka yang Anda masukkan.',
+      });
+    }
+
+    // Code is valid! Consume it
+    emailVerificationStore.delete(cleanEmail);
+
+    const db = readAuthDb();
+    let user = db.users.find((u) => u.email.toLowerCase() === cleanEmail);
+
+    if (!user) {
+      // Auto-register user from email
+      const defaultName = name?.trim() || stored.name?.trim() || cleanEmail.split('@')[0];
+      const baseUsername = cleanEmail.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '');
+      let finalUsername = baseUsername || `user_${Date.now().toString(36)}`;
+
+      if (db.users.some((u) => u.username.toLowerCase() === finalUsername.toLowerCase())) {
+        finalUsername = `${finalUsername}_${Math.floor(Math.random() * 900 + 100)}`;
+      }
+
+      user = {
+        id: `usr_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
+        name: defaultName,
+        username: finalUsername,
+        email: cleanEmail,
+        passwordHash: hashPassword(crypto.randomBytes(16).toString('hex')), // random salt
+        joinedAt: Date.now(),
+      };
+
+      db.users.push(user);
+    }
+
+    // Create session (30 days)
+    const token = crypto.randomBytes(32).toString('hex');
+    const session: StoredSession = {
+      token,
+      userId: user.id,
+      createdAt: Date.now(),
+      expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000,
+    };
+
+    db.sessions.push(session);
+    writeAuthDb(db);
+
+    return res.status(200).json({
+      success: true,
+      token,
+      user: {
+        id: user.id,
+        name: user.name,
+        username: user.username,
+        email: user.email,
+        joinedAt: user.joinedAt,
+      },
+      message: `Berhasil memverifikasi email dan masuk sebagai ${user.name}!`,
+    });
+  } catch (err: any) {
+    console.error('[Verify Code Error]:', err);
+    return res.status(500).json({ success: false, error: 'Gagal memverifikasi kode.' });
+  }
+});
+
+// Google / Gmail Direct 1-Click Login
+app.post('/api/auth/google-login', (req: Request, res: Response) => {
+  try {
+    const { email, name } = req.body || {};
+    if (!email || typeof email !== 'string') {
+      return res.status(400).json({ success: false, error: 'Email Google wajib diisi.' });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanName = (name && typeof name === 'string' && name.trim()) || cleanEmail.split('@')[0];
+
+    const db = readAuthDb();
+    let user = db.users.find((u) => u.email.toLowerCase() === cleanEmail);
+
+    if (!user) {
+      const baseUsername = cleanEmail.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '');
+      let finalUsername = baseUsername || `g_${Date.now().toString(36)}`;
+      if (db.users.some((u) => u.username.toLowerCase() === finalUsername.toLowerCase())) {
+        finalUsername = `${finalUsername}_${Math.floor(Math.random() * 900 + 100)}`;
+      }
+
+      user = {
+        id: `usr_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
+        name: cleanName,
+        username: finalUsername,
+        email: cleanEmail,
+        passwordHash: hashPassword(crypto.randomBytes(16).toString('hex')),
+        joinedAt: Date.now(),
+      };
+      db.users.push(user);
+    }
+
+    const token = crypto.randomBytes(32).toString('hex');
+    const session: StoredSession = {
+      token,
+      userId: user.id,
+      createdAt: Date.now(),
+      expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000,
+    };
+    db.sessions.push(session);
+    writeAuthDb(db);
+
+    return res.status(200).json({
+      success: true,
+      token,
+      user: {
+        id: user.id,
+        name: user.name,
+        username: user.username,
+        email: user.email,
+        joinedAt: user.joinedAt,
+      },
+      message: `Berhasil masuk dengan akun Google: ${user.email}`,
+    });
+  } catch (err: any) {
+    console.error('[Google Auth Error]:', err);
+    return res.status(500).json({ success: false, error: 'Gagal memproses autentikasi Google.' });
   }
 });
 

@@ -129,4 +129,65 @@ export const authApi = {
       console.warn('[authApi.logout] Silent error during logout:', err);
     }
   },
+
+  async sendVerificationCode(
+    email: string,
+    name?: string
+  ): Promise<{ success: boolean; message?: string; error?: string; code?: string; expiresAt?: number }> {
+    try {
+      const res = await fetch('/api/auth/send-verification-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, name }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        return { success: false, error: data.error || 'Gagal mengirim kode verifikasi.' };
+      }
+      return data;
+    } catch {
+      return { success: false, error: 'Tidak dapat terhubung ke server verifikasi.' };
+    }
+  },
+
+  async verifyCode(
+    email: string,
+    code: string,
+    name?: string
+  ): Promise<AuthResponse> {
+    try {
+      const res = await fetch('/api/auth/verify-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, code, name }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        return { success: false, error: data.error || 'Kode verifikasi tidak valid.' };
+      }
+      return data;
+    } catch {
+      return { success: false, error: 'Tidak dapat memverifikasi kode dengan server.' };
+    }
+  },
+
+  async googleLogin(
+    email: string,
+    name?: string
+  ): Promise<AuthResponse> {
+    try {
+      const res = await fetch('/api/auth/google-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, name }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        return { success: false, error: data.error || 'Gagal masuk dengan Google.' };
+      }
+      return data;
+    } catch {
+      return { success: false, error: 'Tidak dapat menghubungkan ke Google auth.' };
+    }
+  },
 };

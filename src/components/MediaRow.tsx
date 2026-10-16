@@ -33,67 +33,68 @@ export const MediaRow: React.FC<MediaRowProps> = ({
 
   if (!items || items.length === 0) return null;
 
+  const uniqueItems = items.filter((item, index, self) =>
+    index === self.findIndex((t) => t.id === item.id && t.type === item.type)
+  );
+
   return (
-    <section className="relative space-y-3.5 my-6 sm:my-8 group/row">
-      {/* Row Header */}
+    <section className="relative space-y-4 my-7 sm:my-9 group/row">
+      {/* Row Header - Apple SF Pro Typography */}
       <div className="flex items-end justify-between px-4 sm:px-6 md:px-8">
-        <div className="space-y-0.5">
-          <div className="flex items-center gap-2">
-            {icon && <span className="text-zinc-300">{icon}</span>}
-            <h2 className="text-base sm:text-lg md:text-xl font-semibold text-white tracking-tight">
-              {title}
-            </h2>
-          </div>
+        <div className="space-y-1">
+          <h2 className="text-base sm:text-lg md:text-xl font-bold text-white tracking-tight">
+            {title}
+          </h2>
           {subtitle && (
-            <p className="text-xs text-zinc-400">{subtitle}</p>
+            <p className="text-xs text-white/50">{subtitle}</p>
           )}
         </div>
 
         {viewAllLink && (
           <Link
             to={viewAllLink}
-            className="text-xs font-medium text-zinc-400 hover:text-white hover:underline flex items-center gap-1 transition-colors py-1 focus:outline-none rounded"
+            className="text-xs font-medium text-white/70 hover:text-white flex items-center gap-1 transition-all py-1 px-3 rounded-full bg-white/[0.04] hover:bg-white/[0.1] border border-white/10 ios-spring"
           >
-            Lihat semua
+            <span>Lihat semua</span>
             <ChevronRight className="w-3.5 h-3.5" />
           </Link>
         )}
       </div>
 
-      {/* Row Container with Scroll Buttons */}
+      {/* Row Container with Liquid Glass Scroll Buttons */}
       <div className="relative">
-        {/* Left Arrow Button */}
+        {/* Left Arrow Glass Button */}
         <button
           onClick={() => handleScroll('left')}
           aria-label={`Geser ${title} ke kiri`}
-          className="absolute left-1 sm:left-2 top-1/2 -translate-y-1/2 z-20 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#111319]/90 hover:bg-[#181A22] text-white border border-white/10 flex items-center justify-center opacity-0 group-hover/row:opacity-100 transition-opacity duration-200 backdrop-blur cursor-pointer hidden md:flex active:scale-95"
+          className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 z-30 w-10 h-10 rounded-full liquid-glass liquid-specular text-white flex items-center justify-center opacity-0 group-hover/row:opacity-100 transition-all duration-200 cursor-pointer hidden md:flex ios-spring shadow-xl"
         >
           <ChevronLeft className="w-5 h-5" />
         </button>
 
-        {/* Scrollable Track */}
+        {/* Scrollable Track with generous spacing and snap */}
         <div
           ref={scrollRef}
           tabIndex={0}
           aria-label={`Daftar tayangan ${title}`}
-          className="flex gap-3 sm:gap-4 overflow-x-auto px-4 sm:px-6 md:px-8 pb-3 pt-1 scroll-smooth snap-x snap-mandatory scrollbar-none focus:outline-none"
+          className="flex gap-4 sm:gap-5 overflow-x-auto px-4 sm:px-6 md:px-8 pb-4 pt-1 scroll-smooth snap-x snap-mandatory scrollbar-none focus:outline-none"
           style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
         >
-          {items.map((item) => (
+          {uniqueItems.map((item) => (
             <div
               key={`${item.type}-${item.id}`}
-              className="w-[130px] sm:w-[160px] md:w-[180px] shrink-0 snap-start"
+              className="w-[140px] sm:w-[170px] md:w-[190px] shrink-0 snap-start"
             >
               <MediaCard item={item} />
             </div>
           ))}
         </div>
 
-        {/* Right Arrow Button */}
+        {/* Right Arrow Glass Button */}
         <button
           onClick={() => handleScroll('right')}
           aria-label={`Geser ${title} ke kanan`}
-          className="absolute right-1 sm:right-2 top-1/2 -translate-y-1/2 z-20 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#111319]/90 hover:bg-[#181A22] text-white border border-white/10 flex items-center justify-center opacity-0 group-hover/row:opacity-100 transition-opacity duration-200 backdrop-blur cursor-pointer hidden md:flex active:scale-95"
+          className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 z-30 w-10 h-10 rounded-full liquid-glass liquid-specular text-white flex items-center justify-center opacity-0 group-hover/row:opacity-100 transition-all duration-200 cursor-pointer hidden md:flex ios-spring shadow-xl"
         >
           <ChevronRight className="w-5 h-5" />
         </button>

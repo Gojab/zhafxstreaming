@@ -474,6 +474,7 @@ export const api = {
     muted?: boolean;
     title?: string;
     poster?: string;
+    start?: number;
   }): string {
     const {
       type,

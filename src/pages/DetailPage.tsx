@@ -14,6 +14,7 @@ import {
   ChevronDown,
   CheckCircle2,
   Film,
+  Download,
 } from 'lucide-react';
 import { api } from '../services/api';
 import { Title, Episode, MediaType } from '../types';
@@ -21,6 +22,8 @@ import { DetailSkeleton } from '../components/Skeleton';
 import { MediaRow } from '../components/MediaRow';
 import { useMyList } from '../hooks/useMyList';
 import { useContinueWatching } from '../hooks/useContinueWatching';
+import { useOfflineDownloads } from '../hooks/useOfflineDownloads';
+import { useActiveMedia } from '../context/ActiveMediaContext';
 import { storage } from '../lib/storage';
 
 interface DetailPageProps {
@@ -40,6 +43,8 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
 
   // Synopsis expansion
   const [isOverviewExpanded, setIsOverviewExpanded] = useState(false);
+  const [posterError, setPosterError] = useState(false);
+  const [backdropError, setBackdropError] = useState(false);
 
   // Seasons & Episodes state for TV/Anime
   const [selectedSeason, setSelectedSeason] = useState<number>(1);
@@ -48,10 +53,33 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
 
   // Share feedback toast
   const [showShareToast, setShowShareToast] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
 
   const { isSaved, toggle } = useMyList();
   const { getProgressForTitle } = useContinueWatching();
+  const { isDownloaded, startDownload } = useOfflineDownloads();
+  const { setActiveMedia } = useActiveMedia();
   const history = storage.getHistory();
+
+  const isItemDownloaded = id ? isDownloaded(id) : false;
+
+  const handleDownloadOffline = async () => {
+    if (!title || isDownloading || isItemDownloaded) return;
+    setIsDownloading(true);
+    try {
+      await startDownload({
+        contentId: title.id,
+        mediaType: title.type,
+        title: title.title,
+        poster: title.poster,
+        backdrop: title.backdrop,
+        year: title.year,
+        overview: title.overview,
+      });
+    } finally {
+      setIsDownloading(false);
+    }
+  };
 
   const loadDetails = async (signal?: AbortSignal) => {
     if (!id) return;
@@ -60,6 +88,9 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
     try {
       const data = await api.getDetails(id, mediaType, signal);
       setTitle(data);
+      if (data.backdrop || data.poster) {
+        setActiveMedia(data.backdrop || data.poster, data.title);
+      }
       if (data.seasons && data.seasons.length > 0) {
         setSelectedSeason(data.seasons[0].number);
       }
@@ -169,68 +200,78 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
         </div>
       )}
 
-      {/* Hero Backdrop Banner */}
-      <div className="relative w-full h-[45vh] sm:h-[55vh] min-h-[320px] max-h-[560px] overflow-hidden bg-[#0A0C14]">
-        <img
-          src={title.backdrop || title.poster}
-          alt={title.title}
-          className="w-full h-full object-cover object-top opacity-50"
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-[#0A0C14] via-[#0A0C14]/70 to-transparent" />
-        <div className="absolute inset-0 bg-gradient-to-r from-[#0A0C14]/90 via-transparent to-[#0A0C14]/90" />
+      {/* Top Blurred Backdrop Atmos */}
+      <div className="relative w-full h-[50vh] sm:h-[60vh] min-h-[360px] max-h-[600px] overflow-hidden">
+        {!backdropError && (title.backdrop || title.poster) ? (
+          <img
+            src={title.backdrop || title.poster}
+            alt={title.title}
+            onError={() => setBackdropError(true)}
+            className="w-full h-full object-cover object-top opacity-60 filter blur-sm scale-105"
+          />
+        ) : (
+          <div className="w-full h-full bg-gradient-to-b from-[#181C2E] to-[#06070B]" />
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-[#06070B] via-[#06070B]/60 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-r from-[#06070B]/90 via-transparent to-[#06070B]/90" />
       </div>
 
-      {/* Main Metadata Container */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8 -mt-36 sm:-mt-44 relative z-10 flex flex-col md:flex-row gap-6 sm:gap-8 items-start">
-        {/* 2:3 Fixed Poster */}
-        <div className="w-44 sm:w-56 md:w-64 aspect-[2/3] shrink-0 rounded-2xl overflow-hidden bg-[#12162A] border-2 border-[#2A3152] shadow-2xl shadow-black/80 mx-auto md:mx-0">
-          <img
-            src={title.poster}
-            alt={title.title}
-            className="w-full h-full object-cover"
-          />
+      {/* Main Metadata Container - Apple iOS Liquid Glass Sheet */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8 -mt-40 sm:-mt-52 relative z-10 flex flex-col md:flex-row gap-6 sm:gap-8 items-start">
+        {/* Full-bleed 20px Poster (NOT glass) */}
+        <div className="w-48 sm:w-60 md:w-64 aspect-[2/3] shrink-0 rounded-[20px] overflow-hidden bg-[#0E1017] shadow-[0_20px_50px_rgba(0,0,0,0.85)] mx-auto md:mx-0 border border-white/10 flex items-center justify-center">
+          {!posterError && title.poster ? (
+            <img
+              src={title.poster}
+              alt={title.title}
+              onError={() => setPosterError(true)}
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <div className="w-full h-full flex flex-col items-center justify-center p-4 text-center bg-[#0E1017]">
+              <Film className="w-12 h-12 text-white/30 mb-2" />
+              <span className="text-sm font-semibold text-white/50">{title.title}</span>
+            </div>
+          )}
         </div>
 
-        {/* Info Column */}
-        <div className="flex-1 space-y-4 text-center md:text-left">
-          {/* Badges */}
-          <div className="flex items-center justify-center md:justify-start gap-2.5 flex-wrap">
-            <span className="px-2.5 py-0.5 rounded-md bg-[#12162A] border border-[#2A3152] text-zinc-300 text-xs font-semibold uppercase tracking-wider">
+        {/* Floating Liquid Glass Info Panel */}
+        <div className="flex-1 w-full rounded-[28px] sm:rounded-[36px] liquid-glass liquid-specular p-5 sm:p-8 shadow-2xl space-y-5 text-center md:text-left">
+          {/* Metadata Badges */}
+          <div className="flex items-center justify-center md:justify-start gap-2 flex-wrap">
+            <span className="px-3 py-1 rounded-full liquid-glass text-white/90 text-xs font-semibold uppercase tracking-wider">
               {typeLabel}
             </span>
             {title.rating && parseFloat(title.rating) > 0 && (
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-[#12162A] border border-[#2A3152] text-[#FFB224] text-xs font-semibold">
+              <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full liquid-glass text-amber-300 text-xs font-bold">
                 <Star className="w-3.5 h-3.5 fill-current" />
-                {title.rating}
+                <span>{title.rating}</span>
               </span>
             )}
-            <span className="inline-flex items-center gap-1 text-xs text-[#98A2C3]">
+            <span className="inline-flex items-center gap-1 text-xs text-white/70 px-2">
               <Calendar className="w-3.5 h-3.5" />
-              {title.year}
+              <span>{title.year}</span>
             </span>
             {title.runtime && (
-              <span className="inline-flex items-center gap-1 text-xs text-[#98A2C3]">
+              <span className="inline-flex items-center gap-1 text-xs text-white/70 px-2">
                 <Clock className="w-3.5 h-3.5" />
-                {title.runtime} mnt
+                <span>{title.runtime} mnt</span>
               </span>
             )}
           </div>
 
           {/* Title */}
-          <h1
-            style={{ fontFamily: 'var(--font-heading)' }}
-            className="text-2xl sm:text-3xl md:text-4xl font-bold text-[#F2F4FB] tracking-tight leading-tight"
-          >
+          <h1 className="text-2xl sm:text-4xl md:text-5xl font-bold text-white tracking-[-0.03em] leading-tight">
             {title.title}
           </h1>
 
-          {/* Genres */}
+          {/* Genre Chips */}
           {title.genres && title.genres.length > 0 && (
             <div className="flex items-center justify-center md:justify-start gap-1.5 flex-wrap">
               {title.genres.map((g, idx) => (
                 <span
                   key={idx}
-                  className="px-2.5 py-0.5 rounded-lg bg-[#12162A]/80 border border-[#2A3152]/70 text-[11px] text-[#98A2C3]"
+                  className="px-3 py-1 rounded-full bg-white/[0.06] border border-white/10 text-[11px] text-white/80 font-medium"
                 >
                   {g}
                 </span>
@@ -239,12 +280,12 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
           )}
 
           {/* Synopsis */}
-          <div className="space-y-1 max-w-2xl">
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-[#98A2C3]">
+          <div className="space-y-1.5 max-w-2xl">
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-white/50">
               Sinopsis
             </h2>
             <p
-              className={`text-xs sm:text-sm text-[#F2F4FB]/90 leading-relaxed ${
+              className={`text-xs sm:text-sm text-white/85 leading-relaxed ${
                 !isOverviewExpanded ? 'line-clamp-3' : ''
               }`}
             >
@@ -253,15 +294,15 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
             {title.overview && title.overview.length > 180 && (
               <button
                 onClick={() => setIsOverviewExpanded(!isOverviewExpanded)}
-                className="text-xs text-[#FFB224] hover:underline font-medium cursor-pointer pt-0.5"
+                className="text-xs text-[#FFB224] hover:underline font-semibold cursor-pointer pt-0.5 ios-spring"
               >
                 {isOverviewExpanded ? 'Sembunyikan' : 'Baca selengkapnya'}
               </button>
             )}
           </div>
 
-          {/* Action Buttons Row */}
-          <div className="flex items-center justify-center md:justify-start gap-3 pt-2 flex-wrap">
+          {/* Liquid Glass Action Pills */}
+          <div className="flex items-center justify-center md:justify-start gap-2.5 sm:gap-3 pt-2 flex-wrap">
             {/* Play Button (Dynamic Continue Watching or Start Fresh) */}
             {(() => {
               const activeProgress = getProgressForTitle(title.id);
@@ -288,11 +329,11 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
                   <>
                     <button
                       onClick={() => navigate(continueUrl)}
-                      className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#FFB224] hover:bg-[#ffbe47] text-[#0A0C14] font-semibold text-sm transition-all duration-150 active:scale-95 cursor-pointer min-h-[42px] shadow-lg"
+                      className="inline-flex items-center gap-2 px-6 sm:px-7 py-3 rounded-full bg-white text-[#06070B] font-bold text-sm shadow-[0_8px_25px_rgba(255,255,255,0.25)] ios-spring cursor-pointer min-h-[46px]"
                     >
-                      <Play className="w-4 h-4 fill-current" />
+                      <Play className="w-4 h-4 fill-current ml-0.5 text-[#06070B]" />
                       <span>
-                        Lanjutkan Menonton{' '}
+                        Lanjutkan{' '}
                         {activeProgress.episode
                           ? `(Ep ${activeProgress.episode} • ${formatSecs(activeProgress.currentTime)})`
                           : `(${formatSecs(activeProgress.currentTime)})`}
@@ -301,7 +342,7 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
 
                     <button
                       onClick={() => navigate(`/watch/${title.type}/${title.id}?t=0`)}
-                      className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-[#12162A] hover:bg-[#1A2038] border border-[#2A3152] text-xs font-medium text-[#98A2C3] hover:text-[#F2F4FB] transition-colors cursor-pointer min-h-[42px]"
+                      className="inline-flex items-center gap-1.5 px-4 py-3 rounded-full liquid-glass liquid-specular text-xs font-semibold text-white/80 hover:text-white transition-all cursor-pointer min-h-[46px] ios-spring"
                       title="Putar dari awal (0:00)"
                     >
                       <RotateCcw className="w-3.5 h-3.5" />
@@ -314,15 +355,15 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
               return (
                 <button
                   onClick={() => navigate(`/watch/${title.type}/${title.id}`)}
-                  className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-black font-semibold text-sm transition-all duration-150 active:scale-95 cursor-pointer min-h-[42px]"
+                  className="inline-flex items-center gap-2 px-7 py-3 rounded-full bg-white text-[#06070B] font-bold text-sm shadow-[0_8px_25px_rgba(255,255,255,0.25)] ios-spring cursor-pointer min-h-[46px]"
                 >
-                  <Play className="w-4 h-4 fill-current" />
-                  Putar sekarang
+                  <Play className="w-4 h-4 fill-current ml-0.5 text-[#06070B]" />
+                  <span>Putar sekarang</span>
                 </button>
               );
             })()}
 
-            {/* Add to My List */}
+            {/* Add to My List Pill */}
             <button
               onClick={() => {
                 toggle({
@@ -335,42 +376,68 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
                   rating: title.rating,
                 });
               }}
-              className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-medium transition-all duration-150 cursor-pointer min-h-[42px] ${
-                inWatchlist
-                  ? 'bg-[#12162A] border-amber-400 text-amber-400'
-                  : 'bg-[#12162A] hover:bg-[#1A2038] border-white/10 text-zinc-200'
+              className={`inline-flex items-center gap-2 px-5 py-3 rounded-full liquid-glass liquid-specular text-sm font-semibold transition-all cursor-pointer min-h-[46px] ios-spring ${
+                inWatchlist ? 'text-[#FFB224] bg-white/[0.16]' : 'text-white hover:bg-white/[0.14]'
               }`}
             >
               {inWatchlist ? (
                 <>
-                  <BookmarkCheck className="w-4 h-4 text-amber-400" />
-                  Tersimpan di daftar
+                  <BookmarkCheck className="w-4 h-4 text-[#FFB224]" />
+                  <span>Tersimpan</span>
                 </>
               ) : (
                 <>
                   <Bookmark className="w-4 h-4" />
-                  Tambah ke daftar
+                  <span>Daftar Saya</span>
                 </>
               )}
             </button>
 
-            {/* Share Button */}
+            {/* Download Offline Pill */}
+            <button
+              onClick={handleDownloadOffline}
+              disabled={isDownloading}
+              className={`inline-flex items-center gap-2 px-5 py-3 rounded-full liquid-glass liquid-specular text-sm font-semibold transition-all cursor-pointer min-h-[46px] ios-spring ${
+                isItemDownloaded
+                  ? 'text-emerald-400 bg-white/[0.16] border-emerald-400/30'
+                  : 'text-white hover:bg-white/[0.14]'
+              }`}
+            >
+              {isDownloading ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white/20 border-t-[#FFB224] rounded-full animate-spin" />
+                  <span>Mengunduh...</span>
+                </>
+              ) : isItemDownloaded ? (
+                <>
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                  <span>Tersimpan Offline</span>
+                </>
+              ) : (
+                <>
+                  <Download className="w-4 h-4 text-[#FFB224]" />
+                  <span>Download Offline</span>
+                </>
+              )}
+            </button>
+
+            {/* Share Pill */}
             <button
               onClick={handleShare}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#12162A] hover:bg-[#1A2038] border border-white/10 text-zinc-200 text-sm font-medium transition-colors cursor-pointer min-h-[42px]"
+              className="inline-flex items-center gap-1.5 px-4 py-3 rounded-full liquid-glass liquid-specular text-white/80 hover:text-white text-sm font-medium transition-all cursor-pointer min-h-[46px] ios-spring"
               title="Bagikan tautan film"
             >
               <Share2 className="w-4 h-4" />
-              Bagikan
+              <span className="hidden sm:inline">Bagikan</span>
             </button>
 
-            {/* Tanya AI Button for this title */}
+            {/* Tanya AI Pill */}
             <button
               onClick={() => onOpenAIWithContext(title)}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-zinc-200 text-sm font-medium transition-all cursor-pointer min-h-[42px]"
+              className="inline-flex items-center gap-2 px-4 py-3 rounded-full liquid-glass liquid-specular text-white/80 hover:text-white text-sm font-medium transition-all cursor-pointer min-h-[46px] ios-spring"
             >
-              <Sparkles className="w-4 h-4 text-zinc-300" />
-              Tanya AI tentang judul ini
+              <Sparkles className="w-4 h-4 text-[#FFB224]" />
+              <span className="hidden sm:inline">Tanya AI</span>
             </button>
           </div>
         </div>
@@ -378,28 +445,29 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
 
       {/* For TV Series & Anime: Season & Episode Selector */}
       {mediaType === 'tv' && title.seasons && title.seasons.length > 0 && (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8 space-y-4 pt-4 border-t border-white/[0.08]">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8 space-y-4 pt-2">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <h2 className="text-lg font-bold text-[#F2F4FB]">Pilih Musim & Episode</h2>
-              <p className="text-xs text-[#98A2C3]">Pilih episode yang ingin langsung kamu tonton</p>
+              <h2 className="text-lg sm:text-xl font-bold text-white tracking-tight">Pilih Musim & Episode</h2>
+              <p className="text-xs text-white/50">Pilih episode yang ingin langsung kamu tonton</p>
             </div>
 
-            {/* Season Dropdown */}
+            {/* Season Pill Buttons */}
             {title.seasons.length > 1 && (
-              <div className="relative inline-block">
-                <select
-                  value={selectedSeason}
-                  onChange={(e) => setSelectedSeason(Number(e.target.value))}
-                  className="appearance-none px-4 py-2 pr-9 rounded-xl bg-[#12162A] border border-[#2A3152] text-xs font-semibold text-[#F2F4FB] focus:outline-none focus:border-[#FFB224] cursor-pointer"
-                >
-                  {title.seasons.map((s) => (
-                    <option key={s.number} value={s.number} className="bg-[#12162A] text-white">
-                      {s.name || `Musim ${s.number}`}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="w-4 h-4 text-[#98A2C3] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+                {title.seasons.map((s) => (
+                  <button
+                    key={s.number}
+                    onClick={() => setSelectedSeason(s.number)}
+                    className={`px-4 py-2 rounded-full text-xs font-semibold whitespace-nowrap transition-all ios-spring cursor-pointer ${
+                      selectedSeason === s.number
+                        ? 'bg-white text-[#06070B] shadow-sm'
+                        : 'liquid-glass text-white/70 hover:text-white'
+                    }`}
+                  >
+                    {s.name || `Musim ${s.number}`}
+                  </button>
+                ))}
               </div>
             )}
           </div>
@@ -408,7 +476,7 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
           {isLoadingEpisodes ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
               {Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="h-16 rounded-xl bg-[#12162A] animate-pulse" />
+                <div key={i} className="h-16 rounded-[20px] bg-white/[0.04] animate-pulse" />
               ))}
             </div>
           ) : episodes.length > 0 ? (
@@ -425,14 +493,14 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
                     onClick={() =>
                       navigate(`/watch/tv/${title.id}/${selectedSeason}/${ep.number}${epStart}`)
                     }
-                    className="flex items-center gap-3 p-3 rounded-xl bg-[#12162A] hover:bg-[#1A2038] border border-white/[0.08] hover:border-white/20 text-left transition-all active:scale-[0.98] cursor-pointer group relative overflow-hidden"
+                    className="flex items-center gap-3 p-3.5 rounded-[20px] bg-white/[0.04] hover:bg-white/[0.09] border border-white/10 text-left transition-all active:scale-[0.97] cursor-pointer group relative overflow-hidden ios-spring"
                   >
-                    <div className="w-10 h-10 rounded-lg bg-[#0A0C14] border border-white/[0.08] flex items-center justify-center font-bold text-xs text-zinc-300 shrink-0 group-hover:bg-[#FFB224] group-hover:text-[#0A0C14] transition-colors">
+                    <div className="w-10 h-10 rounded-full bg-white/[0.08] border border-white/10 flex items-center justify-center font-bold text-xs text-white/80 shrink-0 group-hover:bg-[#FFB224] group-hover:text-[#06070B] transition-colors">
                       {ep.number}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-1">
-                        <span className="text-xs font-medium text-[#F2F4FB] line-clamp-1 group-hover:text-white">
+                        <span className="text-xs font-semibold text-white/95 line-clamp-1 group-hover:text-white">
                           {ep.name || `Episode ${ep.number}`}
                         </span>
                         {watched && (
@@ -444,10 +512,10 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
                           </span>
                         )}
                       </div>
-                      <div className="flex items-center justify-between text-[10px] text-[#98A2C3] mt-0.5">
+                      <div className="flex items-center justify-between text-[11px] text-white/50 mt-0.5">
                         <span>Musim {selectedSeason} • Ep {ep.number}</span>
                         {hasProgress && (
-                          <span className="text-[#FFB224] font-medium">
+                          <span className="text-[#FFB224] font-semibold">
                             {epProgress.progressPercentage}%
                           </span>
                         )}
@@ -456,7 +524,7 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
 
                     {/* Progress Bar under episode card if in progress */}
                     {hasProgress && (
-                      <div className="absolute bottom-0 left-0 right-0 h-1 bg-[#1A2038]">
+                      <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/10">
                         <div
                           className="h-full bg-[#FFB224]"
                           style={{ width: `${epProgress.progressPercentage}%` }}
@@ -468,11 +536,11 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
               })}
             </div>
           ) : (
-            <div className="p-6 rounded-xl bg-[#12162A]/50 border border-white/[0.08] text-center text-xs text-[#98A2C3]">
+            <div className="p-6 rounded-[24px] liquid-glass text-center text-xs text-white/60">
               Memuat daftar episode langsung di pemutar...
               <button
                 onClick={() => navigate(`/watch/tv/${title.id}/${selectedSeason}/1`)}
-                className="mt-2 block mx-auto text-amber-400 font-semibold hover:underline"
+                className="mt-2 block mx-auto text-[#FFB224] font-semibold hover:underline cursor-pointer"
               >
                 Putar episode 1 sekarang
               </button>
@@ -481,12 +549,12 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
         </div>
       )}
 
-      {/* For Anime: Quick Episode Numbers */}
+      {/* For Anime: Quick Episode Numbers with Liquid Glass */}
       {mediaType === 'anime' && (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8 space-y-4 pt-4 border-t border-white/[0.08]">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8 space-y-4 pt-2">
           <div>
-            <h2 className="text-lg font-bold text-[#F2F4FB]">Pilih Episode Anime</h2>
-            <p className="text-xs text-[#98A2C3]">Pilih nomor episode untuk mulai menonton</p>
+            <h2 className="text-lg sm:text-xl font-bold text-white tracking-tight">Pilih Episode Anime</h2>
+            <p className="text-xs text-white/50">Pilih nomor episode untuk mulai menonton</p>
           </div>
           <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-10 lg:grid-cols-12 gap-2">
             {Array.from({ length: Math.min(title.numberOfEpisodes || 24, 48) }, (_, i) => i + 1).map((epNum) => {
@@ -499,18 +567,18 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
                 <button
                   key={epNum}
                   onClick={() => navigate(`/watch/anime/${title.id}/1/${epNum}${epStart}`)}
-                  className={`p-2.5 rounded-xl border text-xs font-semibold flex flex-col items-center justify-center gap-1 transition-all cursor-pointer relative overflow-hidden ${
+                  className={`p-3 rounded-[16px] text-xs font-semibold flex flex-col items-center justify-center gap-1 transition-all cursor-pointer relative overflow-hidden ios-spring ${
                     hasProgress
-                      ? 'bg-[#1A2038] border-[#FFB224]/50 text-[#FFB224]'
+                      ? 'bg-white/[0.14] border border-[#FFB224]/50 text-[#FFB224]'
                       : watched
-                      ? 'bg-white/10 border-white/30 text-white'
-                      : 'bg-[#12162A] hover:bg-[#1A2038] border-white/[0.08] hover:border-white/20 text-[#F2F4FB]'
+                      ? 'bg-white/10 border border-white/20 text-white'
+                      : 'bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 text-white/90'
                   }`}
                 >
                   <span>Ep {epNum}</span>
                   {watched && <CheckCircle2 className="w-3 h-3 text-emerald-400" />}
                   {hasProgress && !watched && (
-                    <div className="absolute bottom-0 left-0 right-0 h-1 bg-[#0A0C14]">
+                    <div className="absolute bottom-0 left-0 right-0 h-1 bg-black/40">
                       <div
                         className="h-full bg-[#FFB224]"
                         style={{ width: `${epProgress.progressPercentage}%` }}

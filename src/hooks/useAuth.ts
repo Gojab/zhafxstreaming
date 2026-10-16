@@ -98,6 +98,38 @@ export function useAuth() {
     }
   };
 
+  const loginWithGoogle = async (email: string, name?: string): Promise<AuthResponse> => {
+    setIsLoadingAuth(true);
+    try {
+      const res = await authApi.googleLogin(email, name);
+      if (res.success && res.token && res.user) {
+        storage.saveToken(res.token);
+        storage.saveUser(res.user);
+        setUser(res.user);
+        window.dispatchEvent(new CustomEvent('zhafx_progress_updated'));
+      }
+      return res;
+    } finally {
+      setIsLoadingAuth(false);
+    }
+  };
+
+  const loginWithOtpCode = async (email: string, code: string, name?: string): Promise<AuthResponse> => {
+    setIsLoadingAuth(true);
+    try {
+      const res = await authApi.verifyCode(email, code, name);
+      if (res.success && res.token && res.user) {
+        storage.saveToken(res.token);
+        storage.saveUser(res.user);
+        setUser(res.user);
+        window.dispatchEvent(new CustomEvent('zhafx_progress_updated'));
+      }
+      return res;
+    } finally {
+      setIsLoadingAuth(false);
+    }
+  };
+
   const logout = async (): Promise<void> => {
     const token = storage.getToken();
     storage.removeToken();
@@ -115,6 +147,8 @@ export function useAuth() {
     isLoadingAuth,
     loginWithCredentials,
     registerWithCredentials,
+    loginWithGoogle,
+    loginWithOtpCode,
     logout,
     refreshUser,
   };

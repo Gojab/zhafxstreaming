@@ -9,17 +9,9 @@ import { useWatchHistory } from '../hooks/useWatchHistory';
 import { useContinueWatching } from '../hooks/useContinueWatching';
 import { useMyList } from '../hooks/useMyList';
 import {
-  TrendingUp,
-  Film,
-  Tv,
-  Sparkles,
-  Bookmark,
   RotateCcw,
   AlertTriangle,
-  PlayCircle,
-  Flame,
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
 
 export const HomePage: React.FC = () => {
   const [data, setData] = useState<{
@@ -143,7 +135,9 @@ export const HomePage: React.FC = () => {
   // 4. Success State
   const heroItems = [
     ...(data.hero ? [data.hero] : []),
-    ...data.trending.slice(0, 5),
+    ...data.trending
+      .filter((t) => !data.hero || `${t.type}-${t.id}` !== `${data.hero.type}-${data.hero.id}`)
+      .slice(0, 5),
   ];
 
   return (
@@ -163,7 +157,6 @@ export const HomePage: React.FC = () => {
         title="Trending sekarang"
         subtitle="Tayangan yang paling banyak ditonton minggu ini"
         items={data.trending}
-        icon={<Flame className="w-5 h-5 text-[#FFB224]" />}
         viewAllLink="/explore/movie?sort=popularity.desc"
       />
 
@@ -172,7 +165,6 @@ export const HomePage: React.FC = () => {
         title="Film populer"
         subtitle="Film layar lebar pilihan terbaik"
         items={data.popularMovies}
-        icon={<Film className="w-5 h-5 text-[#FFB224]" />}
         viewAllLink="/explore/movie"
       />
 
@@ -181,7 +173,6 @@ export const HomePage: React.FC = () => {
         title="Serial TV terpopuler"
         subtitle="Musim lengkap dan episode terbaru"
         items={data.popularTv}
-        icon={<Tv className="w-5 h-5 text-[#FFB224]" />}
         viewAllLink="/explore/tv"
       />
 
@@ -190,7 +181,6 @@ export const HomePage: React.FC = () => {
         title="Anime populer"
         subtitle="Serial animasi Jepang paling dinikmati"
         items={data.popularAnime}
-        icon={<Sparkles className="w-5 h-5 text-zinc-300" />}
         viewAllLink="/explore/anime"
       />
 
@@ -200,7 +190,6 @@ export const HomePage: React.FC = () => {
           title="Daftar saya"
           subtitle="Tayangan yang sudah kamu simpan"
           items={myListTitles}
-          icon={<Bookmark className="w-5 h-5 text-[#FFB224]" />}
           viewAllLink="/my-list"
         />
       )}

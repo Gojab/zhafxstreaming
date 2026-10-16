@@ -14,47 +14,43 @@ export const MyListPage: React.FC = () => {
   );
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8 py-8 space-y-6 min-h-[70vh]">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8 pt-20 sm:pt-24 pb-16 space-y-7 min-h-[75vh]">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 border-b border-[#2A3152]/70 pb-6">
-        <div>
-          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#FFB224] mb-1">
-            <Bookmark className="w-4 h-4 fill-current" />
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-5 border-b border-white/[0.08] pb-6">
+        <div className="space-y-1">
+          <div className="text-xs font-semibold uppercase tracking-wider text-[#FFB224]">
             <span>Koleksi Favorit</span>
           </div>
-          <h1
-            style={{ fontFamily: 'var(--font-heading)' }}
-            className="text-2xl sm:text-3xl font-bold text-[#F2F4FB] tracking-tight"
-          >
+          <h1 className="text-2xl sm:text-4xl font-bold text-white tracking-[-0.03em]">
             Daftar Saya
           </h1>
-          <p className="text-xs sm:text-sm text-[#98A2C3] mt-1">
-            Kumpulan film, serial, dan anime yang Anda simpan untuk ditonton nanti.
+          <p className="text-xs sm:text-sm text-white/55 max-w-xl leading-relaxed">
+            Kumpulan film, serial TV, dan anime yang Anda simpan untuk ditonton nanti.
           </p>
         </div>
 
         {myList.length > 0 && (
           <button
             onClick={clear}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#12162A] hover:bg-[#FF5C6C]/10 border border-[#2A3152] hover:border-[#FF5C6C]/50 text-xs font-medium text-[#98A2C3] hover:text-[#FF5C6C] transition-colors cursor-pointer shrink-0"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full liquid-glass liquid-specular text-xs font-semibold text-white/80 hover:text-red-400 hover:bg-white/[0.14] transition-all cursor-pointer shrink-0 self-start sm:self-auto ios-spring"
           >
-            <Trash2 className="w-4 h-4" />
-            Kosongkan daftar
+            <Trash2 className="w-3.5 h-3.5" />
+            <span>Kosongkan Daftar</span>
           </button>
         )}
       </div>
 
-      {/* Filter Tabs */}
+      {/* Apple iOS 26 Liquid Glass Filter Tabs (Segmented Control) */}
       {myList.length > 0 && (
-        <div className="inline-flex p-1 rounded-xl bg-[#12162A] border border-[#2A3152]">
+        <div className="inline-flex p-1 rounded-full liquid-glass liquid-specular shadow-lg">
           {(['all', 'movie', 'tv', 'anime'] as const).map((t) => (
             <button
               key={t}
               onClick={() => setFilterType(t)}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+              className={`px-4 py-2 rounded-full text-xs font-semibold transition-all ios-spring cursor-pointer ${
                 filterType === t
-                  ? 'bg-[#FFB224] text-[#0A0C14] font-semibold shadow'
-                  : 'text-[#98A2C3] hover:text-[#F2F4FB]'
+                  ? 'bg-white text-[#06070B] shadow-sm'
+                  : 'text-white/70 hover:text-white hover:bg-white/[0.08]'
               }`}
             >
               {t === 'all'
@@ -72,23 +68,23 @@ export const MyListPage: React.FC = () => {
       {/* Items Grid */}
       {filteredItems.length === 0 ? (
         <div className="min-h-[45vh] flex flex-col items-center justify-center p-6 text-center space-y-3">
-          <div className="w-14 h-14 rounded-2xl bg-[#12162A] border border-[#2A3152] flex items-center justify-center text-[#98A2C3]">
-            <Bookmark className="w-7 h-7" />
+          <div className="w-16 h-16 rounded-full liquid-glass liquid-specular flex items-center justify-center text-white/60 shadow-xl">
+            <Bookmark className="w-7 h-7 text-[#FFB224]" />
           </div>
-          <h2 className="text-base font-bold text-[#F2F4FB]">
+          <h2 className="text-base font-bold text-white">
             {myList.length === 0
               ? 'Daftar Anda Masih Kosong'
               : 'Tidak Ada Tayangan dalam Kategori Ini'}
           </h2>
-          <p className="text-xs text-[#98A2C3] max-w-sm leading-relaxed">
-            Klik tombol "Tambah ke daftar" pada halaman detail tayangan untuk menyimpannya di sini.
+          <p className="text-xs text-white/55 max-w-sm leading-relaxed">
+            Klik tombol simpan pada halaman detail atau kartu tayangan untuk menambahkannya ke daftar favorit Anda.
           </p>
           <Link
             to="/explore/movie"
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#FFB224] text-[#0A0C14] font-semibold text-xs transition-all shadow cursor-pointer mt-2"
+            className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full bg-white text-[#06070B] font-bold text-xs shadow-lg transition-all cursor-pointer mt-2 ios-spring"
           >
             <Compass className="w-4 h-4" />
-            Jelajahi tayangan sekarang
+            <span>Jelajahi Tayangan Sekarang</span>
           </Link>
         </div>
       ) : (
@@ -113,7 +109,7 @@ export const MyListPage: React.FC = () => {
                   onClick={() => remove(item.id)}
                   title="Hapus dari daftar"
                   aria-label={`Hapus ${item.title} dari daftar saya`}
-                  className="absolute top-2 right-2 z-10 w-7 h-7 rounded-lg bg-[#0A0C14]/90 hover:bg-[#FF5C6C] text-[#98A2C3] hover:text-white border border-[#2A3152] flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 cursor-pointer shadow-lg backdrop-blur"
+                  className="absolute top-2.5 right-2.5 z-30 w-8 h-8 rounded-full liquid-glass liquid-specular hover:bg-white/20 text-white/80 hover:text-red-400 flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 cursor-pointer shadow-lg ios-spring"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
