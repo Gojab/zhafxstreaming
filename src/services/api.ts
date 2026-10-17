@@ -869,16 +869,14 @@ export const api = {
   async getProviders(signal?: AbortSignal, type?: MediaType): Promise<Provider[]> {
     if (type === 'anime') {
       try {
-        const url = `${CONFIG.API_ANIME_BASE_URL}${CONFIG.ENDPOINTS.PROVIDERS}`;
-        const data = await fetchWithRetry<any>(url, { signal, ttlMs: 15 * 60 * 1000 });
+        const data = await fetchWithRetry<any>('/api/anime/providers', { signal, ttlMs: 15 * 60 * 1000 });
         if (data && Array.isArray(data.providers) && data.providers.length > 0) {
           return [
-            { id: 'auto', name: 'FrameX Otomatis (Rekomendasi)', tagline: 'Server Cepat & Multi-Sub' },
-            { id: 'direct_stream', name: '⚡ Pemutar Langsung (Direct Stream HLS)', tagline: 'Bypass Iframe • Multi Subtitle Indo' },
+            { id: 'auto', name: '⚡ Server Otomatis (Rekomendasi Cepat)', tagline: 'Auto-Select Server Terbaik' },
             ...data.providers.map((p: any) => ({
               id: p.id,
-              name: `FrameX - ${p.name || p.id}`,
-              tagline: p.tagline || (p.audio === 'dub' ? 'Audio English Dub' : 'Server Cepat 1080p Softsub'),
+              name: p.name || p.id,
+              tagline: p.tagline || (p.audio === 'dub' ? 'Audio English Dub' : 'Server Cepat 1080p Multi-Sub'),
               category: p.category || 'anime',
               status: p.status,
             })),
@@ -890,16 +888,16 @@ export const api = {
 
       // Official FrameX Anime Servers
       return [
-        { id: 'auto', name: 'FrameX Otomatis (Rekomendasi)', tagline: 'Server Cepat & Multi-Sub' },
-        { id: 'direct_stream', name: '⚡ Pemutar Langsung (Direct Stream HLS)', tagline: 'Bypass Iframe • Multi Subtitle Indo' },
-        { id: 'grand_warden', name: 'FrameX - Grand Warden XI', tagline: '1080p Ultra Fast Cloud' },
-        { id: 'grand_warden_dub', name: 'FrameX - Grand Warden XI (Dub)', tagline: 'Multi-Source Cloud Dub' },
-        { id: 'wizard', name: 'FrameX - Wizard I', tagline: 'Dual Audio & Softsub' },
-        { id: 'wizard_dub', name: 'FrameX - Wizard I (Dub)', tagline: 'Dual Audio English Dub' },
-        { id: 'valkyrie', name: 'FrameX - Valkyrie II', tagline: 'FlixCloud HD' },
-        { id: 'archer', name: 'FrameX - Archer IV', tagline: 'Multi-Audio' },
-        { id: 'goblin', name: 'FrameX - Goblin V', tagline: 'Direct Fast Auto Stream' },
-        { id: 'dragon', name: 'FrameX - Dragon VIII', tagline: 'VidNest Multi-Source' },
+        { id: 'auto', name: '⚡ Server Otomatis (Rekomendasi Cepat)', tagline: 'Auto-Select Server Terbaik' },
+        { id: 'grand_warden', name: 'Grand Warden XI', tagline: '1080p Ultra Fast Multi-Source Cloud' },
+        { id: 'grand_warden_dub', name: 'Grand Warden XI (Dub)', tagline: 'Multi-Source Cloud Dub' },
+        { id: 'wizard', name: 'Wizard I', tagline: 'Dual Audio & Softsub' },
+        { id: 'wizard_dub', name: 'Wizard I (Dub)', tagline: 'Dual Audio English Dub' },
+        { id: 'valkyrie', name: 'Valkyrie II', tagline: 'FlixCloud HD' },
+        { id: 'valkyrie_dub', name: 'Valkyrie II (Dub)', tagline: 'FlixCloud HD Dub' },
+        { id: 'super_pekka', name: 'Super PEKKA X', tagline: 'Direct Fast CDN' },
+        { id: 'dragon', name: 'Dragon VIII', tagline: 'VidNest Multi-Source' },
+        { id: 'archer', name: 'Archer IV', tagline: 'Multi-Audio' },
       ];
     }
 
@@ -940,38 +938,17 @@ export const api = {
       q.set('audio', audio);
     }
 
-    const streamUrl = `${CONFIG.API_ANIME_BASE_URL}/api/stream?${q.toString()}`;
+    const streamUrl = `/api/anime/stream?${q.toString()}`;
     try {
-      const data = await fetchWithRetry<any>(streamUrl, { signal, ttlMs: 10 * 60 * 1000, useProxyFallback: true });
+      const data = await fetchWithRetry<any>(streamUrl, { signal, ttlMs: 10 * 60 * 1000, useProxyFallback: false });
       if (data && data.success && Array.isArray(data.sources) && data.sources.length > 0) {
-        // Normalize any relative proxy urls to absolute FrameX tech urls
-        const sources = data.sources.map((s: any) => ({
-          ...s,
-          url: s.url?.startsWith('/anime')
-            ? `https://api.framextv.tech${s.url}`
-            : s.url?.startsWith('/')
-            ? `https://api.framextv.tech/anime${s.url}`
-            : s.url,
-        }));
-
-        let subtitles = Array.isArray(data.subtitles)
-          ? data.subtitles.map((sub: any) => ({
-              ...sub,
-              url: sub.url?.startsWith('/anime')
-                ? `https://api.framextv.tech${sub.url}`
-                : sub.url?.startsWith('/')
-                ? `https://api.framextv.tech/anime${sub.url}`
-                : sub.url,
-            }))
-          : undefined;
-
         return {
           success: true,
           provider: data.provider || 'grand_warden',
           server: data.server,
           audio: data.audio || 'sub',
-          sources,
-          subtitles,
+          sources: data.sources,
+          subtitles: data.subtitles,
         };
       }
       return null;

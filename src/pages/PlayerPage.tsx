@@ -7,19 +7,28 @@ import {
   ChevronRight,
   Server,
   RotateCw,
+  RotateCcw,
   Maximize,
   Minimize,
   ListOrdered,
   CheckCircle2,
   X,
   Tv,
-  Sparkles,
   Volume2,
+  VolumeX,
+  Volume1,
   Play,
+  Pause,
   AlertTriangle,
+  Subtitles,
+  Settings,
+  SkipForward,
+  FastForward,
+  Gauge,
+  Sparkles,
 } from 'lucide-react';
 import { api } from '../services/api';
-import { Title, Provider, MediaType, Episode, StreamData } from '../types';
+import { Title, Provider, MediaType, Episode, StreamData, SubtitleTrack } from '../types';
 import { storage } from '../lib/storage';
 
 export const PlayerPage: React.FC = () => {
@@ -44,46 +53,51 @@ export const PlayerPage: React.FC = () => {
   const [selectedServer, setSelectedServer] = useState<string>('auto');
   const [animeAudio, setAnimeAudio] = useState<'sub' | 'dub'>('sub');
 
-  // Direct streaming vs Embed player mode for anime
-  const [animePlayerMode, setAnimePlayerMode] = useState<'direct' | 'embed'>('direct');
-  const [directStream, setDirectStream] = useState<StreamData | null>(null);
-  const [isLoadingDirect, setIsLoadingDirect] = useState(false);
-  const [directStreamError, setDirectStreamError] = useState<string | null>(null);
+  // Anime Native Stream State (NO EMBED)
+  const [animeStream, setAnimeStream] = useState<StreamData | null>(null);
+  const [isLoadingAnime, setIsLoadingAnime] = useState(false);
+  const [animeError, setAnimeError] = useState<string | null>(null);
 
-  // Episodes list with thumbnails for series drawer
-  const [drawerEpisodes, setDrawerEpisodes] = useState<Episode[]>([]);
-
-  const [isIframeLoading, setIsIframeLoading] = useState(true);
-  const [loadTimeout, setLoadTimeout] = useState(false);
+  // Video playback controls state
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [bufferedTime, setBufferedTime] = useState(0);
+  const [volume, setVolume] = useState(() => {
+    const saved = localStorage.getItem('zhafx_player_volume');
+    return saved !== null ? parseFloat(saved) : 1;
+  });
+  const [isMuted, setIsMuted] = useState(false);
+  const [playbackRate, setPlaybackRate] = useState(1);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showControls, setShowControls] = useState(true);
+
+  // Quality & Subtitle menus
+  const [qualities, setQualities] = useState<Array<{ id: number; label: string; height: number }>>([]);
+  const [currentQuality, setCurrentQuality] = useState<number>(-1); // -1 = auto
+  const [subtitles, setSubtitles] = useState<SubtitleTrack[]>([]);
+  const [activeSubtitleUrl, setActiveSubtitleUrl] = useState<string | null>(null);
+  const [isSubtitleMenuOpen, setIsSubtitleMenuOpen] = useState(false);
+  const [isQualityMenuOpen, setIsQualityMenuOpen] = useState(false);
+  const [isSpeedMenuOpen, setIsSpeedMenuOpen] = useState(false);
+
+  // Episode Drawer & Auto Next
+  const [drawerEpisodes, setDrawerEpisodes] = useState<Episode[]>([]);
   const [isEpisodeDrawerOpen, setIsEpisodeDrawerOpen] = useState(false);
   const [drawerTab, setDrawerTab] = useState<'thumbnails' | 'grid'>('thumbnails');
+  const [nextEpisodeCountdown, setNextEpisodeCountdown] = useState<number | null>(null);
+
+  // Iframe state for Movies / TV only
+  const [isIframeLoading, setIsIframeLoading] = useState(true);
   const [iframeKey, setIframeKey] = useState(0);
 
   const playerContainerRef = useRef<HTMLDivElement | null>(null);
-  const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
+  const controlsTimeoutRef = useRef<any>(null);
+  const progressBarRef = useRef<HTMLDivElement | null>(null);
 
-  useEffect(() => {
-    setIsIframeLoading(true);
-    setLoadTimeout(false);
-    const timer = setTimeout(() => {
-      setLoadTimeout(true);
-    }, 12000);
-    return () => clearTimeout(timer);
-  }, [id, mediaType, seasonNum, episodeNum, selectedServer, animeAudio, iframeKey]);
-
-  // Track Fullscreen changes
-  useEffect(() => {
-    const handleFsChange = () => {
-      setIsFullscreen(!!document.fullscreenElement);
-    };
-    document.addEventListener('fullscreenchange', handleFsChange);
-    return () => document.removeEventListener('fullscreenchange', handleFsChange);
-  }, []);
-
-  // Save history helper
+  // Save history
   const recordHistory = useCallback(
     (t: Title) => {
       if (!id) return;
@@ -107,7 +121,38 @@ export const PlayerPage: React.FC = () => {
     [id, mediaType, seasonNum, episodeNum]
   );
 
-  // Load details and providers
+  // Save watch progress
+  const saveProgress = useCallback(
+    (cTime: number, totalDur: number) => {
+      if (!id || !title || totalDur <= 0) return;
+      const progressPercent = Math.min(100, Math.round((cTime / totalDur) * 100));
+      const isCompleted = progressPercent >= 95;
+
+      storage.saveProgress({
+        contentId: id,
+        mediaType,
+        title: title.title,
+        poster: title.poster,
+        backdrop: title.backdrop,
+        year: title.year,
+        season: mediaType === 'tv' ? seasonNum : undefined,
+        episode: mediaType === 'tv' || mediaType === 'anime' ? episodeNum : undefined,
+        episodeName:
+          mediaType === 'tv'
+            ? `Musim ${seasonNum} Ep ${episodeNum}`
+            : mediaType === 'anime'
+            ? `Episode ${episodeNum}`
+            : undefined,
+        currentTime: Math.round(cTime),
+        duration: Math.round(totalDur),
+        progressPercentage: progressPercent,
+        completed: isCompleted,
+      });
+    },
+    [id, title, mediaType, seasonNum, episodeNum]
+  );
+
+  // Load Title Metadata & Providers List
   useEffect(() => {
     if (!id) return;
     const controller = new AbortController();
@@ -148,7 +193,6 @@ export const PlayerPage: React.FC = () => {
         setTitle(finalTitle);
         recordHistory(finalTitle);
 
-        // Fetch episode list with thumbnails for series drawer (TV series & Anime)
         if (mediaType === 'tv') {
           api.getSeasonEpisodes(id, seasonNum, controller.signal)
             .then((eps) => setDrawerEpisodes(eps))
@@ -160,7 +204,7 @@ export const PlayerPage: React.FC = () => {
         }
       } catch (err: any) {
         if (!controller.signal.aborted) {
-          console.warn('[PlayerPage] Init fallback used:', err?.message || err);
+          console.warn('[PlayerPage] Init error:', err?.message || err);
         }
       }
     };
@@ -169,92 +213,148 @@ export const PlayerPage: React.FC = () => {
     return () => controller.abort();
   }, [id, mediaType, seasonNum, episodeNum, recordHistory, searchParams]);
 
-  // Load Direct Anime Stream directly from FrameX API
+  // ANIME NATIVE STREAM: Load stream data directly from FrameX API
   useEffect(() => {
-    if (mediaType === 'anime' && id) {
-      setIsLoadingDirect(true);
-      setDirectStreamError(null);
-      const controller = new AbortController();
+    if (mediaType !== 'anime' || !id) return;
 
-      const targetProvider = selectedServer === 'auto' ? undefined : selectedServer;
+    setIsLoadingAnime(true);
+    setAnimeError(null);
+    setAnimeStream(null);
+    setNextEpisodeCountdown(null);
+    const controller = new AbortController();
 
-      api.getAnimeStream({
-        id,
-        episode: episodeNum,
-        provider: targetProvider,
-        audio: animeAudio,
-        signal: controller.signal,
-      }).then((data) => {
-        if (data && data.sources.length > 0) {
-          setDirectStream(data);
-          setDirectStreamError(null);
+    const providerToRequest = selectedServer === 'auto' ? undefined : selectedServer;
+
+    api.getAnimeStream({
+      id,
+      episode: episodeNum,
+      provider: providerToRequest,
+      audio: animeAudio,
+      signal: controller.signal,
+    })
+      .then((data) => {
+        if (data && data.sources && data.sources.length > 0) {
+          setAnimeStream(data);
+          setAnimeError(null);
+
+          // Subtitles processing
+          if (Array.isArray(data.subtitles) && data.subtitles.length > 0) {
+            setSubtitles(data.subtitles);
+            // Default select Indonesian subtitle if available, otherwise first sub
+            const indo = data.subtitles.find(
+              (s) =>
+                s.lang === 'in' ||
+                s.lang === 'id' ||
+                (s.label && s.label.toLowerCase().includes('indonesian'))
+            );
+            setActiveSubtitleUrl(indo ? indo.url : data.subtitles[0].url);
+          } else {
+            setSubtitles([]);
+            setActiveSubtitleUrl(null);
+          }
         } else {
-          setDirectStreamError('Stream tidak ditemukan untuk server ini. Coba pilih server lain.');
+          setAnimeError('Stream anime tidak ditemukan untuk server ini. Coba pilih server lain.');
         }
-      }).catch((err) => {
+      })
+      .catch((err) => {
         if (!controller.signal.aborted) {
-          setDirectStreamError(err?.message || 'Gagal memuat stream anime.');
+          setAnimeError(err?.message || 'Gagal memuat stream anime dari API FrameX.');
         }
-      }).finally(() => {
-        setIsLoadingDirect(false);
+      })
+      .finally(() => {
+        setIsLoadingAnime(false);
       });
 
-      return () => controller.abort();
-    }
+    return () => controller.abort();
   }, [id, mediaType, episodeNum, selectedServer, animeAudio, iframeKey]);
 
-  // Attach HLS stream to video element
+  // Setup HLS.js or Native Video on Stream Loaded
   useEffect(() => {
-    if (mediaType !== 'anime' || !directStream?.sources?.[0]?.url || !videoRef.current) {
+    if (mediaType !== 'anime' || !animeStream?.sources?.[0]?.url || !videoRef.current) {
       return;
     }
 
     const video = videoRef.current;
-    const streamUrl = directStream.sources[0].url;
+    const streamSource = animeStream.sources[0].url;
 
     if (hlsRef.current) {
       hlsRef.current.destroy();
       hlsRef.current = null;
     }
 
+    // Check if there is saved progress to resume
+    const savedProgress = storage.getProgress(id!, 1, episodeNum);
+    const resumeTime = savedProgress && savedProgress.currentTime > 5 && !savedProgress.completed
+      ? savedProgress.currentTime
+      : 0;
+
     if (Hls.isSupported()) {
       const hls = new Hls({
         enableWorker: true,
         lowLatencyMode: true,
+        backBufferLength: 90,
       });
       hlsRef.current = hls;
 
-      hls.loadSource(streamUrl);
+      hls.loadSource(streamSource);
       hls.attachMedia(video);
 
-      hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        setIsIframeLoading(false);
-        setIsLoadingDirect(false);
-        video.play().catch(() => {});
+      hls.on(Hls.Events.MANIFEST_PARSED, (_event, data) => {
+        setIsLoadingAnime(false);
+
+        // Populate available video qualities
+        if (data.levels && data.levels.length > 0) {
+          const parsedQualities = data.levels.map((lvl, index) => ({
+            id: index,
+            height: lvl.height || 720,
+            label: lvl.height ? `${lvl.height}p` : `Tingkat ${index + 1}`,
+          }));
+          // Sort descending
+          parsedQualities.sort((a, b) => b.height - a.height);
+          setQualities(parsedQualities);
+        }
+
+        if (resumeTime > 0) {
+          video.currentTime = resumeTime;
+        }
+
+        video.play().catch(() => {
+          setIsPlaying(false);
+        });
+      });
+
+      hls.on(Hls.Events.LEVEL_SWITCHED, (_event, data) => {
+        setCurrentQuality(data.level);
       });
 
       hls.on(Hls.Events.ERROR, (_event, data) => {
         if (data.fatal) {
           switch (data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
+              console.warn('[HLS] Network error, attempting recovery...');
               hls.startLoad();
               break;
             case Hls.ErrorTypes.MEDIA_ERROR:
+              console.warn('[HLS] Media error, attempting recovery...');
               hls.recoverMediaError();
               break;
             default:
+              console.error('[HLS] Fatal error:', data);
               hls.destroy();
+              setAnimeError('Terjadi gangguan jaringan pemutar. Coba ganti server.');
               break;
           }
         }
       });
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-      // Native Safari / iOS HLS
-      video.src = streamUrl;
+      // Native Apple HLS (Safari/iOS)
+      video.src = streamSource;
       video.addEventListener('loadedmetadata', () => {
-        setIsIframeLoading(false);
-        setIsLoadingDirect(false);
-        video.play().catch(() => {});
+        setIsLoadingAnime(false);
+        if (resumeTime > 0) {
+          video.currentTime = resumeTime;
+        }
+        video.play().catch(() => setIsPlaying(false));
       });
     }
 
@@ -264,7 +364,119 @@ export const PlayerPage: React.FC = () => {
         hlsRef.current = null;
       }
     };
-  }, [mediaType, directStream, episodeNum]);
+  }, [id, mediaType, animeStream, episodeNum]);
+
+  // Handle Fullscreen tracking
+  useEffect(() => {
+    const handleFsChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFsChange);
+    return () => document.removeEventListener('fullscreenchange', handleFsChange);
+  }, []);
+
+  // Controls auto-hide timer
+  const resetControlsTimeout = useCallback(() => {
+    setShowControls(true);
+    if (controlsTimeoutRef.current) {
+      clearTimeout(controlsTimeoutRef.current);
+    }
+    controlsTimeoutRef.current = setTimeout(() => {
+      if (isPlaying) {
+        setShowControls(false);
+        setIsSubtitleMenuOpen(false);
+        setIsQualityMenuOpen(false);
+        setIsSpeedMenuOpen(false);
+      }
+    }, 3500);
+  }, [isPlaying]);
+
+  useEffect(() => {
+    return () => {
+      if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
+    };
+  }, []);
+
+  // Periodic watch progress saver
+  useEffect(() => {
+    if (mediaType !== 'anime' || !isPlaying) return;
+    const interval = setInterval(() => {
+      if (videoRef.current && videoRef.current.duration > 0) {
+        saveProgress(videoRef.current.currentTime, videoRef.current.duration);
+      }
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [mediaType, isPlaying, saveProgress]);
+
+  // Video playback handlers
+  const togglePlay = () => {
+    if (!videoRef.current) return;
+    if (videoRef.current.paused) {
+      videoRef.current.play().catch(() => {});
+      setIsPlaying(true);
+    } else {
+      videoRef.current.pause();
+      setIsPlaying(false);
+    }
+    resetControlsTimeout();
+  };
+
+  const skipTime = (seconds: number) => {
+    if (!videoRef.current) return;
+    videoRef.current.currentTime = Math.max(
+      0,
+      Math.min(videoRef.current.duration, videoRef.current.currentTime + seconds)
+    );
+    resetControlsTimeout();
+  };
+
+  const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!progressBarRef.current || !videoRef.current || !duration) return;
+    const rect = progressBarRef.current.getBoundingClientRect();
+    const pos = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    videoRef.current.currentTime = pos * duration;
+    resetControlsTimeout();
+  };
+
+  const handleVolumeChange = (newVol: number) => {
+    setVolume(newVol);
+    setIsMuted(newVol === 0);
+    if (videoRef.current) {
+      videoRef.current.volume = newVol;
+      videoRef.current.muted = newVol === 0;
+    }
+    localStorage.setItem('zhafx_player_volume', String(newVol));
+    resetControlsTimeout();
+  };
+
+  const toggleMute = () => {
+    if (!videoRef.current) return;
+    const nextMuted = !isMuted;
+    setIsMuted(nextMuted);
+    videoRef.current.muted = nextMuted;
+    if (!nextMuted && volume === 0) {
+      handleVolumeChange(0.5);
+    }
+    resetControlsTimeout();
+  };
+
+  const handleSpeedChange = (speed: number) => {
+    setPlaybackRate(speed);
+    if (videoRef.current) {
+      videoRef.current.playbackRate = speed;
+    }
+    setIsSpeedMenuOpen(false);
+    resetControlsTimeout();
+  };
+
+  const handleQualityChange = (qualityId: number) => {
+    if (hlsRef.current) {
+      hlsRef.current.currentLevel = qualityId;
+      setCurrentQuality(qualityId);
+    }
+    setIsQualityMenuOpen(false);
+    resetControlsTimeout();
+  };
 
   const toggleFullscreen = () => {
     try {
@@ -286,32 +498,6 @@ export const PlayerPage: React.FC = () => {
     }
   };
 
-  const handleReload = () => {
-    setIsIframeLoading(true);
-    setIframeKey((k) => k + 1);
-  };
-
-  if (!id) {
-    return (
-      <div className="min-h-screen flex items-center justify-center p-6 text-center">
-        <p className="text-sm text-white/50">ID tayangan tidak valid.</p>
-      </div>
-    );
-  }
-
-  // Construct embed URL for Movie / TV
-  const embedUrl = api.getEmbedUrl({
-    type: mediaType,
-    id,
-    season: seasonNum,
-    episode: episodeNum,
-    server: selectedServer !== 'auto' ? selectedServer : undefined,
-    autoplay: true,
-    muted: false,
-    title: title?.title,
-    poster: title?.backdrop || title?.poster,
-  });
-
   const totalEpisodes =
     mediaType === 'anime'
       ? title?.numberOfEpisodes || 24
@@ -323,6 +509,7 @@ export const PlayerPage: React.FC = () => {
   const navigateEpisode = (targetEp: number) => {
     setIsEpisodeDrawerOpen(false);
     setIsIframeLoading(true);
+    setNextEpisodeCountdown(null);
     if (mediaType === 'tv') {
       navigate(`/watch/tv/${id}/${seasonNum}/${targetEp}`);
     } else if (mediaType === 'anime') {
@@ -330,11 +517,118 @@ export const PlayerPage: React.FC = () => {
     }
   };
 
+  // Video time update handler
+  const handleTimeUpdate = () => {
+    if (!videoRef.current) return;
+    setCurrentTime(videoRef.current.currentTime);
+    setDuration(videoRef.current.duration || 0);
+
+    // Calculate buffer
+    if (videoRef.current.buffered.length > 0) {
+      const bufferedEnd = videoRef.current.buffered.end(videoRef.current.buffered.length - 1);
+      setBufferedTime(bufferedEnd);
+    }
+  };
+
+  // On Video Ended: Trigger Auto-Next Episode for Anime
+  const handleVideoEnded = () => {
+    setIsPlaying(false);
+    if (videoRef.current) {
+      saveProgress(videoRef.current.duration, videoRef.current.duration);
+    }
+    if (hasNextEpisode) {
+      setNextEpisodeCountdown(5);
+    }
+  };
+
+  // Countdown timer for next episode
+  useEffect(() => {
+    if (nextEpisodeCountdown === null) return;
+    if (nextEpisodeCountdown <= 0) {
+      navigateEpisode(episodeNum + 1);
+      return;
+    }
+    const timer = setTimeout(() => {
+      setNextEpisodeCountdown((c) => (c !== null ? c - 1 : null));
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [nextEpisodeCountdown, episodeNum]);
+
+  // Keyboard navigation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore if typing in input
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement)?.tagName)) {
+        return;
+      }
+      if (mediaType === 'anime') {
+        if (e.key === ' ' || e.key === 'k' || e.key === 'K') {
+          e.preventDefault();
+          togglePlay();
+        } else if (e.key === 'ArrowLeft') {
+          e.preventDefault();
+          skipTime(-10);
+        } else if (e.key === 'ArrowRight') {
+          e.preventDefault();
+          skipTime(10);
+        } else if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          handleVolumeChange(Math.min(1, volume + 0.1));
+        } else if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          handleVolumeChange(Math.max(0, volume - 0.1));
+        } else if (e.key === 'm' || e.key === 'M') {
+          e.preventDefault();
+          toggleMute();
+        } else if (e.key === 'f' || e.key === 'F') {
+          e.preventDefault();
+          toggleFullscreen();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [mediaType, volume, isPlaying]);
+
+  // Format Seconds into MM:SS or HH:MM:SS
+  const formatTime = (secs: number) => {
+    if (isNaN(secs) || secs < 0) return '00:00';
+    const h = Math.floor(secs / 3600);
+    const m = Math.floor((secs % 3600) / 60);
+    const s = Math.floor(secs % 60);
+    if (h > 0) {
+      return `${h}:${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
+    }
+    return `${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
+  };
+
+  // Embed URL for Movie & TV Series
+  const embedUrl = api.getEmbedUrl({
+    type: mediaType,
+    id: id || '',
+    season: seasonNum,
+    episode: episodeNum,
+    server: selectedServer !== 'auto' ? selectedServer : undefined,
+    autoplay: true,
+    muted: false,
+    title: title?.title,
+    poster: title?.backdrop || title?.poster,
+  });
+
   return (
-    <div className="min-h-screen w-full bg-[#06070B] flex flex-col relative select-none overflow-hidden">
+    <div
+      ref={playerContainerRef}
+      onMouseMove={resetControlsTimeout}
+      onTouchStart={resetControlsTimeout}
+      className="min-h-screen w-full bg-[#06070B] flex flex-col relative select-none overflow-hidden"
+    >
       {/* Sleek Top Navigation Header */}
-      <header className="fixed top-2 sm:top-4 left-2 right-2 sm:left-4 sm:right-4 max-w-7xl mx-auto z-40 pointer-events-none">
-        <div className="min-h-12 sm:min-h-14 px-2.5 sm:px-4 py-1.5 rounded-[20px] sm:rounded-full liquid-glass-dense liquid-specular flex items-center justify-between gap-1.5 sm:gap-3 shadow-2xl pointer-events-auto border border-white/20 flex-wrap sm:flex-nowrap">
+      <header
+        className={`fixed top-2 sm:top-4 left-2 right-2 sm:left-4 sm:right-4 max-w-7xl mx-auto z-40 transition-all duration-300 pointer-events-none ${
+          showControls ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'
+        }`}
+      >
+        <div className="min-h-12 sm:min-h-14 px-3 sm:px-4 py-1.5 rounded-[20px] sm:rounded-full liquid-glass-dense liquid-specular flex items-center justify-between gap-1.5 sm:gap-3 shadow-2xl pointer-events-auto border border-white/20 flex-wrap sm:flex-nowrap">
           {/* Left: Back & Media Info */}
           <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
             <button
@@ -358,7 +652,7 @@ export const PlayerPage: React.FC = () => {
               </h1>
               {(mediaType === 'tv' || mediaType === 'anime') && (
                 <div className="flex items-center gap-1.5 text-[10px] sm:text-[11px] text-[#FFB224] font-medium truncate">
-                  <span>{mediaType === 'anime' ? 'Anime HD' : `Musim ${seasonNum}`}</span>
+                  <span>{mediaType === 'anime' ? 'FrameX Native Stream' : `Musim ${seasonNum}`}</span>
                   <span>•</span>
                   <span>Episode {episodeNum}</span>
                 </div>
@@ -421,27 +715,6 @@ export const PlayerPage: React.FC = () => {
               </button>
             )}
 
-            {/* Anime Player Mode: Direct vs Embed */}
-            {mediaType === 'anime' && (
-              <button
-                onClick={() => {
-                  const nextMode = animePlayerMode === 'direct' ? 'embed' : 'direct';
-                  setAnimePlayerMode(nextMode);
-                  setIsIframeLoading(true);
-                  setDirectStreamError(null);
-                }}
-                className={`px-2.5 py-1 rounded-full text-[10px] sm:text-[11px] font-bold border transition-all cursor-pointer ios-spring flex items-center gap-1 ${
-                  animePlayerMode === 'direct'
-                    ? 'bg-amber-500/20 border-amber-500/50 text-[#FFB224]'
-                    : 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300'
-                }`}
-                title={animePlayerMode === 'direct' ? 'Beralih ke Pemutar Embed FrameX' : 'Beralih ke Pemutar Langsung HLS'}
-              >
-                <Play className="w-3 h-3" />
-                <span>{animePlayerMode === 'direct' ? 'Direct' : 'Embed'}</span>
-              </button>
-            )}
-
             {/* Server Selector Dropdown */}
             <div className="flex items-center gap-1 px-2 sm:px-2.5 py-1 rounded-full liquid-glass text-xs text-white">
               <Server className="w-3 h-3 text-[#FFB224] shrink-0" />
@@ -449,25 +722,32 @@ export const PlayerPage: React.FC = () => {
                 value={selectedServer}
                 onChange={(e) => {
                   setSelectedServer(e.target.value);
-                  setIsIframeLoading(true);
+                  setIframeKey((k) => k + 1);
                 }}
                 aria-label="Pilih server stream"
-                className="bg-transparent text-[10px] sm:text-xs text-white font-medium focus:outline-none cursor-pointer max-w-[85px] sm:max-w-[130px] truncate"
+                className="bg-transparent text-[10px] sm:text-xs text-white font-medium focus:outline-none cursor-pointer max-w-[90px] sm:max-w-[135px] truncate"
               >
                 <option value="auto" className="bg-[#12141F] text-white">
                   Server Otomatis
                 </option>
-                {providers.filter((p) => p.id !== 'auto' && p.id !== 'direct_stream').map((p) => (
-                  <option key={p.id} value={p.id} className="bg-[#12141F] text-white">
-                    {p.name}
-                  </option>
-                ))}
+                {providers
+                  .filter((p) => p.id !== 'auto' && p.id !== 'direct_stream')
+                  .map((p) => (
+                    <option key={p.id} value={p.id} className="bg-[#12141F] text-white">
+                      {p.name}
+                    </option>
+                  ))}
               </select>
             </div>
 
-            {/* Reload Button */}
+            {/* Reload Stream Button */}
             <button
-              onClick={handleReload}
+              onClick={() => {
+                setIframeKey((k) => k + 1);
+                if (videoRef.current) {
+                  videoRef.current.load();
+                }
+              }}
               title="Muat ulang stream"
               aria-label="Muat ulang stream"
               className="w-7 h-7 sm:w-8 sm:h-8 rounded-full liquid-glass flex items-center justify-center text-white/80 hover:text-white hover:bg-white/[0.18] transition-all cursor-pointer ios-spring"
@@ -502,7 +782,7 @@ export const PlayerPage: React.FC = () => {
                 <Tv className="w-4 h-4 text-[#FFB224]" />
                 <div>
                   <h3 className="text-sm sm:text-base font-bold text-white">
-                    Pilih Episode ({mediaType === 'anime' ? 'Anime' : `Musim ${seasonNum}`})
+                    Pilih Episode ({mediaType === 'anime' ? 'Anime HD' : `Musim ${seasonNum}`})
                   </h3>
                   <p className="text-[11px] text-white/50">
                     Lihat cuplikan visual thumbnail setiap episode
@@ -619,103 +899,392 @@ export const PlayerPage: React.FC = () => {
         </div>
       )}
 
-      {/* Main Viewport: Video Stream */}
-      <div
-        ref={playerContainerRef}
-        className="relative flex-1 w-full h-screen bg-black flex items-center justify-center overflow-hidden"
-      >
+      {/* Main Viewport Container */}
+      <div className="relative flex-1 w-full h-screen bg-black flex items-center justify-center overflow-hidden">
         {/* Loading Overlay */}
-        {(isIframeLoading || isLoadingDirect) && (
-          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-[#06070B] space-y-3 pointer-events-none px-4 text-center">
-            <div className="w-10 h-10 border-3 border-white/20 border-t-[#FFB224] rounded-full animate-spin" />
-            <span className="text-xs font-mono text-white/50 tracking-wider uppercase">
-              {mediaType === 'anime' ? 'Memuat Stream Anime HD...' : 'Memuat Stream Pemutar Zhafx...'}
+        {(isLoadingAnime || (mediaType !== 'anime' && isIframeLoading)) && (
+          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-[#06070B] space-y-3 pointer-events-none px-4 text-center">
+            <div className="w-11 h-11 border-3 border-white/20 border-t-[#FFB224] rounded-full animate-spin" />
+            <span className="text-xs font-mono text-white/60 tracking-wider uppercase">
+              {mediaType === 'anime' ? 'Menyiapkan Stream Anime dari API FrameX...' : 'Memuat Pemutar Zhafx...'}
             </span>
-            {loadTimeout && !isLoadingDirect && (
-              <div className="pointer-events-auto pt-2 space-y-2 max-w-sm">
-                <p className="text-xs text-white/60">
-                  Stream membutuhkan waktu lebih lama. Coba beralih server di menu atas atau muat ulang.
-                </p>
-                <button
-                  type="button"
-                  onClick={handleReload}
-                  className="px-4 py-1.5 rounded-full liquid-glass text-xs text-white font-semibold hover:bg-white/10 cursor-pointer"
-                >
-                  Muat Ulang
-                </button>
-              </div>
-            )}
           </div>
         )}
 
-        {/* Error State for Anime Direct Stream */}
-        {mediaType === 'anime' && animePlayerMode === 'direct' && directStreamError && !isLoadingDirect && (
-          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-[#06070B] p-6 text-center space-y-3">
-            <div className="w-12 h-12 rounded-full bg-rose-500/20 border border-rose-500/30 flex items-center justify-center text-rose-400">
-              <AlertTriangle className="w-6 h-6" />
+        {/* Error State for Anime Stream with Quick Failover */}
+        {mediaType === 'anime' && animeError && !isLoadingAnime && (
+          <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-[#06070B] p-6 text-center space-y-3">
+            <div className="w-14 h-14 rounded-full bg-rose-500/20 border border-rose-500/30 flex items-center justify-center text-rose-400">
+              <AlertTriangle className="w-7 h-7" />
             </div>
-            <h3 className="text-base font-bold text-white">Gagal Memutar Stream Langsung</h3>
-            <p className="text-xs text-white/60 max-w-sm">
-              Server stream langsung tidak merespons. Anda dapat beralih ke Pemutar Embed FrameX untuk memutar video tanpa gangguan.
+            <h3 className="text-lg font-bold text-white">Stream Anime Gagal Dimuat</h3>
+            <p className="text-xs text-white/60 max-w-md">
+              {animeError}
             </p>
             <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
               <button
                 onClick={() => {
-                  setAnimePlayerMode('embed');
-                  setDirectStreamError(null);
-                  setIsIframeLoading(true);
+                  setSelectedServer('auto');
+                  setIframeKey((k) => k + 1);
                 }}
-                className="px-5 py-2 rounded-full bg-[#FFB224] text-black text-xs font-bold hover:bg-[#FFA500] cursor-pointer shadow-lg"
+                className="px-5 py-2.5 rounded-full bg-[#FFB224] text-black text-xs font-bold hover:bg-[#FFA500] cursor-pointer shadow-lg ios-spring"
               >
-                Beralih ke Pemutar Embed (Rekomendasi)
+                Ganti ke Server Otomatis (Rekomendasi)
               </button>
               <button
-                onClick={handleReload}
-                className="px-4 py-2 rounded-full liquid-glass text-white text-xs font-semibold hover:bg-white/10 cursor-pointer"
+                onClick={() => setIframeKey((k) => k + 1)}
+                className="px-4 py-2.5 rounded-full liquid-glass text-white text-xs font-semibold hover:bg-white/10 cursor-pointer ios-spring"
               >
-                Coba Lagi (Direct Stream)
+                Coba Lagi
               </button>
             </div>
           </div>
         )}
 
-        {/* Player Section:
-            If Anime + animePlayerMode === 'direct' AND directStream is available: Native HLS Player
-            Otherwise: Official Embed Player (FrameX Iframe for Anime, Movies, and TV)
-        */}
-        {mediaType === 'anime' && animePlayerMode === 'direct' && directStream?.sources?.[0]?.url ? (
-          <div className="w-full h-full pt-14 sm:pt-16 flex items-center justify-center bg-black relative">
+        {/* Next Episode Countdown Overlay */}
+        {nextEpisodeCountdown !== null && (
+          <div className="absolute inset-0 z-35 flex flex-col items-center justify-center bg-black/85 backdrop-blur-md p-6 text-center space-y-4">
+            <div className="w-14 h-14 rounded-full bg-[#FFB224]/20 border border-[#FFB224]/40 flex items-center justify-center text-[#FFB224]">
+              <FastForward className="w-7 h-7" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-white">Memutar Episode Berikutnya</h3>
+              <p className="text-xs text-white/60 mt-1">
+                Episode {episodeNum + 1} akan dimulai dalam <span className="text-[#FFB224] font-bold">{nextEpisodeCountdown}</span> detik
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => navigateEpisode(episodeNum + 1)}
+                className="px-6 py-2.5 rounded-full bg-[#FFB224] text-black text-xs font-bold hover:bg-[#FFA500] cursor-pointer shadow-lg ios-spring"
+              >
+                Putar Sekarang
+              </button>
+              <button
+                onClick={() => setNextEpisodeCountdown(null)}
+                className="px-4 py-2.5 rounded-full liquid-glass text-white text-xs font-semibold hover:bg-white/10 cursor-pointer"
+              >
+                Batal
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* -------------------------------------------------------------
+            ANIME NATIVE PLAYER (NO EMBED IFRAME — 100% FRAMEX API STREAM)
+            ------------------------------------------------------------- */}
+        {mediaType === 'anime' ? (
+          <div className="relative w-full h-full flex items-center justify-center bg-black group">
+            {/* Video Element */}
             <video
               ref={videoRef}
-              key={`${id}-${episodeNum}-${directStream?.sources?.[0]?.url}`}
-              controls
-              autoPlay
+              key={`${id}-${episodeNum}-${animeStream?.sources?.[0]?.url}`}
               playsInline
               crossOrigin="anonymous"
-              onLoadedData={() => {
-                setIsIframeLoading(false);
-                setIsLoadingDirect(false);
-              }}
-              className="w-full h-full max-h-screen object-contain"
+              onClick={togglePlay}
+              onTimeUpdate={handleTimeUpdate}
+              onEnded={handleVideoEnded}
+              onPlay={() => setIsPlaying(true)}
+              onPause={() => setIsPlaying(false)}
+              className="w-full h-full object-contain cursor-pointer"
             >
-              {directStream?.subtitles?.map((sub, i) => (
+              {subtitles.map((sub, i) => (
                 <track
                   key={`${i}-${sub.url}`}
                   kind="subtitles"
                   src={sub.url}
                   srcLang={sub.lang || 'id'}
-                  label={sub.label || 'Bahasa'}
-                  default={sub.lang === 'in' || sub.lang === 'id' || i === 0}
+                  label={sub.label || `Subtitle ${i + 1}`}
+                  default={activeSubtitleUrl === sub.url}
                 />
               ))}
               Browser Anda tidak mendukung pemutar video HTML5.
             </video>
+
+            {/* Big Center Play / Pause Indicator (shows on toggle) */}
+            <div
+              onClick={togglePlay}
+              className={`absolute inset-0 flex items-center justify-center transition-opacity duration-300 pointer-events-none ${
+                !isPlaying && !isLoadingAnime ? 'opacity-100' : 'opacity-0'
+              }`}
+            >
+              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-black/60 backdrop-blur-md border border-white/20 flex items-center justify-center text-white shadow-2xl pl-1">
+                <Play className="w-8 h-8 sm:w-10 sm:h-10 text-[#FFB224]" />
+              </div>
+            </div>
+
+            {/* Custom Control Bar Overlay */}
+            <div
+              className={`absolute bottom-0 left-0 right-0 z-30 bg-gradient-to-t from-black/95 via-black/60 to-transparent pt-16 pb-4 sm:pb-6 px-3 sm:px-6 transition-all duration-300 ${
+                showControls ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'
+              }`}
+            >
+              {/* Progress Timeline Scrubber */}
+              <div className="relative mb-3 group/timeline cursor-pointer" onClick={handleSeek}>
+                {/* Background track */}
+                <div
+                  ref={progressBarRef}
+                  className="w-full h-1.5 sm:h-2 bg-white/20 rounded-full relative overflow-hidden group-hover/timeline:h-2.5 transition-all"
+                >
+                  {/* Buffer bar */}
+                  <div
+                    className="absolute top-0 bottom-0 left-0 bg-white/30 rounded-full transition-all duration-150"
+                    style={{ width: `${duration > 0 ? (bufferedTime / duration) * 100 : 0}%` }}
+                  />
+                  {/* Played progress bar */}
+                  <div
+                    className="absolute top-0 bottom-0 left-0 bg-[#FFB224] rounded-full transition-all duration-75"
+                    style={{ width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%` }}
+                  />
+                </div>
+              </div>
+
+              {/* Controls Row */}
+              <div className="flex items-center justify-between gap-2 text-white">
+                {/* Left Controls: Play, Skips, Episode Prev/Next, Time */}
+                <div className="flex items-center gap-1 sm:gap-3">
+                  {/* Play/Pause */}
+                  <button
+                    onClick={togglePlay}
+                    className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white cursor-pointer ios-spring"
+                    title={isPlaying ? 'Jeda (Spasi)' : 'Putar (Spasi)'}
+                  >
+                    {isPlaying ? <Pause className="w-4 h-4 sm:w-5 sm:h-5" /> : <Play className="w-4 h-4 sm:w-5 sm:h-5 pl-0.5 text-[#FFB224]" />}
+                  </button>
+
+                  {/* 10s Rewind */}
+                  <button
+                    onClick={() => skipTime(-10)}
+                    className="w-7 h-7 sm:w-8 sm:h-8 rounded-full hover:bg-white/10 flex items-center justify-center text-white/80 hover:text-white cursor-pointer ios-spring"
+                    title="Mundur 10 Detik (Panah Kiri)"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                  </button>
+
+                  {/* 10s Fast Forward */}
+                  <button
+                    onClick={() => skipTime(10)}
+                    className="w-7 h-7 sm:w-8 sm:h-8 rounded-full hover:bg-white/10 flex items-center justify-center text-white/80 hover:text-white cursor-pointer ios-spring"
+                    title="Maju 10 Detik (Panah Kanan)"
+                  >
+                    <RotateCw className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                  </button>
+
+                  {/* Prev Episode */}
+                  <button
+                    onClick={() => navigateEpisode(episodeNum - 1)}
+                    disabled={!hasPrevEpisode}
+                    className="w-7 h-7 sm:w-8 sm:h-8 rounded-full hover:bg-white/10 hidden sm:flex items-center justify-center text-white/80 hover:text-white disabled:opacity-20 cursor-pointer"
+                    title="Episode Sebelumnya"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+
+                  {/* Next Episode */}
+                  <button
+                    onClick={() => navigateEpisode(episodeNum + 1)}
+                    disabled={!hasNextEpisode}
+                    className="w-7 h-7 sm:w-8 sm:h-8 rounded-full hover:bg-white/10 hidden sm:flex items-center justify-center text-white/80 hover:text-white disabled:opacity-20 cursor-pointer"
+                    title="Episode Berikutnya"
+                  >
+                    <SkipForward className="w-4 h-4" />
+                  </button>
+
+                  {/* Volume Controller */}
+                  <div className="flex items-center gap-1.5 ml-1 group/vol">
+                    <button
+                      onClick={toggleMute}
+                      className="w-7 h-7 sm:w-8 sm:h-8 rounded-full hover:bg-white/10 flex items-center justify-center text-white/80 hover:text-white cursor-pointer"
+                      title={isMuted ? 'Buka Suara (M)' : 'Bisukan (M)'}
+                    >
+                      {isMuted || volume === 0 ? (
+                        <VolumeX className="w-4 h-4 text-rose-400" />
+                      ) : volume < 0.5 ? (
+                        <Volume1 className="w-4 h-4" />
+                      ) : (
+                        <Volume2 className="w-4 h-4" />
+                      )}
+                    </button>
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.05"
+                      value={isMuted ? 0 : volume}
+                      onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
+                      className="w-14 sm:w-20 h-1 bg-white/20 rounded-full appearance-none cursor-pointer accent-[#FFB224] hidden sm:block"
+                    />
+                  </div>
+
+                  {/* Time Counter */}
+                  <div className="text-[11px] sm:text-xs font-mono text-white/70 ml-2">
+                    <span className="text-white font-semibold">{formatTime(currentTime)}</span>
+                    <span className="mx-1 text-white/30">/</span>
+                    <span>{formatTime(duration)}</span>
+                  </div>
+                </div>
+
+                {/* Right Controls: Subtitles, Quality, Speed, Fullscreen */}
+                <div className="flex items-center gap-1 sm:gap-2">
+                  {/* Subtitle Selector */}
+                  <div className="relative">
+                    <button
+                      onClick={() => {
+                        setIsSubtitleMenuOpen(!isSubtitleMenuOpen);
+                        setIsQualityMenuOpen(false);
+                        setIsSpeedMenuOpen(false);
+                      }}
+                      className={`px-2 py-1 rounded-full text-xs font-medium border flex items-center gap-1 cursor-pointer ios-spring ${
+                        activeSubtitleUrl
+                          ? 'bg-[#FFB224]/20 border-[#FFB224]/50 text-[#FFB224]'
+                          : 'bg-white/10 border-white/20 text-white/70'
+                      }`}
+                      title="Pilihan Subtitle"
+                    >
+                      <Subtitles className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">Sub</span>
+                    </button>
+
+                    {isSubtitleMenuOpen && (
+                      <div className="absolute bottom-full right-0 mb-2 w-56 max-h-60 overflow-y-auto rounded-[20px] liquid-glass-dense p-2 shadow-2xl border border-white/20 z-50 text-xs">
+                        <div className="px-2 py-1.5 text-[10px] font-bold text-white/40 uppercase tracking-wider">
+                          Pilihan Teks Subtitle
+                        </div>
+                        <button
+                          onClick={() => {
+                            setActiveSubtitleUrl(null);
+                            setIsSubtitleMenuOpen(false);
+                          }}
+                          className={`w-full text-left px-2.5 py-1.5 rounded-lg flex items-center justify-between ${
+                            !activeSubtitleUrl ? 'bg-[#FFB224]/20 text-[#FFB224] font-bold' : 'text-white/80 hover:bg-white/10'
+                          }`}
+                        >
+                          <span>Nonaktifkan Subtitle</span>
+                          {!activeSubtitleUrl && <CheckCircle2 className="w-3.5 h-3.5" />}
+                        </button>
+                        {subtitles.map((sub, i) => {
+                          const isSelected = activeSubtitleUrl === sub.url;
+                          return (
+                            <button
+                              key={i}
+                              onClick={() => {
+                                setActiveSubtitleUrl(sub.url);
+                                setIsSubtitleMenuOpen(false);
+                              }}
+                              className={`w-full text-left px-2.5 py-1.5 rounded-lg flex items-center justify-between truncate ${
+                                isSelected ? 'bg-[#FFB224]/20 text-[#FFB224] font-bold' : 'text-white/80 hover:bg-white/10'
+                              }`}
+                            >
+                              <span className="truncate">{sub.label || `Subtitle ${sub.lang}`}</span>
+                              {isSelected && <CheckCircle2 className="w-3.5 h-3.5 shrink-0 ml-1" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Quality Selector */}
+                  <div className="relative">
+                    <button
+                      onClick={() => {
+                        setIsQualityMenuOpen(!isQualityMenuOpen);
+                        setIsSubtitleMenuOpen(false);
+                        setIsSpeedMenuOpen(false);
+                      }}
+                      className="px-2 py-1 rounded-full text-xs font-medium liquid-glass flex items-center gap-1 cursor-pointer ios-spring text-white"
+                      title="Resolusi Kualitas Video"
+                    >
+                      <Settings className="w-3.5 h-3.5 text-[#FFB224]" />
+                      <span className="hidden sm:inline">
+                        {currentQuality === -1 ? 'Auto' : qualities.find((q) => q.id === currentQuality)?.label || 'HD'}
+                      </span>
+                    </button>
+
+                    {isQualityMenuOpen && (
+                      <div className="absolute bottom-full right-0 mb-2 w-40 rounded-[20px] liquid-glass-dense p-2 shadow-2xl border border-white/20 z-50 text-xs">
+                        <div className="px-2 py-1.5 text-[10px] font-bold text-white/40 uppercase tracking-wider">
+                          Kualitas Video
+                        </div>
+                        <button
+                          onClick={() => handleQualityChange(-1)}
+                          className={`w-full text-left px-2.5 py-1.5 rounded-lg flex items-center justify-between ${
+                            currentQuality === -1 ? 'bg-[#FFB224]/20 text-[#FFB224] font-bold' : 'text-white/80 hover:bg-white/10'
+                          }`}
+                        >
+                          <span>Auto (Adaptif)</span>
+                          {currentQuality === -1 && <CheckCircle2 className="w-3.5 h-3.5" />}
+                        </button>
+                        {qualities.map((q) => (
+                          <button
+                            key={q.id}
+                            onClick={() => handleQualityChange(q.id)}
+                            className={`w-full text-left px-2.5 py-1.5 rounded-lg flex items-center justify-between ${
+                              currentQuality === q.id ? 'bg-[#FFB224]/20 text-[#FFB224] font-bold' : 'text-white/80 hover:bg-white/10'
+                            }`}
+                          >
+                            <span>{q.label}</span>
+                            {currentQuality === q.id && <CheckCircle2 className="w-3.5 h-3.5" />}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Playback Speed Selector */}
+                  <div className="relative">
+                    <button
+                      onClick={() => {
+                        setIsSpeedMenuOpen(!isSpeedMenuOpen);
+                        setIsSubtitleMenuOpen(false);
+                        setIsQualityMenuOpen(false);
+                      }}
+                      className="px-2 py-1 rounded-full text-xs font-medium liquid-glass flex items-center gap-1 cursor-pointer ios-spring text-white"
+                      title="Kecepatan Putar"
+                    >
+                      <Gauge className="w-3.5 h-3.5 text-[#FFB224]" />
+                      <span>{playbackRate}x</span>
+                    </button>
+
+                    {isSpeedMenuOpen && (
+                      <div className="absolute bottom-full right-0 mb-2 w-32 rounded-[20px] liquid-glass-dense p-2 shadow-2xl border border-white/20 z-50 text-xs">
+                        <div className="px-2 py-1.5 text-[10px] font-bold text-white/40 uppercase tracking-wider">
+                          Kecepatan
+                        </div>
+                        {[0.5, 0.75, 1, 1.25, 1.5, 2].map((spd) => (
+                          <button
+                            key={spd}
+                            onClick={() => handleSpeedChange(spd)}
+                            className={`w-full text-left px-2.5 py-1.5 rounded-lg flex items-center justify-between ${
+                              playbackRate === spd ? 'bg-[#FFB224]/20 text-[#FFB224] font-bold' : 'text-white/80 hover:bg-white/10'
+                            }`}
+                          >
+                            <span>{spd === 1 ? '1.0x (Normal)' : `${spd}x`}</span>
+                            {playbackRate === spd && <CheckCircle2 className="w-3.5 h-3.5" />}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Fullscreen Button */}
+                  <button
+                    onClick={toggleFullscreen}
+                    className="w-8 h-8 rounded-full liquid-glass flex items-center justify-center text-white/80 hover:text-white cursor-pointer ios-spring ml-1"
+                    title={isFullscreen ? 'Keluar Layar Penuh (F)' : 'Layar Penuh (F)'}
+                  >
+                    {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         ) : (
-          /* Official FrameX Embed Player (For Movie, TV, and Anime in embed mode or fallback) */
+          /* -------------------------------------------------------------
+             MOVIE & TV SERIES PLAYER (OFFICIAL FRAMEX EMBED)
+             ------------------------------------------------------------- */
           <iframe
-            ref={iframeRef}
-            key={`${id}-${mediaType}-${seasonNum}-${episodeNum}-${selectedServer}-${animeAudio}-${iframeKey}`}
+            key={`${id}-${mediaType}-${seasonNum}-${episodeNum}-${selectedServer}-${iframeKey}`}
             src={embedUrl}
             title={title?.title || 'Zhafx Stream'}
             onLoad={() => setIsIframeLoading(false)}

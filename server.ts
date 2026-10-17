@@ -473,6 +473,320 @@ app.all('/api/proxy', async (req: Request, res: Response) => {
 });
 
 // ==========================================
+// Native Anime Stream & Proxy (FrameX API Engine)
+// ==========================================
+
+// Get FrameX Anime Providers
+app.get('/api/anime/providers', async (_req: Request, res: Response) => {
+  try {
+    const upstreamRes = await fetch('https://api.framextv.tech/anime/api/providers', {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Referer': 'https://framextv.xyz/',
+        'Origin': 'https://framextv.xyz',
+      },
+    });
+    if (upstreamRes.ok) {
+      const data = await upstreamRes.json();
+      return res.json(data);
+    }
+  } catch (err) {
+    console.warn('[Anime Providers Error]:', err);
+  }
+
+  // Fallback providers catalogue if upstream is slow
+  return res.json({
+    providers: [
+      { id: 'grand_warden', name: 'Grand Warden XI', tagline: '1080p Ultra Fast Multi-Source Cloud', audio: 'sub', category: 'anime' },
+      { id: 'grand_warden_dub', name: 'Grand Warden XI (Dub)', tagline: 'Multi-Source Cloud Dub', audio: 'dub', category: 'anime' },
+      { id: 'wizard', name: 'Wizard I', tagline: 'Dual Audio & Softsub', audio: 'sub', category: 'anime' },
+      { id: 'wizard_dub', name: 'Wizard I (Dub)', tagline: 'Dual Audio English Dub', audio: 'dub', category: 'anime' },
+      { id: 'valkyrie', name: 'Valkyrie II', tagline: 'FlixCloud HD', audio: 'sub', category: 'anime' },
+      { id: 'valkyrie_dub', name: 'Valkyrie II (Dub)', tagline: 'FlixCloud HD Dub', audio: 'dub', category: 'anime' },
+      { id: 'super_pekka', name: 'Super PEKKA X', tagline: 'Direct Fast CDN', audio: 'sub', category: 'anime' },
+      { id: 'dragon', name: 'Dragon VIII', tagline: 'VidNest Multi-Source', audio: 'sub', category: 'anime' },
+      { id: 'archer', name: 'Archer IV', tagline: 'Multi-Audio', audio: 'sub', category: 'anime' },
+    ],
+  });
+});
+
+// Get Direct Anime Stream from FrameX API with server-side proxy transformation
+app.get('/api/anime/stream', async (req: Request, res: Response) => {
+  const id = req.query.id as string;
+  const episode = req.query.episode ? String(req.query.episode) : '1';
+  const provider = (req.query.provider as string) || '';
+  const audio = (req.query.audio as string) || 'sub';
+
+  if (!id) {
+    return res.status(400).json({ success: false, error: 'ID anime wajib diisi.' });
+  }
+
+  // Priority providers to attempt
+  const priorityList = audio === 'dub'
+    ? ['grand_warden_dub', 'wizard_dub', 'valkyrie_dub', 'archer_dub', 'dragon_dub']
+    : ['grand_warden', 'wizard', 'valkyrie', 'super_pekka', 'dragon', 'archer', 'giant'];
+
+  const providersToAttempt: string[] = [];
+  if (provider && provider !== 'auto' && provider !== 'direct_stream') {
+    providersToAttempt.push(provider);
+  }
+  for (const p of priorityList) {
+    if (!providersToAttempt.includes(p)) {
+      providersToAttempt.push(p);
+    }
+  }
+
+  let finalData: any = null;
+  let lastError: string = '';
+
+  for (const p of providersToAttempt) {
+    try {
+      const q = new URLSearchParams();
+      q.set('id', id);
+      q.set('episode', episode);
+      q.set('provider', p);
+      q.set('audio', audio);
+
+      const targetUrl = `https://api.framextv.tech/anime/api/stream?${q.toString()}`;
+      const upstreamRes = await fetch(targetUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+          'Referer': 'https://framextv.xyz/',
+          'Origin': 'https://framextv.xyz',
+          'Accept': 'application/json, text/plain, */*',
+        },
+      });
+
+      if (!upstreamRes.ok) continue;
+
+      const data = await upstreamRes.json();
+      if (data && data.success && Array.isArray(data.sources) && data.sources.length > 0) {
+        finalData = data;
+        break;
+      }
+    } catch (err: any) {
+      lastError = err?.message || 'Error fetching provider';
+    }
+  }
+
+  if (!finalData) {
+    return res.status(404).json({
+      success: false,
+      error: `Stream anime tidak tersedia untuk episode ${episode}. ${lastError}`.trim(),
+    });
+  }
+
+  // Rewrite sources to proxy through /api/anime/proxy
+  const rewrittenSources = finalData.sources.map((src: any) => {
+    let rawUrl = src.url || '';
+    let referer = src.headers?.Referer || src.headers?.referer || 'https://megaplay.buzz/';
+
+    if (rawUrl.includes('/proxy?url=') || rawUrl.includes('url=')) {
+      try {
+        const parsedUrl = new URL(rawUrl.startsWith('http') ? rawUrl : `https://api.framextv.tech${rawUrl}`);
+        const realTarget = parsedUrl.searchParams.get('url');
+        const extractedRef = parsedUrl.searchParams.get('ref');
+        if (realTarget) rawUrl = realTarget;
+        if (extractedRef) referer = extractedRef;
+      } catch {
+        // use rawUrl
+      }
+    } else if (rawUrl.startsWith('/')) {
+      rawUrl = `https://api.framextv.tech${rawUrl}`;
+    }
+
+    const proxiedUrl = `/api/anime/proxy?url=${encodeURIComponent(rawUrl)}&ref=${encodeURIComponent(referer)}`;
+
+    return {
+      ...src,
+      url: proxiedUrl,
+      rawUrl,
+      headers: {
+        Referer: referer,
+        Origin: referer ? new URL(referer).origin : 'https://megaplay.buzz',
+      },
+    };
+  });
+
+  // Rewrite subtitles to proxy through /api/anime/subtitles with WebVTT auto-conversion
+  const rewrittenSubtitles = Array.isArray(finalData.subtitles)
+    ? finalData.subtitles.map((sub: any) => {
+        let subUrl = sub.url || '';
+        if (subUrl.includes('url=')) {
+          try {
+            const parsed = new URL(subUrl.startsWith('http') ? subUrl : `https://api.framextv.tech${subUrl}`);
+            const real = parsed.searchParams.get('url');
+            if (real) subUrl = real;
+          } catch {
+            // keep
+          }
+        } else if (subUrl.startsWith('/')) {
+          subUrl = `https://api.framextv.tech${subUrl}`;
+        }
+
+        const proxiedSubUrl = `/api/anime/subtitles?url=${encodeURIComponent(subUrl)}&lang=${encodeURIComponent(sub.lang || '')}&label=${encodeURIComponent(sub.label || '')}`;
+
+        return {
+          ...sub,
+          url: proxiedSubUrl,
+          rawUrl: subUrl,
+        };
+      })
+    : [];
+
+  return res.status(200).json({
+    success: true,
+    provider: finalData.provider,
+    server: finalData.server,
+    audio: finalData.audio || audio,
+    sources: rewrittenSources,
+    subtitles: rewrittenSubtitles,
+    meta: finalData.meta,
+  });
+});
+
+// Proxy and rewrite HLS Playlists (.m3u8) & video segments (.ts/.jpg/.mp4)
+app.all('/api/anime/proxy', async (req: Request, res: Response) => {
+  const targetUrl = (req.query.url as string);
+  const referer = (req.query.ref as string) || 'https://megaplay.buzz/';
+
+  if (!targetUrl || !targetUrl.startsWith('http')) {
+    return res.status(400).json({ error: 'URL target tidak valid.' });
+  }
+
+  try {
+    const origin = referer ? new URL(referer).origin : 'https://megaplay.buzz';
+    const reqHeaders: Record<string, string> = {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+      'Referer': referer,
+      'Origin': origin,
+      'Accept': '*/*',
+    };
+    if (req.headers.range) {
+      reqHeaders['Range'] = req.headers.range;
+    }
+
+    const upstreamRes = await fetch(targetUrl, {
+      method: req.method === 'HEAD' ? 'HEAD' : 'GET',
+      headers: reqHeaders,
+    });
+
+    const contentType = upstreamRes.headers.get('content-type') || '';
+    const isM3u8 =
+      contentType.includes('mpegurl') ||
+      contentType.includes('application/x-mpegurl') ||
+      targetUrl.includes('.m3u8');
+
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', '*');
+
+    if (isM3u8) {
+      const text = await upstreamRes.text();
+      if (text.includes('#EXTM3U')) {
+        const lines = text.split('\n');
+        const rewritten = lines.map((line) => {
+          const trimmed = line.trim();
+          if (!trimmed) return line;
+          if (trimmed.startsWith('#')) {
+            // Rewrite URI="..." in #EXT-X-KEY or #EXT-X-MAP
+            return line.replace(/URI=["']([^"']+)["']/g, (_match, uri) => {
+              try {
+                const absUrl = new URL(uri, targetUrl).href;
+                return `URI="/api/anime/proxy?url=${encodeURIComponent(absUrl)}&ref=${encodeURIComponent(referer)}"`;
+              } catch {
+                return line;
+              }
+            });
+          }
+          // Segment or variant m3u8 line
+          try {
+            const absUrl = new URL(trimmed, targetUrl).href;
+            return `/api/anime/proxy?url=${encodeURIComponent(absUrl)}&ref=${encodeURIComponent(referer)}`;
+          } catch {
+            return line;
+          }
+        });
+
+        res.setHeader('Content-Type', 'application/vnd.apple.mpegurl; charset=utf-8');
+        res.status(upstreamRes.status);
+        return res.send(rewritten.join('\n'));
+      }
+    }
+
+    // Binary segment or direct stream
+    if (upstreamRes.headers.get('content-length')) {
+      res.setHeader('Content-Length', upstreamRes.headers.get('content-length')!);
+    }
+    if (upstreamRes.headers.get('content-range')) {
+      res.setHeader('Content-Range', upstreamRes.headers.get('content-range')!);
+    }
+    if (upstreamRes.headers.get('accept-ranges')) {
+      res.setHeader('Accept-Ranges', upstreamRes.headers.get('accept-ranges')!);
+    }
+    res.setHeader('Content-Type', contentType || 'video/MP2T');
+    res.status(upstreamRes.status);
+
+    if (upstreamRes.body) {
+      const { Readable } = await import('stream');
+      // @ts-ignore
+      Readable.fromWeb(upstreamRes.body).pipe(res);
+    } else {
+      res.end();
+    }
+  } catch (err: any) {
+    console.error('[Anime Proxy Error]:', err?.message || err);
+    if (!res.headersSent) {
+      res.status(502).json({ error: 'Gagal memuat stream video anime.' });
+    }
+  }
+});
+
+// Serve and convert Subtitles to clean WebVTT
+app.get('/api/anime/subtitles', async (req: Request, res: Response) => {
+  const targetUrl = req.query.url as string;
+  if (!targetUrl || !targetUrl.startsWith('http')) {
+    res.setHeader('Content-Type', 'text/vtt; charset=utf-8');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    return res.send('WEBVTT\n\n');
+  }
+
+  try {
+    const upstreamRes = await fetch(targetUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Referer': 'https://framextv.xyz/',
+      },
+    });
+
+    res.setHeader('Content-Type', 'text/vtt; charset=utf-8');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+
+    if (!upstreamRes.ok) {
+      return res.send('WEBVTT\n\n');
+    }
+
+    const text = await upstreamRes.text();
+
+    // If already WebVTT
+    if (text.startsWith('WEBVTT')) {
+      return res.send(text);
+    }
+
+    // Convert SRT to WebVTT
+    let vtt = 'WEBVTT\n\n' + text.trim();
+    // Replace 00:00:16,730 with 00:00:16.730
+    vtt = vtt.replace(/(\d{2}:\d{2}:\d{2}),(\d{3})/g, '$1.$2');
+    return res.send(vtt);
+  } catch (err: any) {
+    console.error('[Anime Subtitles Error]:', err?.message || err);
+    res.setHeader('Content-Type', 'text/vtt; charset=utf-8');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    return res.send('WEBVTT\n\n');
+  }
+});
+
+// ==========================================
 // Authentication Endpoints (Server-Side)
 // ==========================================
 

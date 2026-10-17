@@ -282,6 +282,61 @@ export const storage = {
     }
   },
 
+  // --- Watch Progress ---
+  getProgress(contentId: string, season?: number, episode?: number): any | null {
+    try {
+      const data = localStorage.getItem('zhafx_progress_v1');
+      if (!data) return null;
+      const parsed = JSON.parse(data);
+      if (!Array.isArray(parsed)) return null;
+      return parsed.find(
+        (p: any) =>
+          p.contentId === contentId &&
+          (season === undefined || p.season === season) &&
+          (episode === undefined || p.episode === episode)
+      ) || null;
+    } catch {
+      return null;
+    }
+  },
+
+  saveProgress(item: any): void {
+    try {
+      const data = localStorage.getItem('zhafx_progress_v1');
+      const current = data ? JSON.parse(data) : [];
+      const filtered = Array.isArray(current)
+        ? current.filter(
+            (p: any) =>
+              !(
+                p.contentId === item.contentId &&
+                p.season === item.season &&
+                p.episode === item.episode
+              )
+          )
+        : [];
+      const updated = {
+        ...item,
+        lastWatchedAt: Date.now(),
+      };
+      const next = [updated, ...filtered].slice(0, 100);
+      localStorage.setItem('zhafx_progress_v1', JSON.stringify(next));
+
+      // Asynchronously send to server if logged in
+      const token = storage.getToken();
+      if (token) {
+        fetch('/api/progress', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(updated),
+        }).catch(() => {});
+      }
+    } catch (e) {
+      console.warn('[Storage] Failed to save watch progress:', e);
+    }
+  },
 };
 
 // Automatic one-time cleanup for any legacy accounts or owner data in client storage
