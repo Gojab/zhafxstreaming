@@ -9,6 +9,9 @@ export function useContinueWatching() {
   const [items, setItems] = useState<WatchProgressItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const isSyncingRef = useRef<boolean>(false);
+  const isSavingRef = useRef<boolean>(false);
+  const itemsRef = useRef<WatchProgressItem[]>([]);
+  itemsRef.current = items;
 
   // Load progress records based on auth status
   const loadProgress = useCallback(async () => {
@@ -59,6 +62,7 @@ export function useContinueWatching() {
     loadProgress();
 
     const handleUpdate = () => {
+      if (isSavingRef.current) return;
       loadProgress();
     };
 
@@ -78,92 +82,100 @@ export function useContinueWatching() {
    */
   const saveProgress = useCallback(
     async (payload: SaveProgressPayload): Promise<void> => {
-      const token = storage.getToken();
-      const validDuration = Math.max(1, Math.round(payload.duration || 1));
-      const validCurrent = Math.max(0, Math.min(validDuration, Math.round(payload.currentTime || 0)));
-      const percentage = Math.min(100, Math.max(0, Math.round((validCurrent / validDuration) * 100)));
-      const isCompleted =
-        payload.completed === true ||
-        percentage >= 95 ||
-        (validDuration > 60 && validDuration - validCurrent <= 30 && validCurrent > 30);
+      isSavingRef.current = true;
+      try {
+        const token = storage.getToken();
+        const validDuration = Math.max(1, Math.round(payload.duration || 1));
+        const validCurrent = Math.max(0, Math.min(validDuration, Math.round(payload.currentTime || 0)));
+        const percentage = Math.min(100, Math.max(0, Math.round((validCurrent / validDuration) * 100)));
+        const isCompleted =
+          payload.completed === true ||
+          percentage >= 95 ||
+          (validDuration > 60 && validDuration - validCurrent <= 30 && validCurrent > 30);
 
-      const sNum = payload.season !== undefined ? Number(payload.season) : undefined;
-      const epNum = payload.episode !== undefined ? Number(payload.episode) : undefined;
-      const progressRecordId = user
-        ? `${user.id}_${payload.contentId}_s${sNum ?? 1}_e${epNum ?? 1}`
-        : `guest_${payload.contentId}_s${sNum ?? 1}_e${epNum ?? 1}`;
+        const sNum = payload.season !== undefined ? Number(payload.season) : undefined;
+        const epNum = payload.episode !== undefined ? Number(payload.episode) : undefined;
+        const progressRecordId = user
+          ? `${user.id}_${payload.contentId}_s${sNum ?? 1}_e${epNum ?? 1}`
+          : `guest_${payload.contentId}_s${sNum ?? 1}_e${epNum ?? 1}`;
 
-      const progressItem: WatchProgressItem = {
-        id: progressRecordId,
-        userId: user ? user.id : 'guest',
-        contentId: payload.contentId,
-        episodeId: payload.episodeId || (sNum || epNum ? `s${sNum || 1}_e${epNum || 1}` : undefined),
-        mediaType: payload.mediaType,
-        title: payload.title,
-        poster: payload.poster,
-        backdrop: payload.backdrop,
-        year: payload.year,
-        season: sNum,
-        episode: epNum,
-        episodeName: payload.episodeName,
-        currentTime: validCurrent,
-        duration: validDuration,
-        progressPercentage: percentage,
-        lastWatchedAt: Date.now(),
-        completed: isCompleted,
-      };
+        const progressItem: WatchProgressItem = {
+          id: progressRecordId,
+          userId: user ? user.id : 'guest',
+          contentId: payload.contentId,
+          episodeId: payload.episodeId || (sNum || epNum ? `s${sNum || 1}_e${epNum || 1}` : undefined),
+          mediaType: payload.mediaType,
+          title: payload.title,
+          poster: payload.poster,
+          backdrop: payload.backdrop,
+          year: payload.year,
+          season: sNum,
+          episode: epNum,
+          episodeName: payload.episodeName,
+          currentTime: validCurrent,
+          duration: validDuration,
+          progressPercentage: percentage,
+          lastWatchedAt: Date.now(),
+          completed: isCompleted,
+        };
 
-      // Also update watch history in storage
-      storage.saveHistory({
-        id: payload.contentId,
-        type: payload.mediaType,
-        title: payload.title,
-        poster: payload.poster,
-        backdrop: payload.backdrop,
-        year: payload.year,
-        season: sNum,
-        episode: epNum,
-        episodeName: payload.episodeName,
-        progressSeconds: validCurrent,
-        durationSeconds: validDuration,
-        progressPercentage: percentage,
-      });
+        // Also update watch history in storage
+        storage.saveHistory({
+          id: payload.contentId,
+          type: payload.mediaType,
+          title: payload.title,
+          poster: payload.poster,
+          backdrop: payload.backdrop,
+          year: payload.year,
+          season: sNum,
+          episode: epNum,
+          episodeName: payload.episodeName,
+          progressSeconds: validCurrent,
+          durationSeconds: validDuration,
+          progressPercentage: percentage,
+        });
 
-      // Optimistic state update
-      setItems((prev) => {
-        const filtered = prev.filter(
-          (p) => !(p.contentId === payload.contentId && p.season === sNum && p.episode === epNum)
-        );
-        if (isCompleted || validCurrent <= 5) {
-          return filtered;
+        // Optimistic state update
+        setItems((prev) => {
+          const filtered = prev.filter(
+            (p) => !(p.contentId === payload.contentId && p.season === sNum && p.episode === epNum)
+          );
+          if (isCompleted || validCurrent <= 5) {
+            return filtered;
+          }
+          return [progressItem, ...filtered];
+        });
+
+        if (user && token) {
+          // Save to backend database
+          try {
+            await progressApi.saveProgress(token, {
+              ...payload,
+              currentTime: validCurrent,
+              duration: validDuration,
+              completed: isCompleted,
+            });
+            // Update user local cache
+            const currentCached = storage.getCachedUserProgress(user.id);
+            const updatedCache = [
+              progressItem,
+              ...currentCached.filter(
+                (p) => !(p.contentId === payload.contentId && p.season === sNum && p.episode === epNum)
+              ),
+            ];
+            storage.setCachedUserProgress(user.id, updatedCache);
+          } catch (e) {
+            console.warn('[useContinueWatching] Failed to save progress to server:', e);
+          }
+        } else {
+          // Save to guest storage
+          storage.saveGuestProgress(progressItem);
         }
-        return [progressItem, ...filtered];
-      });
-
-      if (user && token) {
-        // Save to backend database
-        try {
-          await progressApi.saveProgress(token, {
-            ...payload,
-            currentTime: validCurrent,
-            duration: validDuration,
-            completed: isCompleted,
-          });
-          // Update user local cache
-          const currentCached = storage.getCachedUserProgress(user.id);
-          const updatedCache = [
-            progressItem,
-            ...currentCached.filter(
-              (p) => !(p.contentId === payload.contentId && p.season === sNum && p.episode === epNum)
-            ),
-          ];
-          storage.setCachedUserProgress(user.id, updatedCache);
-        } catch (e) {
-          console.warn('[useContinueWatching] Failed to save progress to server:', e);
-        }
-      } else {
-        // Save to guest storage
-        storage.saveGuestProgress(progressItem);
+      } finally {
+        // Small delay so synchronous events don't trigger re-fetch loop
+        setTimeout(() => {
+          isSavingRef.current = false;
+        }, 100);
       }
     },
     [user]
@@ -219,8 +231,8 @@ export function useContinueWatching() {
    */
   const getProgressForTitle = useCallback(
     (contentId: string, season?: number, episode?: number): WatchProgressItem | undefined => {
-      // 1. Check in state
-      const foundInState = items.find(
+      // 1. Check in ref items state
+      const foundInState = itemsRef.current.find(
         (p) =>
           p.contentId === contentId &&
           (season === undefined || p.season === season) &&
@@ -247,7 +259,7 @@ export function useContinueWatching() {
         );
       }
     },
-    [items, user]
+    [user]
   );
 
   return {

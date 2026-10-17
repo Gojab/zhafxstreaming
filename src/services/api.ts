@@ -174,7 +174,7 @@ async function fetchWithRetry<T>(
 
     for (let attempt = 0; attempt <= CONFIG.MAX_RETRIES; attempt++) {
       if (signal?.aborted) {
-        throw new Error('Permintaan dibatalkan oleh pengguna.');
+        throw new DOMException('Permintaan dibatalkan.', 'AbortError');
       }
 
       const controller = new AbortController();
@@ -221,18 +221,22 @@ async function fetchWithRetry<T>(
         if (signal) signal.removeEventListener('abort', abortHandler);
         lastError = err;
 
-        if (err.name === 'AbortError') {
+        if (signal?.aborted || err.name === 'AbortError') {
           if (signal?.aborted) {
-            throw new Error('Permintaan dibatalkan.');
+            throw new DOMException('Permintaan dibatalkan.', 'AbortError');
           }
           lastError = new Error('Waktu permintaan habis (timeout 12 detik).');
         }
 
         // Exponential backoff before retrying
-        if (attempt < CONFIG.MAX_RETRIES) {
+        if (attempt < CONFIG.MAX_RETRIES && !signal?.aborted) {
           await new Promise(r => setTimeout(r, (attempt + 1) * 350));
         }
       }
+    }
+
+    if (signal?.aborted) {
+      throw new DOMException('Permintaan dibatalkan.', 'AbortError');
     }
 
     // Try server proxy once as ultimate fallback if not already tried

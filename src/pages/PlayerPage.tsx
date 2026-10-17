@@ -22,7 +22,6 @@ import {
 import { api } from '../services/api';
 import { Title, Provider, MediaType } from '../types';
 import { storage } from '../lib/storage';
-import { offlineStorage } from '../lib/offlineStorage';
 import { useContinueWatching } from '../hooks/useContinueWatching';
 
 export const PlayerPage: React.FC = () => {
@@ -146,6 +145,13 @@ export const PlayerPage: React.FC = () => {
     [id, mediaType, seasonNum, episodeNum, saveProgress]
   );
 
+  // Stable refs for callbacks to avoid re-triggering loader effect
+  const performSaveRef = useRef(performSave);
+  performSaveRef.current = performSave;
+
+  const getProgressForTitleRef = useRef(getProgressForTitle);
+  getProgressForTitleRef.current = getProgressForTitle;
+
   // Load details and initialize starting time
   useEffect(() => {
     if (!id) return;
@@ -154,16 +160,68 @@ export const PlayerPage: React.FC = () => {
     // Check if stream already reported
     setIsReported(storage.isStreamReported(id));
 
-    // Fetch title details and providers
-    Promise.all([
-      api.getDetails(id, mediaType, controller.signal),
-      api.getProviders(controller.signal, mediaType),
-    ])
-      .then(([details, provs]) => {
-        setTitle(details);
-        setProviders(provs);
+    // Parallel fetch with resilient fallback
+    const fetchInitData = async () => {
+      try {
+        const [detailsResult, provsResult] = await Promise.allSettled([
+          api.getDetails(id, mediaType, controller.signal),
+          api.getProviders(controller.signal),
+        ]);
 
-        const runtimeNum = Number(details.runtime);
+        if (controller.signal.aborted) return;
+
+        // 1. Providers
+        if (provsResult.status === 'fulfilled' && provsResult.value) {
+          setProviders(provsResult.value);
+        }
+
+        // 2. Details
+        let finalTitle: Title;
+        if (detailsResult.status === 'fulfilled' && detailsResult.value) {
+          finalTitle = detailsResult.value;
+        } else {
+          // If details fetch failed or rejected, check local storage caches first
+          const historyItem = storage.getHistory().find((h) => h.id === id);
+          const myListItem = storage.getMyList().find((m) => m.id === id);
+          const guestItem = storage.getGuestProgress().find((g) => g.contentId === id);
+
+          const titleFallback =
+            searchParams.get('title') ||
+            historyItem?.title ||
+            myListItem?.title ||
+            guestItem?.title ||
+            `Tayangan #${id}`;
+
+          const posterFallback =
+            searchParams.get('poster') ||
+            historyItem?.poster ||
+            myListItem?.poster ||
+            guestItem?.poster ||
+            '';
+
+          const backdropFallback =
+            historyItem?.backdrop ||
+            myListItem?.backdrop ||
+            guestItem?.backdrop ||
+            posterFallback;
+
+          finalTitle = {
+            id,
+            type: mediaType,
+            title: titleFallback,
+            poster: posterFallback,
+            backdrop: backdropFallback,
+            year: String(historyItem?.year || new Date().getFullYear()),
+            rating: '0',
+            overview: '',
+            genres: [],
+          };
+        }
+
+        setTitle(finalTitle);
+        titleRef.current = finalTitle;
+
+        const runtimeNum = Number(finalTitle.runtime);
         if (!isNaN(runtimeNum) && runtimeNum > 0) {
           const estimatedSecs = runtimeNum * 60;
           setDuration(estimatedSecs);
@@ -177,7 +235,7 @@ export const PlayerPage: React.FC = () => {
         if (urlTimeParam && !isNaN(Number(urlTimeParam))) {
           initialTime = Math.max(0, Number(urlTimeParam));
         } else {
-          const savedProgress = getProgressForTitle(
+          const savedProgress = getProgressForTitleRef.current(
             id,
             mediaType === 'tv' ? seasonNum : undefined,
             mediaType === 'anime' || mediaType === 'tv' ? episodeNum : undefined
@@ -196,10 +254,10 @@ export const PlayerPage: React.FC = () => {
         storage.saveHistory({
           id,
           type: mediaType,
-          title: details.title,
-          poster: details.poster,
-          backdrop: details.backdrop,
-          year: details.year,
+          title: finalTitle.title,
+          poster: finalTitle.poster,
+          backdrop: finalTitle.backdrop,
+          year: finalTitle.year,
           season: mediaType === 'tv' ? seasonNum : undefined,
           episode: mediaType === 'tv' || mediaType === 'anime' ? episodeNum : undefined,
           episodeName:
@@ -212,30 +270,23 @@ export const PlayerPage: React.FC = () => {
           durationSeconds: durationRef.current,
         });
 
-        performSave(initialTime);
-      })
-      .catch((err) => {
-        if (err.name !== 'AbortError') {
-          console.error('[PlayerPage] Initialization error:', err);
-          const offlineItem = offlineStorage.getDownload(id, seasonNum, episodeNum);
-          if (offlineItem) {
-            setTitle({
-              id: offlineItem.contentId,
-              title: offlineItem.title,
-              type: offlineItem.mediaType,
-              poster: offlineItem.poster || '',
-              backdrop: offlineItem.backdrop || '',
-              year: offlineItem.year || '2026',
-              overview: offlineItem.overview || '',
-              rating: '8.5',
-              genres: [],
-            });
-          }
+        performSaveRef.current(initialTime);
+      } catch (err: any) {
+        if (
+          err?.name === 'AbortError' ||
+          err?.message?.includes('dibatalkan') ||
+          controller.signal.aborted
+        ) {
+          return;
         }
-      });
+        console.warn('[PlayerPage] Fallback initialization used:', err?.message || err);
+      }
+    };
+
+    fetchInitData();
 
     return () => controller.abort();
-  }, [id, mediaType, seasonNum, episodeNum, searchParams, getProgressForTitle, performSave]);
+  }, [id, mediaType, seasonNum, episodeNum]);
 
   // Periodic heartbeat timer (saves progress every 12 seconds)
   useEffect(() => {
@@ -625,7 +676,7 @@ export const PlayerPage: React.FC = () => {
           src={embedUrl}
           title={title?.title || 'Zhafx Player'}
           onLoad={handleIframeLoaded}
-          sandbox="allow-scripts allow-same-origin allow-presentation allow-fullscreen allow-forms"
+          sandbox="allow-scripts allow-same-origin allow-presentation allow-fullscreen"
           referrerPolicy="no-referrer"
           allow="autoplay; fullscreen; picture-in-picture"
           loading="lazy"
