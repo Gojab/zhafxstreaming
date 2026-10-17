@@ -9,6 +9,7 @@ import { AIChatDrawer } from './components/AIChatDrawer';
 import { CinematicIntro } from './components/CinematicIntro';
 import { LiquidBackground } from './components/LiquidBackground';
 import { QuickFeaturesModal } from './components/QuickFeaturesModal';
+import { AuthModal } from './components/AuthModal';
 import { ActiveMediaProvider } from './context/ActiveMediaContext';
 
 import { HomePage } from './pages/HomePage';
@@ -24,6 +25,7 @@ import { Title } from './types';
 function AppLayout() {
   const [isAIOpen, setIsAIOpen] = useState(false);
   const [isFeaturesOpen, setIsFeaturesOpen] = useState(false);
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [aiContextTitle, setAiContextTitle] = useState<Title | null>(null);
   const location = useLocation();
 
@@ -47,6 +49,7 @@ function AppLayout() {
         <Navbar
           onOpenAI={() => setIsAIOpen(true)}
           onOpenFeatures={() => setIsFeaturesOpen(true)}
+          onOpenAuth={() => setIsAuthOpen(true)}
         />
       )}
 
@@ -73,6 +76,7 @@ function AppLayout() {
         <BottomNav
           onOpenAI={() => setIsAIOpen(true)}
           onOpenFeatures={() => setIsFeaturesOpen(true)}
+          onOpenAuth={() => setIsAuthOpen(true)}
         />
       )}
 
@@ -102,6 +106,13 @@ function AppLayout() {
         isOpen={isFeaturesOpen}
         onClose={() => setIsFeaturesOpen(false)}
         onOpenAI={() => setIsAIOpen(true)}
+        onOpenAuth={() => setIsAuthOpen(true)}
+      />
+
+      {/* Google / Gmail & Account Auth Modal */}
+      <AuthModal
+        isOpen={isAuthOpen}
+        onClose={() => setIsAuthOpen(false)}
       />
     </div>
   );

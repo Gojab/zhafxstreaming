@@ -1,5 +1,5 @@
 import { CONFIG } from '../config';
-import { Title, Episode, Season, Provider, MediaType } from '../types';
+import { Title, Episode, Season, Provider, MediaType, StreamData } from '../types';
 
 // In-memory TTL Cache
 interface CacheEntry<T> {
@@ -118,6 +118,25 @@ export function normalize(raw: any, defaultType: MediaType = 'movie'): Title {
     }));
   }
 
+  // Cast members
+  let cast: any[] | undefined;
+  if (Array.isArray(raw.cast)) {
+    cast = raw.cast.map((c: any) => ({
+      id: c.id || Math.random().toString(),
+      name: c.name || 'Pemeran',
+      character: c.character || '',
+      profile: c.profile || c.profile_path || '',
+      profilePath: c.profile_path || c.profile || '',
+    }));
+  }
+
+  // Trailers & Videos
+  const trailers = Array.isArray(raw.trailers)
+    ? raw.trailers
+    : Array.isArray(raw.videos)
+    ? raw.videos
+    : undefined;
+
   return {
     id: String(raw.id || raw.anilistId || raw.tmdbId || ''),
     type: detectedType,
@@ -133,9 +152,13 @@ export function normalize(raw: any, defaultType: MediaType = 'movie'): Title {
     voteCount: raw.voteCount || raw.vote_count,
     tagline: raw.tagline,
     status: raw.status,
+    releaseDate: raw.release_date || raw.releaseDate || raw.first_air_date,
     numberOfSeasons: raw.numberOfSeasons ?? raw.number_of_seasons,
     numberOfEpisodes: raw.numberOfEpisodes ?? raw.number_of_episodes,
     seasons,
+    cast,
+    trailers,
+    videos: trailers,
   };
 }
 
@@ -409,9 +432,30 @@ export const api = {
   /**
    * Get title detail by ID and type
    */
+  /**
+   * Get title detail by ID and type
+   */
   async getDetails(id: string, type: MediaType = 'movie', signal?: AbortSignal): Promise<Title> {
     if (type === 'anime') {
-      // 1. Fetch from AniList GraphQL (official and standard for all anime IDs)
+      let animeCast: any[] = [];
+      let animeEpisodesCount = 24;
+      let aniMeta: any = null;
+
+      // 1. Fetch official anime meta from FrameX anime backend
+      try {
+        const framexMetaUrl = `${CONFIG.API_ANIME_BASE_URL}${CONFIG.ENDPOINTS.META}?id=${encodeURIComponent(id)}`;
+        const metaRes = await fetchWithRetry<any>(framexMetaUrl, { signal, ttlMs: 15 * 60 * 1000, useProxyFallback: true });
+        if (metaRes && metaRes.meta) {
+          aniMeta = metaRes.meta;
+          if (typeof aniMeta.episodes === 'number') {
+            animeEpisodesCount = aniMeta.episodes;
+          }
+        }
+      } catch {
+        // Fallback to GraphQL
+      }
+
+      // 2. Fetch characters & voice actors from AniList GraphQL
       try {
         const numericId = parseInt(id, 10);
         const query = isNaN(numericId)
@@ -427,6 +471,26 @@ export const api = {
                 startDate { year }
                 genres
                 status
+                streamingEpisodes {
+                  title
+                  thumbnail
+                  url
+                  site
+                }
+                characters(perPage: 12, sort: [ROLE, RELEVANCE]) {
+                  edges {
+                    role
+                    node {
+                      id
+                      name { full native userPreferred }
+                      image { medium large }
+                    }
+                    voiceActors(language: JAPANESE) {
+                      name { full }
+                      image { medium }
+                    }
+                  }
+                }
               }
             }`
           : `query ($id: Int) {
@@ -441,6 +505,26 @@ export const api = {
                 startDate { year }
                 genres
                 status
+                streamingEpisodes {
+                  title
+                  thumbnail
+                  url
+                  site
+                }
+                characters(perPage: 12, sort: [ROLE, RELEVANCE]) {
+                  edges {
+                    role
+                    node {
+                      id
+                      name { full native userPreferred }
+                      image { medium large }
+                    }
+                    voiceActors(language: JAPANESE) {
+                      name { full }
+                      image { medium }
+                    }
+                  }
+                }
               }
             }`;
 
@@ -476,39 +560,72 @@ export const api = {
 
         const media = aniData?.data?.Media;
         if (media) {
-          const epCount = media.episodes || 24;
-          const animeTitle = media.title?.english || media.title?.romaji || media.title?.native || 'Anime';
+          const epCount = aniMeta?.episodes || media.episodes || animeEpisodesCount || 24;
+          const animeTitle = media.title?.english || aniMeta?.title?.english || media.title?.romaji || media.title?.native || 'Anime';
+
+          if (Array.isArray(media.characters?.edges)) {
+            animeCast = media.characters.edges.map((edge: any) => ({
+              id: edge.node?.id || Math.random().toString(),
+              name: edge.node?.name?.full || edge.node?.name?.userPreferred || 'Karakter',
+              character: edge.role === 'MAIN' ? 'Karakter Utama' : 'Pemeran Pendukung',
+              profile: edge.node?.image?.large || edge.node?.image?.medium || '',
+              profilePath: edge.node?.image?.large || edge.node?.image?.medium || '',
+              role: edge.role,
+              voiceActor: edge.voiceActors?.[0]?.name?.full,
+              voiceActorImage: edge.voiceActors?.[0]?.image?.medium,
+            }));
+          }
+
+          // Extract anime episode thumbnails
+          let animeEpisodes: Episode[] = [];
+          if (Array.isArray(media.streamingEpisodes) && media.streamingEpisodes.length > 0) {
+            animeEpisodes = media.streamingEpisodes.map((se: any, idx: number) => ({
+              id: `${id}-${idx + 1}`,
+              number: idx + 1,
+              seasonNumber: 1,
+              name: se.title || `Episode ${idx + 1}`,
+              still: se.thumbnail || media.bannerImage || media.coverImage?.extraLarge || '',
+              stillPath: se.thumbnail || media.bannerImage || media.coverImage?.extraLarge || '',
+            }));
+          }
+
           return {
             id: String(media.id || id),
             type: 'anime',
             title: animeTitle,
             originalTitle: media.title?.native || media.title?.romaji,
-            poster: media.coverImage?.extraLarge || media.coverImage?.large || CONFIG.PLACEHOLDER_POSTER,
-            backdrop: media.bannerImage || media.coverImage?.extraLarge || CONFIG.PLACEHOLDER_BACKDROP,
-            year: String(media.startDate?.year || '2024'),
-            rating: media.averageScore ? (media.averageScore / 10).toFixed(1) : '8.5',
-            overview: media.description ? media.description.replace(/<[^>]*>/g, '').trim() : 'Sinopsis belum tersedia.',
-            genres: media.genres || ['Action', 'Fantasy'],
-            numberOfEpisodes: epCount,
-            status: media.status,
+            poster: media.coverImage?.extraLarge || media.coverImage?.large || aniMeta?.coverImage?.extraLarge || CONFIG.PLACEHOLDER_POSTER,
+            backdrop: media.bannerImage || aniMeta?.bannerImage || media.coverImage?.extraLarge || CONFIG.PLACEHOLDER_BACKDROP,
+            year: String(media.startDate?.year || aniMeta?.seasonYear || '2024'),
+            rating: media.averageScore ? (media.averageScore / 10).toFixed(1) : (aniMeta?.averageScore ? (aniMeta.averageScore / 10).toFixed(1) : '8.5'),
+            overview: media.description
+              ? media.description.replace(/<[^>]*>/g, '').trim()
+              : (aniMeta?.description ? aniMeta.description.replace(/<[^>]*>/g, '').trim() : 'Sinopsis belum tersedia.'),
+            genres: media.genres || aniMeta?.genres || ['Action', 'Fantasy'],
+            numberOfEpisodes: Math.max(animeEpisodes.length, epCount),
+            status: media.status || aniMeta?.status,
+            cast: animeCast,
+            episodes: animeEpisodes.length > 0 ? animeEpisodes : undefined,
           };
         }
       } catch (aniErr) {
         console.warn('[API] AniList anime details warning:', aniErr);
       }
 
-      // Safe fallback for anime so it never crashes with 500
+      // Safe fallback for anime if GraphQL fails
       return {
         id,
         type: 'anime',
-        title: `Anime #${id}`,
-        poster: CONFIG.PLACEHOLDER_POSTER,
-        backdrop: CONFIG.PLACEHOLDER_BACKDROP,
-        year: '2024',
-        rating: '8.5',
-        overview: 'Tayangan anime berkualitas tinggi siap diputar di Zhafx.',
-        genres: ['Action', 'Anime'],
-        numberOfEpisodes: 24,
+        title: aniMeta?.title?.english || aniMeta?.title?.romaji || `Anime #${id}`,
+        poster: aniMeta?.coverImage?.extraLarge || aniMeta?.coverImage?.large || CONFIG.PLACEHOLDER_POSTER,
+        backdrop: aniMeta?.bannerImage || CONFIG.PLACEHOLDER_BACKDROP,
+        year: String(aniMeta?.seasonYear || '2024'),
+        rating: aniMeta?.averageScore ? (aniMeta.averageScore / 10).toFixed(1) : '8.5',
+        overview: aniMeta?.description ? aniMeta.description.replace(/<[^>]*>/g, '').trim() : 'Tayangan anime berkualitas tinggi siap diputar di Zhafx.',
+        genres: aniMeta?.genres || ['Action', 'Anime'],
+        numberOfEpisodes: aniMeta?.episodes || 24,
+        status: aniMeta?.status,
+        cast: animeCast,
       };
     }
 
@@ -516,8 +633,8 @@ export const api = {
     const data = await fetchWithRetry<any>(url, { signal });
     const normalized = normalize(data, type);
 
-    // If TV show, also check if seasons were populated
-    if (data.seasons && Array.isArray(data.seasons)) {
+    // If TV show, ensure seasons are properly populated with clean numbers
+    if (data.seasons && Array.isArray(data.seasons) && data.seasons.length > 0) {
       normalized.seasons = data.seasons.map((s: any) => ({
         id: s.id,
         number: s.number ?? s.season_number ?? 1,
@@ -526,6 +643,41 @@ export const api = {
         poster: s.poster || s.poster_path,
         episodeCount: s.episodeCount ?? s.episode_count ?? 1,
       }));
+    } else if (type === 'tv') {
+      const numSeasons = normalized.numberOfSeasons || 1;
+      normalized.seasons = Array.from({ length: numSeasons }, (_, i) => ({
+        number: i + 1,
+        name: `Musim ${i + 1}`,
+        episodeCount: 12,
+      }));
+    }
+
+    // Cast members
+    if (Array.isArray(data.cast) && data.cast.length > 0) {
+      normalized.cast = data.cast.map((c: any) => ({
+        id: c.id || Math.random().toString(),
+        name: c.name || 'Aktor',
+        character: c.character || '',
+        profile: c.profile || c.profile_path || '',
+        profilePath: c.profile_path || c.profile || '',
+      }));
+    }
+
+    // Trailers & Video Clips
+    const trailersList = Array.isArray(data.trailers)
+      ? data.trailers
+      : Array.isArray(data.videos)
+      ? data.videos
+      : [];
+    if (trailersList.length > 0) {
+      normalized.trailers = trailersList.map((t: any) => ({
+        id: t.id || t.key || String(Math.random()),
+        key: t.key || t.id,
+        name: t.name || 'Trailer Resmi',
+        site: t.site || 'YouTube',
+        type: t.type || 'Trailer',
+      }));
+      normalized.videos = normalized.trailers;
     }
 
     // Similar recommendations
@@ -538,23 +690,60 @@ export const api = {
   },
 
   /**
-   * Get Season episodes for TV series
+   * Get Season episodes for TV series with thumbnail still images from FrameX TV API
    */
   async getSeasonEpisodes(id: string, seasonNumber = 1, signal?: AbortSignal): Promise<Episode[]> {
     const url = `${CONFIG.API_BASE_URL}${CONFIG.ENDPOINTS.SEASON}?id=${encodeURIComponent(id)}&season=${seasonNumber}`;
-    const data = await fetchWithRetry<any>(url, { signal });
+    const data = await fetchWithRetry<any>(url, { signal, ttlMs: 15 * 60 * 1000 });
     if (!data || !Array.isArray(data.episodes)) {
       return [];
     }
-    return data.episodes.map((ep: any) => ({
-      id: ep.id,
-      number: ep.number ?? ep.episode_number ?? 1,
-      seasonNumber: ep.season_number ?? seasonNumber,
-      name: ep.name || `Episode ${ep.number ?? ep.episode_number ?? 1}`,
-      overview: ep.overview || '',
-      still: ep.still || ep.still_path,
-      airDate: ep.airDate || ep.air_date,
-    }));
+    return data.episodes.map((ep: any) => {
+      let stillImage = ep.still || ep.still_path || '';
+      if (stillImage && !stillImage.startsWith('http')) {
+        stillImage = `https://image.tmdb.org/t/p/w500${stillImage.startsWith('/') ? '' : '/'}${stillImage}`;
+      }
+      return {
+        id: ep.id || `${id}-${seasonNumber}-${ep.number ?? ep.episode_number ?? 1}`,
+        number: ep.number ?? ep.episode_number ?? 1,
+        seasonNumber: ep.season_number ?? seasonNumber,
+        name: ep.name || `Episode ${ep.number ?? ep.episode_number ?? 1}`,
+        overview: ep.overview || '',
+        still: stillImage,
+        stillPath: stillImage,
+        airDate: ep.airDate || ep.air_date,
+        voteAverage: ep.vote_average ? Number(ep.vote_average) : undefined,
+        runtime: ep.runtime,
+      };
+    });
+  },
+
+  /**
+   * Get Anime episodes with thumbnails
+   */
+  async getAnimeEpisodes(id: string, signal?: AbortSignal): Promise<Episode[]> {
+    try {
+      const details = await this.getDetails(id, 'anime', signal);
+      if (details.episodes && details.episodes.length > 0) {
+        return details.episodes;
+      }
+      const count = details.numberOfEpisodes || 24;
+      return Array.from({ length: Math.min(count, 48) }, (_, i) => ({
+        id: `${id}-${i + 1}`,
+        number: i + 1,
+        seasonNumber: 1,
+        name: `Episode ${i + 1}`,
+        still: details.backdrop || details.poster,
+        stillPath: details.backdrop || details.poster,
+      }));
+    } catch {
+      return Array.from({ length: 24 }, (_, i) => ({
+        id: `${id}-${i + 1}`,
+        number: i + 1,
+        seasonNumber: 1,
+        name: `Episode ${i + 1}`,
+      }));
+    }
   },
 
   /**
@@ -568,10 +757,11 @@ export const api = {
         if (data && Array.isArray(data.providers) && data.providers.length > 0) {
           return [
             { id: 'auto', name: 'FrameX Otomatis (Rekomendasi)', tagline: 'Server Cepat & Multi-Sub' },
+            { id: 'direct_stream', name: '⚡ Pemutar Langsung (Direct Stream HLS)', tagline: 'Bypass Iframe • Multi Subtitle Indo' },
             ...data.providers.map((p: any) => ({
               id: p.id,
               name: `FrameX - ${p.name || p.id}`,
-              tagline: p.tagline || 'Server Cepat 1080p',
+              tagline: p.tagline || (p.audio === 'dub' ? 'Audio English Dub' : 'Server Cepat 1080p Softsub'),
               category: p.category || 'anime',
               status: p.status,
             })),
@@ -584,8 +774,11 @@ export const api = {
       // Official FrameX Anime Servers
       return [
         { id: 'auto', name: 'FrameX Otomatis (Rekomendasi)', tagline: 'Server Cepat & Multi-Sub' },
+        { id: 'direct_stream', name: '⚡ Pemutar Langsung (Direct Stream HLS)', tagline: 'Bypass Iframe • Multi Subtitle Indo' },
         { id: 'grand_warden', name: 'FrameX - Grand Warden XI', tagline: '1080p Ultra Fast Cloud' },
+        { id: 'grand_warden_dub', name: 'FrameX - Grand Warden XI (Dub)', tagline: 'Multi-Source Cloud Dub' },
         { id: 'wizard', name: 'FrameX - Wizard I', tagline: 'Dual Audio & Softsub' },
+        { id: 'wizard_dub', name: 'FrameX - Wizard I (Dub)', tagline: 'Dual Audio English Dub' },
         { id: 'valkyrie', name: 'FrameX - Valkyrie II', tagline: 'FlixCloud HD' },
         { id: 'archer', name: 'FrameX - Archer IV', tagline: 'Multi-Audio' },
         { id: 'goblin', name: 'FrameX - Goblin V', tagline: 'Direct Fast Auto Stream' },
@@ -610,6 +803,68 @@ export const api = {
   },
 
   /**
+   * Fetches direct anime stream and subtitles directly from FrameX API
+   */
+  async getAnimeStream(params: {
+    id: string;
+    episode?: number;
+    provider?: string;
+    audio?: 'sub' | 'dub';
+    signal?: AbortSignal;
+  }): Promise<StreamData | null> {
+    const { id, episode = 1, provider, audio, signal } = params;
+    const q = new URLSearchParams();
+    q.set('id', String(id));
+    q.set('episode', String(episode));
+    if (provider && provider !== 'auto' && provider !== 'direct_stream') {
+      q.set('provider', provider);
+    }
+    if (audio) {
+      q.set('audio', audio);
+    }
+
+    const streamUrl = `${CONFIG.API_ANIME_BASE_URL}/api/stream?${q.toString()}`;
+    try {
+      const data = await fetchWithRetry<any>(streamUrl, { signal, ttlMs: 10 * 60 * 1000, useProxyFallback: true });
+      if (data && data.success && Array.isArray(data.sources) && data.sources.length > 0) {
+        // Normalize any relative proxy urls to absolute FrameX tech urls
+        const sources = data.sources.map((s: any) => ({
+          ...s,
+          url: s.url?.startsWith('/anime')
+            ? `https://api.framextv.tech${s.url}`
+            : s.url?.startsWith('/')
+            ? `https://api.framextv.tech/anime${s.url}`
+            : s.url,
+        }));
+
+        let subtitles = Array.isArray(data.subtitles)
+          ? data.subtitles.map((sub: any) => ({
+              ...sub,
+              url: sub.url?.startsWith('/anime')
+                ? `https://api.framextv.tech${sub.url}`
+                : sub.url?.startsWith('/')
+                ? `https://api.framextv.tech/anime${sub.url}`
+                : sub.url,
+            }))
+          : undefined;
+
+        return {
+          success: true,
+          provider: data.provider || 'grand_warden',
+          server: data.server,
+          audio: data.audio || 'sub',
+          sources,
+          subtitles,
+        };
+      }
+      return null;
+    } catch (e: any) {
+      console.warn('[API] getAnimeStream failed:', e?.message || e);
+      return null;
+    }
+  },
+
+  /**
    * Builds the official embed URL for the player
    */
   getEmbedUrl(params: {
@@ -622,6 +877,7 @@ export const api = {
     muted?: boolean;
     title?: string;
     poster?: string;
+    audio?: 'sub' | 'dub';
   }): string {
     const {
       type,
@@ -633,6 +889,7 @@ export const api = {
       muted = false,
       title,
       poster,
+      audio = 'sub',
     } = params;
 
     // Official FrameX Anime embed player (https://framextv.xyz only)
@@ -641,14 +898,16 @@ export const api = {
       const cleanId = encodeURIComponent(id);
 
       const q = new URLSearchParams();
+      // CRITICAL: backend=prod forces FrameX to target https://api.framextv.tech/anime
+      q.set('backend', 'prod');
       q.set('id', String(id));
       q.set('episode', String(ep));
       q.set('season', String(season || 1));
       q.set('type', 'tv');
-      q.set('sub_type', 'sub');
+      q.set('sub_type', audio || 'sub');
       q.set('autoplay', autoplay ? '1' : '0');
       q.set('muted', muted ? '1' : '0');
-      if (server && server !== 'auto' && server !== 'framex') {
+      if (server && server !== 'auto' && server !== 'direct_stream' && server !== 'framex') {
         q.set('provider', server);
       }
       if (title) q.set('title', title);
@@ -668,7 +927,7 @@ export const api = {
     const query = new URLSearchParams();
     query.set('autoplay', autoplay ? '1' : '0');
     query.set('muted', muted ? '1' : '0');
-    if (server && server !== 'auto') {
+    if (server && server !== 'auto' && server !== 'direct_stream') {
       query.set('server', server);
     }
     if (title) query.set('title', title);

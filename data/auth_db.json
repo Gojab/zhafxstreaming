@@ -15,6 +15,14 @@
       "email": "ahmad@example.com",
       "passwordHash": "c5c273d127ecf3b54c0b221fdb41af92:5e57ee004854cf5ef9cc57726ebc2fe11a381fc056b515f9fa60725170eadb0c57e4edf8bbb0663b85ca30c1152577a736c4b71054f11c98b3fa079593e4991a",
       "joinedAt": 1791972316264
+    },
+    {
+      "id": "usr_1792234489285_3ec1e8ff",
+      "name": "Gojab Management",
+      "username": "gojabmanagement01",
+      "email": "gojabmanagement01@gmail.com",
+      "passwordHash": "bcd39a585a8420046113aef571b3d574:7f6994f94baaabbeede5df0c8272f963092ce2a1a820ae9f0959932e1faf1cf903d008453810839206686b9b80c15af881d1194daa2a60fc040910d96b06ac64",
+      "joinedAt": 1792234489362
     }
   ],
   "sessions": [
@@ -29,6 +37,12 @@
       "userId": "usr_1791972316166_6bda0ee4",
       "createdAt": 1791972316264,
       "expiresAt": 1794564316264
+    },
+    {
+      "token": "7c50b627f4f29a0bca8c4a5077cfe19c8b2dfb00a4645bf758b450899dd223f1",
+      "userId": "usr_1792234489285_3ec1e8ff",
+      "createdAt": 1792234489362,
+      "expiresAt": 1794826489362
     }
   ]
 }

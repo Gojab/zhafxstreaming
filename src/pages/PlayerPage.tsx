@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import Hls from 'hls.js';
 import {
   ArrowLeft,
   ChevronLeft,
@@ -12,9 +13,13 @@ import {
   CheckCircle2,
   X,
   Tv,
+  Sparkles,
+  Volume2,
+  Play,
+  AlertTriangle,
 } from 'lucide-react';
 import { api } from '../services/api';
-import { Title, Provider, MediaType } from '../types';
+import { Title, Provider, MediaType, Episode, StreamData } from '../types';
 import { storage } from '../lib/storage';
 
 export const PlayerPage: React.FC = () => {
@@ -37,23 +42,36 @@ export const PlayerPage: React.FC = () => {
   const [title, setTitle] = useState<Title | null>(null);
   const [providers, setProviders] = useState<Provider[]>([]);
   const [selectedServer, setSelectedServer] = useState<string>('auto');
+  const [animeAudio, setAnimeAudio] = useState<'sub' | 'dub'>('sub');
+
+  // Direct streaming state for anime
+  const [directStream, setDirectStream] = useState<StreamData | null>(null);
+  const [isLoadingDirect, setIsLoadingDirect] = useState(false);
+  const [directStreamError, setDirectStreamError] = useState<string | null>(null);
+
+  // Episodes list with thumbnails for series drawer
+  const [drawerEpisodes, setDrawerEpisodes] = useState<Episode[]>([]);
+
   const [isIframeLoading, setIsIframeLoading] = useState(true);
   const [loadTimeout, setLoadTimeout] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isEpisodeDrawerOpen, setIsEpisodeDrawerOpen] = useState(false);
+  const [drawerTab, setDrawerTab] = useState<'thumbnails' | 'grid'>('thumbnails');
   const [iframeKey, setIframeKey] = useState(0);
 
   const playerContainerRef = useRef<HTMLDivElement | null>(null);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const hlsRef = useRef<Hls | null>(null);
 
   useEffect(() => {
     setIsIframeLoading(true);
     setLoadTimeout(false);
     const timer = setTimeout(() => {
       setLoadTimeout(true);
-    }, 10000);
+    }, 12000);
     return () => clearTimeout(timer);
-  }, [id, mediaType, seasonNum, episodeNum, selectedServer, iframeKey]);
+  }, [id, mediaType, seasonNum, episodeNum, selectedServer, animeAudio, iframeKey]);
 
   // Track Fullscreen changes
   useEffect(() => {
@@ -128,6 +146,17 @@ export const PlayerPage: React.FC = () => {
 
         setTitle(finalTitle);
         recordHistory(finalTitle);
+
+        // Fetch episode list with thumbnails for series drawer (TV series & Anime)
+        if (mediaType === 'tv') {
+          api.getSeasonEpisodes(id, seasonNum, controller.signal)
+            .then((eps) => setDrawerEpisodes(eps))
+            .catch(() => {});
+        } else if (mediaType === 'anime') {
+          api.getAnimeEpisodes(id, controller.signal)
+            .then((eps) => setDrawerEpisodes(eps))
+            .catch(() => {});
+        }
       } catch (err: any) {
         if (!controller.signal.aborted) {
           console.warn('[PlayerPage] Init fallback used:', err?.message || err);
@@ -138,6 +167,103 @@ export const PlayerPage: React.FC = () => {
     fetchInitData();
     return () => controller.abort();
   }, [id, mediaType, seasonNum, episodeNum, recordHistory, searchParams]);
+
+  // Load Direct Anime Stream directly from FrameX API
+  useEffect(() => {
+    if (mediaType === 'anime' && id) {
+      setIsLoadingDirect(true);
+      setDirectStreamError(null);
+      const controller = new AbortController();
+
+      const targetProvider = selectedServer === 'auto' ? undefined : selectedServer;
+
+      api.getAnimeStream({
+        id,
+        episode: episodeNum,
+        provider: targetProvider,
+        audio: animeAudio,
+        signal: controller.signal,
+      }).then((data) => {
+        if (data && data.sources.length > 0) {
+          setDirectStream(data);
+          setDirectStreamError(null);
+        } else {
+          setDirectStreamError('Stream tidak ditemukan untuk server ini. Coba pilih server lain.');
+        }
+      }).catch((err) => {
+        if (!controller.signal.aborted) {
+          setDirectStreamError(err?.message || 'Gagal memuat stream anime.');
+        }
+      }).finally(() => {
+        setIsLoadingDirect(false);
+      });
+
+      return () => controller.abort();
+    }
+  }, [id, mediaType, episodeNum, selectedServer, animeAudio, iframeKey]);
+
+  // Attach HLS stream to video element
+  useEffect(() => {
+    if (mediaType !== 'anime' || !directStream?.sources?.[0]?.url || !videoRef.current) {
+      return;
+    }
+
+    const video = videoRef.current;
+    const streamUrl = directStream.sources[0].url;
+
+    if (hlsRef.current) {
+      hlsRef.current.destroy();
+      hlsRef.current = null;
+    }
+
+    if (Hls.isSupported()) {
+      const hls = new Hls({
+        enableWorker: true,
+        lowLatencyMode: true,
+      });
+      hlsRef.current = hls;
+
+      hls.loadSource(streamUrl);
+      hls.attachMedia(video);
+
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        setIsIframeLoading(false);
+        setIsLoadingDirect(false);
+        video.play().catch(() => {});
+      });
+
+      hls.on(Hls.Events.ERROR, (_event, data) => {
+        if (data.fatal) {
+          switch (data.type) {
+            case Hls.ErrorTypes.NETWORK_ERROR:
+              hls.startLoad();
+              break;
+            case Hls.ErrorTypes.MEDIA_ERROR:
+              hls.recoverMediaError();
+              break;
+            default:
+              hls.destroy();
+              break;
+          }
+        }
+      });
+    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      // Native Safari / iOS HLS
+      video.src = streamUrl;
+      video.addEventListener('loadedmetadata', () => {
+        setIsIframeLoading(false);
+        setIsLoadingDirect(false);
+        video.play().catch(() => {});
+      });
+    }
+
+    return () => {
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
+        hlsRef.current = null;
+      }
+    };
+  }, [mediaType, directStream, episodeNum]);
 
   const toggleFullscreen = () => {
     try {
@@ -172,7 +298,7 @@ export const PlayerPage: React.FC = () => {
     );
   }
 
-  // Construct embed URL
+  // Construct embed URL for Movie / TV
   const embedUrl = api.getEmbedUrl({
     type: mediaType,
     id,
@@ -206,10 +332,10 @@ export const PlayerPage: React.FC = () => {
   return (
     <div className="min-h-screen w-full bg-[#06070B] flex flex-col relative select-none overflow-hidden">
       {/* Sleek Top Navigation Header */}
-      <header className="fixed top-2.5 sm:top-4 left-2.5 right-2.5 sm:left-6 sm:right-6 max-w-7xl mx-auto z-40 pointer-events-none">
-        <div className="h-13 sm:h-15 px-3 sm:px-5 rounded-full liquid-glass-dense liquid-specular flex items-center justify-between gap-2.5 shadow-2xl pointer-events-auto border border-white/20">
+      <header className="fixed top-2 sm:top-4 left-2 right-2 sm:left-4 sm:right-4 max-w-7xl mx-auto z-40 pointer-events-none">
+        <div className="min-h-12 sm:min-h-14 px-2.5 sm:px-4 py-1.5 rounded-[20px] sm:rounded-full liquid-glass-dense liquid-specular flex items-center justify-between gap-1.5 sm:gap-3 shadow-2xl pointer-events-auto border border-white/20 flex-wrap sm:flex-nowrap">
           {/* Left: Back & Media Info */}
-          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+          <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
             <button
               onClick={() => {
                 if (window.history.length > 1) {
@@ -226,12 +352,12 @@ export const PlayerPage: React.FC = () => {
             </button>
 
             <div className="min-w-0">
-              <h1 className="text-xs sm:text-sm font-bold text-white truncate leading-tight">
+              <h1 className="text-xs sm:text-sm font-bold text-white truncate leading-tight max-w-[130px] sm:max-w-[200px] md:max-w-xs">
                 {title?.title || 'Memuat Pemutar...'}
               </h1>
               {(mediaType === 'tv' || mediaType === 'anime') && (
-                <div className="flex items-center gap-1.5 text-[11px] text-[#FFB224] font-medium truncate">
-                  <span>{mediaType === 'anime' ? 'Anime' : `Musim ${seasonNum}`}</span>
+                <div className="flex items-center gap-1.5 text-[10px] sm:text-[11px] text-[#FFB224] font-medium truncate">
+                  <span>{mediaType === 'anime' ? 'Anime HD' : `Musim ${seasonNum}`}</span>
                   <span>•</span>
                   <span>Episode {episodeNum}</span>
                 </div>
@@ -240,24 +366,24 @@ export const PlayerPage: React.FC = () => {
           </div>
 
           {/* Right: Controls & Server Switcher */}
-          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
             {/* Episode Quick Switcher for TV / Anime */}
             {(mediaType === 'tv' || mediaType === 'anime') && (
-              <div className="flex items-center gap-1 bg-white/[0.06] border border-white/10 rounded-full p-0.5">
+              <div className="flex items-center gap-0.5 sm:gap-1 bg-white/[0.06] border border-white/10 rounded-full p-0.5">
                 <button
                   onClick={() => navigateEpisode(episodeNum - 1)}
                   disabled={!hasPrevEpisode}
                   title="Episode Sebelumnya"
                   aria-label="Episode Sebelumnya"
-                  className="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-white/80 hover:text-white disabled:opacity-25 disabled:pointer-events-none ios-spring cursor-pointer"
+                  className="w-7 h-7 rounded-full flex items-center justify-center text-white/80 hover:text-white disabled:opacity-25 disabled:pointer-events-none ios-spring cursor-pointer"
                 >
                   <ChevronLeft className="w-3.5 h-3.5" />
                 </button>
 
                 <button
                   onClick={() => setIsEpisodeDrawerOpen(!isEpisodeDrawerOpen)}
-                  className="px-2.5 py-1 rounded-full bg-white/[0.12] hover:bg-white/[0.2] text-[11px] font-bold text-[#FFB224] flex items-center gap-1 cursor-pointer ios-spring"
-                  title="Buka daftar episode"
+                  className="px-2 sm:px-2.5 py-1 rounded-full bg-white/[0.12] hover:bg-white/[0.2] text-[10px] sm:text-[11px] font-bold text-[#FFB224] flex items-center gap-1 cursor-pointer ios-spring"
+                  title="Buka daftar episode dengan thumbnail"
                 >
                   <ListOrdered className="w-3 h-3 text-[#FFB224]" />
                   <span>Ep {episodeNum}</span>
@@ -268,16 +394,35 @@ export const PlayerPage: React.FC = () => {
                   disabled={!hasNextEpisode}
                   title="Episode Berikutnya"
                   aria-label="Episode Berikutnya"
-                  className="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-white/80 hover:text-white disabled:opacity-25 disabled:pointer-events-none ios-spring cursor-pointer"
+                  className="w-7 h-7 rounded-full flex items-center justify-center text-white/80 hover:text-white disabled:opacity-25 disabled:pointer-events-none ios-spring cursor-pointer"
                 >
                   <ChevronRight className="w-3.5 h-3.5" />
                 </button>
               </div>
             )}
 
+            {/* Anime Audio Sub / Dub Selector */}
+            {mediaType === 'anime' && (
+              <button
+                onClick={() => {
+                  const nextAudio = animeAudio === 'sub' ? 'dub' : 'sub';
+                  setAnimeAudio(nextAudio);
+                }}
+                className={`px-2.5 py-1 rounded-full text-[10px] sm:text-[11px] font-bold border transition-all cursor-pointer ios-spring flex items-center gap-1 ${
+                  animeAudio === 'sub'
+                    ? 'bg-[#FFB224]/20 border-[#FFB224]/50 text-[#FFB224]'
+                    : 'bg-indigo-500/20 border-indigo-500/50 text-indigo-300'
+                }`}
+                title="Pilih Audio: Sub (Jepang) atau Dub (Inggris)"
+              >
+                <Volume2 className="w-3 h-3" />
+                <span>{animeAudio === 'sub' ? 'SUB' : 'DUB'}</span>
+              </button>
+            )}
+
             {/* Server Selector Dropdown */}
-            <div className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full liquid-glass text-xs text-white">
-              <Server className="w-3.5 h-3.5 text-[#FFB224] shrink-0" />
+            <div className="flex items-center gap-1 px-2 sm:px-2.5 py-1 rounded-full liquid-glass text-xs text-white">
+              <Server className="w-3 h-3 text-[#FFB224] shrink-0" />
               <select
                 value={selectedServer}
                 onChange={(e) => {
@@ -285,12 +430,12 @@ export const PlayerPage: React.FC = () => {
                   setIsIframeLoading(true);
                 }}
                 aria-label="Pilih server stream"
-                className="bg-transparent text-[11px] sm:text-xs text-white font-medium focus:outline-none cursor-pointer max-w-[100px] sm:max-w-none truncate"
+                className="bg-transparent text-[10px] sm:text-xs text-white font-medium focus:outline-none cursor-pointer max-w-[85px] sm:max-w-[130px] truncate"
               >
                 <option value="auto" className="bg-[#12141F] text-white">
-                  {mediaType === 'anime' ? 'FrameX Otomatis (Rekomendasi)' : 'Server Otomatis'}
+                  Server Otomatis
                 </option>
-                {providers.filter((p) => p.id !== 'auto').map((p) => (
+                {providers.filter((p) => p.id !== 'auto' && p.id !== 'direct_stream').map((p) => (
                   <option key={p.id} value={p.id} className="bg-[#12141F] text-white">
                     {p.name}
                   </option>
@@ -298,12 +443,12 @@ export const PlayerPage: React.FC = () => {
               </select>
             </div>
 
-            {/* Refresh / Reconnect Button */}
+            {/* Reload Button */}
             <button
               onClick={handleReload}
               title="Muat ulang stream"
               aria-label="Muat ulang stream"
-              className="w-8 h-8 sm:w-9 sm:h-9 rounded-full liquid-glass flex items-center justify-center text-white/80 hover:text-white hover:bg-white/[0.18] transition-all cursor-pointer ios-spring"
+              className="w-7 h-7 sm:w-8 sm:h-8 rounded-full liquid-glass flex items-center justify-center text-white/80 hover:text-white hover:bg-white/[0.18] transition-all cursor-pointer ios-spring"
             >
               <RotateCw className="w-3.5 h-3.5" />
             </button>
@@ -313,7 +458,7 @@ export const PlayerPage: React.FC = () => {
               onClick={toggleFullscreen}
               title={isFullscreen ? 'Keluar Layar Penuh' : 'Layar Penuh'}
               aria-label={isFullscreen ? 'Keluar Layar Penuh' : 'Layar Penuh'}
-              className="w-8 h-8 sm:w-9 sm:h-9 rounded-full liquid-glass hidden sm:flex items-center justify-center text-white/80 hover:text-white hover:bg-white/[0.18] transition-all cursor-pointer ios-spring"
+              className="w-7 h-7 sm:w-8 sm:h-8 rounded-full liquid-glass hidden sm:flex items-center justify-center text-white/80 hover:text-white hover:bg-white/[0.18] transition-all cursor-pointer ios-spring"
             >
               {isFullscreen ? <Minimize className="w-3.5 h-3.5" /> : <Maximize className="w-3.5 h-3.5" />}
             </button>
@@ -321,93 +466,227 @@ export const PlayerPage: React.FC = () => {
         </div>
       </header>
 
-      {/* Episode Selection Drawer Modal */}
+      {/* SERIES EPISODE SELECTION DRAWER WITH THUMBNAILS */}
       {isEpisodeDrawerOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5">
           <div
-            className="fixed inset-0 bg-black/80 backdrop-blur-md transition-opacity"
+            className="fixed inset-0 bg-black/85 backdrop-blur-xl transition-opacity"
             onClick={() => setIsEpisodeDrawerOpen(false)}
           />
-          <div className="relative w-full max-w-lg max-h-[80vh] overflow-y-auto rounded-[32px] liquid-glass-dense liquid-specular p-5 sm:p-6 space-y-4 z-10 border border-white/20 shadow-2xl text-white">
+          <div className="relative w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-[32px] liquid-glass-dense liquid-specular p-5 sm:p-6 space-y-4 z-10 border border-white/20 shadow-2xl text-white">
+            {/* Drawer Header */}
             <div className="flex items-center justify-between pb-3 border-b border-white/10">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2.5">
                 <Tv className="w-4 h-4 text-[#FFB224]" />
-                <h3 className="text-sm font-bold text-white">
-                  Pilih Episode ({mediaType === 'anime' ? 'Anime' : `Musim ${seasonNum}`})
-                </h3>
+                <div>
+                  <h3 className="text-sm sm:text-base font-bold text-white">
+                    Pilih Episode ({mediaType === 'anime' ? 'Anime' : `Musim ${seasonNum}`})
+                  </h3>
+                  <p className="text-[11px] text-white/50">
+                    Lihat cuplikan visual thumbnail setiap episode
+                  </p>
+                </div>
               </div>
-              <button
-                onClick={() => setIsEpisodeDrawerOpen(false)}
-                className="w-8 h-8 rounded-full liquid-glass flex items-center justify-center text-white/70 hover:text-white cursor-pointer ios-spring"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
 
-            <div className="grid grid-cols-4 sm:grid-cols-6 gap-2 pt-1 max-h-[60vh] overflow-y-auto pr-1">
-              {Array.from({ length: totalEpisodes }, (_, i) => i + 1).map((ep) => {
-                const isCurrent = ep === episodeNum;
-                return (
+              {/* View toggle (Thumbnails vs Quick Grid) */}
+              <div className="flex items-center gap-2">
+                <div className="flex p-0.5 rounded-full bg-white/10 border border-white/10 text-xs">
                   <button
-                    key={ep}
-                    onClick={() => navigateEpisode(ep)}
-                    className={`py-2.5 px-2 rounded-[16px] text-xs font-semibold flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ios-spring ${
-                      isCurrent
-                        ? 'bg-[#FFB224] text-black font-bold shadow-lg scale-105'
-                        : 'bg-white/[0.06] hover:bg-white/[0.14] border border-white/10 text-white'
+                    onClick={() => setDrawerTab('thumbnails')}
+                    className={`px-2.5 py-1 rounded-full transition-all cursor-pointer ${
+                      drawerTab === 'thumbnails' ? 'bg-[#FFB224] text-black font-bold' : 'text-white/70'
                     }`}
                   >
-                    <span>Ep {ep}</span>
-                    {isCurrent && <CheckCircle2 className="w-3 h-3 text-black" />}
+                    Visual
                   </button>
-                );
-              })}
+                  <button
+                    onClick={() => setDrawerTab('grid')}
+                    className={`px-2.5 py-1 rounded-full transition-all cursor-pointer ${
+                      drawerTab === 'grid' ? 'bg-[#FFB224] text-black font-bold' : 'text-white/70'
+                    }`}
+                  >
+                    Angka
+                  </button>
+                </div>
+
+                <button
+                  onClick={() => setIsEpisodeDrawerOpen(false)}
+                  className="w-8 h-8 rounded-full liquid-glass flex items-center justify-center text-white/70 hover:text-white cursor-pointer ios-spring"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
             </div>
+
+            {/* Tab 1: Thumbnails View */}
+            {drawerTab === 'thumbnails' ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[60vh] overflow-y-auto pr-1">
+                {Array.from({ length: totalEpisodes }, (_, i) => i + 1).map((ep) => {
+                  const isCurrent = ep === episodeNum;
+                  const matchingEp = drawerEpisodes.find((e) => e.number === ep);
+                  const epThumb = matchingEp?.still || matchingEp?.stillPath || title?.backdrop || title?.poster;
+
+                  return (
+                    <button
+                      key={ep}
+                      onClick={() => navigateEpisode(ep)}
+                      className={`flex items-center gap-3 p-2.5 rounded-[18px] border text-left transition-all cursor-pointer ios-spring group ${
+                        isCurrent
+                          ? 'bg-[#FFB224]/15 border-[#FFB224] shadow-lg'
+                          : 'bg-white/[0.04] hover:bg-white/[0.08] border-white/10'
+                      }`}
+                    >
+                      <div className="relative w-28 aspect-video shrink-0 rounded-[10px] overflow-hidden bg-black/40 border border-white/10">
+                        <img
+                          src={epThumb}
+                          alt={`Ep ${ep}`}
+                          loading="lazy"
+                          onError={(e) => {
+                            (e.currentTarget as HTMLImageElement).src =
+                              title?.backdrop || title?.poster || '';
+                          }}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        />
+                        <div className="absolute top-1 left-1 px-1.5 py-0.5 rounded bg-black/80 text-[10px] font-bold text-white">
+                          Ep {ep}
+                        </div>
+                        {isCurrent && (
+                          <div className="absolute inset-0 bg-[#FFB224]/30 flex items-center justify-center">
+                            <CheckCircle2 className="w-5 h-5 text-black" />
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex-1 min-w-0">
+                        <h4 className="text-xs font-bold text-white group-hover:text-[#FFB224] line-clamp-1">
+                          {matchingEp?.name || `Episode ${ep}`}
+                        </h4>
+                        {matchingEp?.overview && (
+                          <p className="text-[10px] text-white/50 line-clamp-2 mt-0.5 leading-snug">
+                            {matchingEp.overview}
+                          </p>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              /* Tab 2: Compact Numbers Grid */
+              <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2 max-h-[60vh] overflow-y-auto pr-1">
+                {Array.from({ length: totalEpisodes }, (_, i) => i + 1).map((ep) => {
+                  const isCurrent = ep === episodeNum;
+                  return (
+                    <button
+                      key={ep}
+                      onClick={() => navigateEpisode(ep)}
+                      className={`py-3 px-2 rounded-[16px] text-xs font-semibold flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ios-spring ${
+                        isCurrent
+                          ? 'bg-[#FFB224] text-black font-bold shadow-lg scale-105'
+                          : 'bg-white/[0.06] hover:bg-white/[0.14] border border-white/10 text-white'
+                      }`}
+                    >
+                      <span>Ep {ep}</span>
+                      {isCurrent && <CheckCircle2 className="w-3 h-3 text-black" />}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       )}
 
-      {/* Edge-to-Edge Direct Video Viewport */}
+      {/* Main Viewport: Video Stream */}
       <div
         ref={playerContainerRef}
         className="relative flex-1 w-full h-screen bg-black flex items-center justify-center overflow-hidden"
       >
         {/* Loading Overlay */}
-        {isIframeLoading && (
+        {(isIframeLoading || isLoadingDirect) && (
           <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-[#06070B] space-y-3 pointer-events-none px-4 text-center">
             <div className="w-10 h-10 border-3 border-white/20 border-t-[#FFB224] rounded-full animate-spin" />
             <span className="text-xs font-mono text-white/50 tracking-wider uppercase">
-              Memuat Stream Pemutar Zhafx...
+              {mediaType === 'anime' ? 'Memuat Stream Anime HD...' : 'Memuat Stream Pemutar Zhafx...'}
             </span>
-            {loadTimeout && (
+            {loadTimeout && !isLoadingDirect && (
               <div className="pointer-events-auto pt-2 space-y-2 max-w-sm">
                 <p className="text-xs text-white/60">
-                  Stream membutuhkan waktu lebih lama. Coba beralih server di menu atas atau muat ulang pemutar.
+                  Stream membutuhkan waktu lebih lama. Coba beralih server di menu atas atau muat ulang.
                 </p>
                 <button
                   type="button"
                   onClick={handleReload}
-                  className="px-4 py-1.5 rounded-full liquid-glass text-xs text-[#FFB224] font-semibold hover:bg-white/10 cursor-pointer"
+                  className="px-4 py-1.5 rounded-full liquid-glass text-xs text-white font-semibold hover:bg-white/10 cursor-pointer"
                 >
-                  Muat Ulang Stream
+                  Muat Ulang
                 </button>
               </div>
             )}
           </div>
         )}
 
-        {/* Clean, Full-Viewport Video Stream Iframe (Strictly sandboxed without allow-popups so it never opens new tabs) */}
-        <iframe
-          ref={iframeRef}
-          key={`${id}-${mediaType}-${seasonNum}-${episodeNum}-${selectedServer}-${iframeKey}`}
-          src={embedUrl}
-          title={title?.title || 'Zhafx Stream'}
-          onLoad={() => setIsIframeLoading(false)}
-          allow="autoplay; fullscreen; picture-in-picture; encrypted-media; gyroscope; accelerometer"
-          sandbox="allow-scripts allow-same-origin allow-presentation allow-fullscreen allow-forms"
-          loading="eager"
-          className="w-full h-full border-0 absolute inset-0 pt-14 sm:pt-16"
-        />
+        {/* Error State for Anime Direct Stream */}
+        {mediaType === 'anime' && directStreamError && !isLoadingDirect && (
+          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-[#06070B] p-6 text-center space-y-3">
+            <div className="w-12 h-12 rounded-full bg-rose-500/20 border border-rose-500/30 flex items-center justify-center text-rose-400">
+              <AlertTriangle className="w-6 h-6" />
+            </div>
+            <h3 className="text-base font-bold text-white">Gagal Memutar Stream</h3>
+            <p className="text-xs text-white/60 max-w-sm">{directStreamError}</p>
+            <div className="flex items-center gap-2 pt-2">
+              <button
+                onClick={handleReload}
+                className="px-4 py-2 rounded-full bg-[#FFB224] text-black text-xs font-bold hover:bg-[#FFA500] cursor-pointer"
+              >
+                Coba Lagi
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* 1. ANIME: Native HLS HTML5 Video Player (Zero sandbox errors, with multi-subtitles) */}
+        {mediaType === 'anime' ? (
+          <div className="w-full h-full pt-14 sm:pt-16 flex items-center justify-center bg-black relative">
+            <video
+              ref={videoRef}
+              key={`${id}-${episodeNum}-${directStream?.sources?.[0]?.url}`}
+              controls
+              autoPlay
+              playsInline
+              crossOrigin="anonymous"
+              onLoadedData={() => {
+                setIsIframeLoading(false);
+                setIsLoadingDirect(false);
+              }}
+              className="w-full h-full max-h-screen object-contain"
+            >
+              {directStream?.subtitles?.map((sub, i) => (
+                <track
+                  key={`${i}-${sub.url}`}
+                  kind="subtitles"
+                  src={sub.url}
+                  srcLang={sub.lang || 'id'}
+                  label={sub.label || 'Bahasa'}
+                  default={sub.lang === 'in' || sub.lang === 'id' || i === 0}
+                />
+              ))}
+              Browser Anda tidak mendukung pemutar video HTML5.
+            </video>
+          </div>
+        ) : (
+          /* 2. MOVIE & TV: Official FrameX Embed Player */
+          <iframe
+            ref={iframeRef}
+            key={`${id}-${mediaType}-${seasonNum}-${episodeNum}-${selectedServer}-${iframeKey}`}
+            src={embedUrl}
+            title={title?.title || 'Zhafx Stream'}
+            onLoad={() => setIsIframeLoading(false)}
+            allow="autoplay; fullscreen; picture-in-picture; encrypted-media; gyroscope; accelerometer"
+            loading="eager"
+            className="w-full h-full border-0 absolute inset-0 pt-14 sm:pt-16"
+          />
+        )}
       </div>
     </div>
   );

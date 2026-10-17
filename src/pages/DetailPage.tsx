@@ -14,9 +14,13 @@ import {
   ChevronDown,
   CheckCircle2,
   Film,
+  Video,
+  Users,
+  Mic,
+  X,
 } from 'lucide-react';
 import { api } from '../services/api';
-import { Title, Episode, MediaType } from '../types';
+import { Title, Episode, MediaType, CastMember, VideoTrailer } from '../types';
 import { DetailSkeleton } from '../components/Skeleton';
 import { MediaRow } from '../components/MediaRow';
 import { useMyList } from '../hooks/useMyList';
@@ -48,6 +52,9 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
   const [episodes, setEpisodes] = useState<Episode[]>([]);
   const [isLoadingEpisodes, setIsLoadingEpisodes] = useState(false);
 
+  // Trailer modal state
+  const [activeTrailer, setActiveTrailer] = useState<VideoTrailer | null>(null);
+
   // Share feedback toast
   const [showShareToast, setShowShareToast] = useState(false);
 
@@ -66,7 +73,12 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
         setActiveMedia(data.backdrop || data.poster, data.title);
       }
       if (data.seasons && data.seasons.length > 0) {
-        setSelectedSeason(data.seasons[0].number);
+        // Prioritize Season 1 over Season 0 (Specials)
+        const s1 = data.seasons.find((s) => s.number === 1);
+        setSelectedSeason(s1 ? s1.number : data.seasons[0].number);
+      }
+      if (data.episodes && data.episodes.length > 0) {
+        setEpisodes(data.episodes);
       }
     } catch (err: any) {
       if (err.name !== 'AbortError') {
@@ -105,6 +117,29 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
 
     return () => controller.abort();
   }, [id, selectedSeason, mediaType]);
+
+  // Load episodes with thumbnails for Anime series
+  useEffect(() => {
+    if (!id || mediaType !== 'anime') return;
+    const controller = new AbortController();
+    setIsLoadingEpisodes(true);
+
+    api
+      .getAnimeEpisodes(id, controller.signal)
+      .then((eps) => {
+        setEpisodes(eps);
+      })
+      .catch((err) => {
+        if (err.name !== 'AbortError') {
+          console.warn('[Anime Episodes] Failed to load:', err);
+        }
+      })
+      .finally(() => {
+        setIsLoadingEpisodes(false);
+      });
+
+    return () => controller.abort();
+  }, [id, mediaType]);
 
   const handleShare = async () => {
     if (!title) return;
@@ -163,14 +198,55 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
 
   const inWatchlist = isSaved(title.id);
   const typeLabel = title.type === 'anime' ? 'Anime' : title.type === 'tv' ? 'Serial TV' : 'Film';
+  const availableTrailers = title.trailers || title.videos || [];
+  const primaryTrailer = availableTrailers.find((t) => t.site === 'YouTube' || Boolean(t.key)) || availableTrailers[0];
+
+  const lastHistory = history.find((h) => h.id === title.id);
+  const resumeSeason =
+    lastHistory?.season ??
+    (title.seasons?.find((s) => s.number === 1)?.number ?? title.seasons?.[0]?.number ?? 1);
+  const resumeEpisode = lastHistory?.episode ?? 1;
+  const hasHistory = Boolean(lastHistory && (lastHistory.season || lastHistory.episode));
+
+  const playTargetUrl =
+    title.type === 'anime'
+      ? `/watch/anime/${title.id}/1/${resumeEpisode}`
+      : title.type === 'tv'
+      ? `/watch/tv/${title.id}/${resumeSeason}/${resumeEpisode}`
+      : `/watch/movie/${title.id}`;
 
   return (
-    <div className="min-h-screen pb-16 space-y-12">
+    <div className="min-h-screen pb-20 space-y-12">
       {/* Toast Notification */}
       {showShareToast && (
         <div className="fixed top-20 right-6 z-50 px-4 py-2.5 rounded-xl bg-zinc-900 border border-white/20 text-white text-xs font-medium shadow-xl flex items-center gap-2">
           <CheckCircle2 className="w-4 h-4 text-emerald-400" />
           Tautan tayangan berhasil disalin!
+        </div>
+      )}
+
+      {/* Video Trailer Modal */}
+      {activeTrailer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 animate-in fade-in duration-200">
+          <div
+            className="fixed inset-0 bg-black/85 backdrop-blur-xl"
+            onClick={() => setActiveTrailer(null)}
+          />
+          <div className="relative w-full max-w-3xl aspect-video rounded-[24px] overflow-hidden bg-black border border-white/20 shadow-2xl z-10">
+            <button
+              onClick={() => setActiveTrailer(null)}
+              className="absolute top-3 right-3 z-20 w-8 h-8 rounded-full bg-black/60 hover:bg-black/90 text-white flex items-center justify-center cursor-pointer transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            <iframe
+              src={`https://www.youtube.com/embed/${activeTrailer.key}?autoplay=1&rel=0`}
+              title={activeTrailer.name || 'Trailer'}
+              allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+              className="w-full h-full border-0"
+              allowFullScreen
+            />
+          </div>
         </div>
       )}
 
@@ -192,14 +268,19 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
 
       {/* Main Metadata Container - Apple iOS Liquid Glass Sheet */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8 -mt-40 sm:-mt-52 relative z-10 flex flex-col md:flex-row gap-6 sm:gap-8 items-start">
-        {/* Full-bleed 20px Poster (NOT glass) */}
-        <div className="w-48 sm:w-60 md:w-64 aspect-[2/3] shrink-0 rounded-[20px] overflow-hidden bg-[#0E1017] shadow-[0_20px_50px_rgba(0,0,0,0.85)] mx-auto md:mx-0 border border-white/10 flex items-center justify-center">
+        {/* Full-bleed 20px Poster (Clickable to start watching) */}
+        <div
+          onClick={() => navigate(playTargetUrl)}
+          title="Putar sekarang"
+          aria-label={`Putar ${title.title}`}
+          className="w-48 sm:w-60 md:w-64 aspect-[2/3] shrink-0 rounded-[20px] overflow-hidden bg-[#0E1017] shadow-[0_20px_50px_rgba(0,0,0,0.85)] mx-auto md:mx-0 border border-white/10 flex items-center justify-center relative group cursor-pointer transition-transform duration-300 hover:scale-[1.02]"
+        >
           {!posterError && title.poster ? (
             <img
               src={title.poster}
               alt={title.title}
               onError={() => setPosterError(true)}
-              className="w-full h-full object-cover"
+              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
             />
           ) : (
             <div className="w-full h-full flex flex-col items-center justify-center p-4 text-center bg-[#0E1017]">
@@ -207,6 +288,16 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
               <span className="text-sm font-semibold text-white/50">{title.title}</span>
             </div>
           )}
+
+          {/* Hover Play Button Overlay */}
+          <div className="absolute inset-0 bg-black/45 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2">
+            <div className="w-12 h-12 rounded-full bg-[#FFB224] text-[#06070B] flex items-center justify-center shadow-xl transform group-hover:scale-110 transition-transform ios-spring">
+              <Play className="w-5 h-5 fill-current ml-0.5" />
+            </div>
+            <span className="text-xs font-bold text-white bg-black/75 px-3 py-1 rounded-full backdrop-blur-sm border border-white/10">
+              Putar Sekarang
+            </span>
+          </div>
         </div>
 
         {/* Floating Liquid Glass Info Panel */}
@@ -232,12 +323,24 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
                 <span>{title.runtime} mnt</span>
               </span>
             )}
+            {title.status && (
+              <span className="px-2.5 py-0.5 rounded-full bg-white/[0.08] text-[11px] text-white/70 font-medium">
+                {title.status}
+              </span>
+            )}
           </div>
 
           {/* Title */}
-          <h1 className="text-2xl sm:text-4xl md:text-5xl font-bold text-white tracking-[-0.03em] leading-tight">
-            {title.title}
-          </h1>
+          <div>
+            <h1 className="text-2xl sm:text-4xl md:text-5xl font-bold text-white tracking-[-0.03em] leading-tight">
+              {title.title}
+            </h1>
+            {title.tagline && (
+              <p className="text-xs sm:text-sm text-white/50 italic mt-1 font-medium">
+                "{title.tagline}"
+              </p>
+            )}
+          </div>
 
           {/* Genre Chips */}
           {title.genres && title.genres.length > 0 && (
@@ -275,8 +378,8 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
             )}
           </div>
 
-          {/* Liquid Glass Action Pills */}
-          <div className="flex items-center justify-center md:justify-start gap-2.5 sm:gap-3 pt-2 flex-wrap">
+          {/* Liquid Glass Action Pills with Fixed Responsive Button Positions */}
+          <div className="flex items-center justify-center md:justify-start gap-2 sm:gap-3 pt-2 flex-wrap">
             {/* Play / Continue Watching Button */}
             {(() => {
               const lastHistory = history.find((h) => h.id === title.id);
@@ -294,7 +397,7 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
               return (
                 <button
                   onClick={() => navigate(playTargetUrl)}
-                  className="inline-flex items-center gap-2 px-7 py-3 rounded-full bg-white text-[#06070B] font-bold text-sm shadow-[0_8px_25px_rgba(255,255,255,0.25)] hover:bg-[#FFB224] hover:text-[#06070B] transition-all ios-spring cursor-pointer min-h-[46px]"
+                  className="inline-flex items-center justify-center gap-2 px-6 sm:px-7 py-3 rounded-full bg-white text-[#06070B] font-bold text-xs sm:text-sm shadow-[0_8px_25px_rgba(255,255,255,0.25)] hover:bg-[#FFB224] hover:text-[#06070B] transition-all ios-spring cursor-pointer min-h-[44px]"
                 >
                   <Play className="w-4 h-4 fill-current ml-0.5" />
                   <span>
@@ -305,6 +408,18 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
                 </button>
               );
             })()}
+
+            {/* Video Trailer Button (FrameX Feature) */}
+            {primaryTrailer && (
+              <button
+                onClick={() => setActiveTrailer(primaryTrailer)}
+                className="inline-flex items-center justify-center gap-2 px-4 sm:px-5 py-3 rounded-full liquid-glass liquid-specular text-xs sm:text-sm font-semibold text-white hover:bg-white/[0.16] transition-all cursor-pointer min-h-[44px] ios-spring"
+                title="Tonton Cuplikan Trailer"
+              >
+                <Video className="w-4 h-4 text-[#FFB224]" />
+                <span>Trailer</span>
+              </button>
+            )}
 
             {/* Add to My List Pill */}
             <button
@@ -319,7 +434,7 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
                   rating: title.rating,
                 });
               }}
-              className={`inline-flex items-center gap-2 px-5 py-3 rounded-full liquid-glass liquid-specular text-sm font-semibold transition-all cursor-pointer min-h-[46px] ios-spring ${
+              className={`inline-flex items-center justify-center gap-2 px-4 sm:px-5 py-3 rounded-full liquid-glass liquid-specular text-xs sm:text-sm font-semibold transition-all cursor-pointer min-h-[44px] ios-spring ${
                 inWatchlist ? 'text-[#FFB224] bg-white/[0.16]' : 'text-white hover:bg-white/[0.14]'
               }`}
             >
@@ -336,11 +451,10 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
               )}
             </button>
 
-
             {/* Share Pill */}
             <button
               onClick={handleShare}
-              className="inline-flex items-center gap-1.5 px-4 py-3 rounded-full liquid-glass liquid-specular text-white/80 hover:text-white text-sm font-medium transition-all cursor-pointer min-h-[46px] ios-spring"
+              className="inline-flex items-center justify-center gap-1.5 px-3.5 sm:px-4 py-3 rounded-full liquid-glass liquid-specular text-white/80 hover:text-white text-xs sm:text-sm font-medium transition-all cursor-pointer min-h-[44px] ios-spring"
               title="Bagikan tautan film"
             >
               <Share2 className="w-4 h-4" />
@@ -350,7 +464,7 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
             {/* Tanya AI Pill */}
             <button
               onClick={() => onOpenAIWithContext(title)}
-              className="inline-flex items-center gap-2 px-4 py-3 rounded-full liquid-glass liquid-specular text-white/80 hover:text-white text-sm font-medium transition-all cursor-pointer min-h-[46px] ios-spring"
+              className="inline-flex items-center justify-center gap-2 px-3.5 sm:px-4 py-3 rounded-full liquid-glass liquid-specular text-white/80 hover:text-white text-xs sm:text-sm font-medium transition-all cursor-pointer min-h-[44px] ios-spring"
             >
               <Sparkles className="w-4 h-4 text-[#FFB224]" />
               <span className="hidden sm:inline">Tanya AI</span>
@@ -359,13 +473,81 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
         </div>
       </div>
 
-      {/* For TV Series & Anime: Season & Episode Selector */}
+      {/* CAST & CREW SECTION (Film, Anime, and TV) */}
+      {title.cast && title.cast.length > 0 && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8 space-y-4 pt-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center text-[#FFB224]">
+                <Users className="w-4 h-4" />
+              </div>
+              <div>
+                <h2 className="text-lg sm:text-xl font-bold text-white tracking-tight">
+                  Pemeran & Karakter
+                </h2>
+                <p className="text-xs text-white/50">
+                  {title.type === 'anime'
+                    ? 'Karakter utama & Seiyuu (Pengisi Suara Jepang)'
+                    : 'Aktor & pemeran utama tayangan ini'}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Cast Cards Horizontal Scroll Carousel */}
+          <div className="flex items-stretch gap-3 overflow-x-auto pb-3 pt-1 scrollbar-none scroll-smooth">
+            {title.cast.map((c, idx) => (
+              <div
+                key={c.id || idx}
+                className="w-32 sm:w-36 shrink-0 rounded-[22px] liquid-glass p-3 flex flex-col items-center text-center space-y-2 border border-white/10 hover:border-white/20 transition-all group ios-spring"
+              >
+                {/* Profile Photo */}
+                <div className="w-18 h-18 sm:w-20 sm:h-20 rounded-full overflow-hidden bg-white/10 border-2 border-white/15 relative shrink-0 shadow-md">
+                  {c.profile || c.profilePath ? (
+                    <img
+                      src={c.profile || c.profilePath}
+                      alt={c.name}
+                      loading="lazy"
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center font-bold text-white/40 text-lg">
+                      {c.name.charAt(0)}
+                    </div>
+                  )}
+                </div>
+
+                <div className="w-full min-w-0">
+                  <h4 className="text-xs font-bold text-white line-clamp-1 leading-tight">
+                    {c.name}
+                  </h4>
+                  {c.character && (
+                    <p className="text-[11px] text-[#FFB224] line-clamp-1 font-medium mt-0.5">
+                      {c.character}
+                    </p>
+                  )}
+                  {c.voiceActor && (
+                    <div className="flex items-center justify-center gap-1 text-[10px] text-white/50 mt-1 line-clamp-1">
+                      <Mic className="w-2.5 h-2.5 text-white/40 shrink-0" />
+                      <span className="truncate">{c.voiceActor}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* SERIES EPISODES WITH THUMBNAILS (For TV Series) */}
       {mediaType === 'tv' && title.seasons && title.seasons.length > 0 && (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8 space-y-4 pt-2">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <h2 className="text-lg sm:text-xl font-bold text-white tracking-tight">Pilih Musim & Episode</h2>
-              <p className="text-xs text-white/50">Pilih episode yang ingin langsung kamu tonton</p>
+              <h2 className="text-lg sm:text-xl font-bold text-white tracking-tight">
+                Daftar Episode
+              </h2>
+              <p className="text-xs text-white/50">Pilih episode untuk langsung diputar</p>
             </div>
 
             {/* Season Pill Buttons */}
@@ -377,7 +559,7 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
                     onClick={() => setSelectedSeason(s.number)}
                     className={`px-4 py-2 rounded-full text-xs font-semibold whitespace-nowrap transition-all ios-spring cursor-pointer ${
                       selectedSeason === s.number
-                        ? 'bg-white text-[#06070B] shadow-sm'
+                        ? 'bg-white text-[#06070B] shadow-sm font-bold'
                         : 'liquid-glass text-white/70 hover:text-white'
                     }`}
                   >
@@ -388,17 +570,18 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
             )}
           </div>
 
-          {/* Episodes Grid */}
+          {/* Episodes Grid with 16:9 Stills / Thumbnails */}
           {isLoadingEpisodes ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
               {Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="h-16 rounded-[20px] bg-white/[0.04] animate-pulse" />
+                <div key={i} className="h-32 rounded-[22px] bg-white/[0.04] animate-pulse" />
               ))}
             </div>
           ) : episodes.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
               {episodes.map((ep) => {
                 const watched = isEpisodeWatched(selectedSeason, ep.number);
+                const thumbImage = ep.still || ep.stillPath || title.backdrop || title.poster;
 
                 return (
                   <button
@@ -406,70 +589,149 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
                     onClick={() =>
                       navigate(`/watch/tv/${title.id}/${selectedSeason}/${ep.number}`)
                     }
-                    className="flex items-center gap-3 p-3.5 rounded-[20px] bg-white/[0.04] hover:bg-white/[0.09] border border-white/10 text-left transition-all active:scale-[0.97] cursor-pointer group relative overflow-hidden ios-spring"
+                    className="flex flex-col sm:flex-row items-start sm:items-center gap-3 p-3 rounded-[22px] bg-white/[0.04] hover:bg-white/[0.09] border border-white/10 text-left transition-all active:scale-[0.98] cursor-pointer group relative overflow-hidden ios-spring shadow-md"
                   >
-                    <div className="w-10 h-10 rounded-full bg-white/[0.08] border border-white/10 flex items-center justify-center font-bold text-xs text-white/80 shrink-0 group-hover:bg-[#FFB224] group-hover:text-[#06070B] transition-colors">
-                      {ep.number}
+                    {/* Episode Thumbnail 16:9 */}
+                    <div className="relative w-full sm:w-36 aspect-video shrink-0 rounded-[14px] overflow-hidden bg-black/40 border border-white/10">
+                      <img
+                        src={thumbImage}
+                        alt={ep.name || `Episode ${ep.number}`}
+                        loading="lazy"
+                        onError={(e) => {
+                          (e.currentTarget as HTMLImageElement).src = title.backdrop || title.poster;
+                        }}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      />
+                      {/* Episode Badge overlay */}
+                      <div className="absolute top-1.5 left-1.5 px-2 py-0.5 rounded-md bg-black/75 backdrop-blur-sm text-[10px] font-bold text-white border border-white/10">
+                        Ep {ep.number}
+                      </div>
+                      {/* Play Hover Overlay */}
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <div className="w-8 h-8 rounded-full bg-[#FFB224] text-black flex items-center justify-center shadow-lg">
+                          <Play className="w-4 h-4 fill-current ml-0.5" />
+                        </div>
+                      </div>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-1">
-                        <span className="text-xs font-semibold text-white/95 line-clamp-1 group-hover:text-white">
+
+                    {/* Episode Info */}
+                    <div className="flex-1 min-w-0 w-full">
+                      <div className="flex items-center justify-between gap-1.5">
+                        <h4 className="text-xs sm:text-sm font-bold text-white group-hover:text-[#FFB224] transition-colors line-clamp-1">
                           {ep.name || `Episode ${ep.number}`}
-                        </span>
+                        </h4>
                         {watched && (
                           <span
                             title="Sudah ditonton"
                             className="text-emerald-400 shrink-0"
                           >
-                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            <CheckCircle2 className="w-4 h-4" />
                           </span>
                         )}
                       </div>
-                      <div className="flex items-center justify-between text-[11px] text-white/50 mt-0.5">
-                        <span>Musim {selectedSeason} • Ep {ep.number}</span>
-                      </div>
+
+                      {ep.airDate && (
+                        <p className="text-[10px] text-white/50 mt-0.5">
+                          Rilis: {ep.airDate}
+                        </p>
+                      )}
+
+                      {ep.overview && (
+                        <p className="text-[11px] text-white/65 line-clamp-2 mt-1 leading-snug">
+                          {ep.overview}
+                        </p>
+                      )}
                     </div>
                   </button>
                 );
               })}
             </div>
           ) : (
-            <div className="p-6 rounded-[24px] liquid-glass text-center text-xs text-white/60">
-              Memuat daftar episode langsung di pemutar...
+            <div className="p-8 rounded-[24px] liquid-glass text-center text-xs text-white/60 space-y-2">
+              <p>Memuat daftar episode langsung di pemutar...</p>
               <button
                 onClick={() => navigate(`/watch/tv/${title.id}/${selectedSeason}/1`)}
-                className="mt-2 block mx-auto text-[#FFB224] font-semibold hover:underline cursor-pointer"
+                className="px-5 py-2 rounded-full bg-white text-black font-bold text-xs inline-block hover:bg-[#FFB224] cursor-pointer"
               >
-                Putar episode 1 sekarang
+                Putar Musim {selectedSeason} Episode 1
               </button>
             </div>
           )}
         </div>
       )}
 
-      {/* For Anime: Quick Episode Numbers with Liquid Glass */}
+      {/* ANIME EPISODES WITH THUMBNAIL (For Anime Series) */}
       {mediaType === 'anime' && (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8 space-y-4 pt-2">
-          <div>
-            <h2 className="text-lg sm:text-xl font-bold text-white tracking-tight">Pilih Episode Anime</h2>
-            <p className="text-xs text-white/50">Pilih nomor episode untuk mulai menonton</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg sm:text-xl font-bold text-white tracking-tight">
+                Daftar Episode
+              </h2>
+              <p className="text-xs text-white/50">
+                Total {episodes.length > 0 ? episodes.length : (title.numberOfEpisodes || 24)} episode siap diputar dengan sub & dub
+              </p>
+            </div>
           </div>
-          <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-10 lg:grid-cols-12 gap-2">
-            {Array.from({ length: Math.min(title.numberOfEpisodes || 24, 48) }, (_, i) => i + 1).map((epNum) => {
-              const watched = isEpisodeWatched(1, epNum);
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3.5">
+            {(episodes.length > 0
+              ? episodes
+              : Array.from({ length: Math.min(title.numberOfEpisodes || 24, 48) }, (_, i) => ({
+                  number: i + 1,
+                  name: `Episode ${i + 1}`,
+                  still: title.backdrop || title.poster,
+                  stillPath: title.backdrop || title.poster,
+                } as Episode))
+            ).map((ep) => {
+              const watched = isEpisodeWatched(1, ep.number);
+              const thumbImage = ep.still || ep.stillPath || title.backdrop || title.poster;
 
               return (
                 <button
-                  key={epNum}
-                  onClick={() => navigate(`/watch/anime/${title.id}/1/${epNum}`)}
-                  className={`p-3 rounded-[16px] text-xs font-semibold flex flex-col items-center justify-center gap-1 transition-all cursor-pointer relative overflow-hidden ios-spring ${
+                  key={ep.number}
+                  onClick={() => navigate(`/watch/anime/${title.id}/1/${ep.number}`)}
+                  className={`p-3 rounded-[20px] text-left transition-all cursor-pointer relative overflow-hidden ios-spring group flex flex-col gap-2.5 ${
                     watched
                       ? 'bg-white/10 border border-white/20 text-white'
-                      : 'bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 text-white/90'
+                      : 'bg-white/[0.04] hover:bg-white/[0.09] border border-white/10 text-white/90'
                   }`}
                 >
-                  <span>Ep {epNum}</span>
-                  {watched && <CheckCircle2 className="w-3 h-3 text-emerald-400" />}
+                  {/* Thumbnail 16:9 */}
+                  <div className="relative w-full aspect-video rounded-[14px] overflow-hidden bg-black/40 border border-white/10">
+                    <img
+                      src={thumbImage}
+                      alt={ep.name || `Episode ${ep.number}`}
+                      loading="lazy"
+                      onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).src = title.backdrop || title.poster;
+                      }}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
+                    <div className="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-black/70 backdrop-blur-sm text-[10px] font-bold text-white border border-white/10">
+                      Ep {ep.number}
+                    </div>
+                    {/* Play Hover Overlay */}
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                      <div className="w-8 h-8 rounded-full bg-[#FFB224] text-black flex items-center justify-center shadow-lg">
+                        <Play className="w-4 h-4 fill-current ml-0.5" />
+                      </div>
+                    </div>
+                    {watched && (
+                      <div className="absolute bottom-2 right-2 text-emerald-400">
+                        <CheckCircle2 className="w-4 h-4" />
+                      </div>
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <h4 className="text-xs font-bold text-white group-hover:text-[#FFB224] transition-colors truncate">
+                      {ep.name || `Episode ${ep.number}`}
+                    </h4>
+                    <p className="text-[10px] text-white/50 mt-0.5">
+                      Klik untuk putar langsung
+                    </p>
+                  </div>
                 </button>
               );
             })}

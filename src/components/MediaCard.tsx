@@ -78,13 +78,20 @@ export const MediaCard: React.FC<MediaCardProps> = ({ item, className = '', show
       }}
       className={`group flex flex-col gap-2 relative ${className}`}
     >
-      {/* Poster Media Box with clean DOM separation (no nested button inside <a>) */}
-      <div className="relative aspect-[2/3] w-full overflow-hidden rounded-[20px] bg-[#0E1017] shadow-lg transition-all duration-300 ease-out group-hover:scale-[1.04] group-hover:shadow-[0_16px_36px_rgba(0,0,0,0.65)] ios-spring-soft select-none">
-        {/* Clickable Poster Link to Detail */}
+      {/* Poster Media Box with clean DOM separation & 100% reliable click interaction */}
+      <div
+        onClick={(e) => {
+          // If a quick-action button was clicked, don't trigger the general poster navigation
+          if ((e.target as HTMLElement).closest('button')) return;
+          navigate(detailPath);
+        }}
+        className="relative aspect-[2/3] w-full overflow-hidden rounded-[20px] bg-[#0E1017] shadow-lg transition-all duration-300 ease-out group-hover:scale-[1.04] group-hover:shadow-[0_16px_36px_rgba(0,0,0,0.65)] ios-spring-soft select-none cursor-pointer"
+      >
+        {/* Clickable Poster Link to Detail (z-10) */}
         <Link
           to={detailPath}
           aria-label={`${item.title} (${item.year || 'Detail'})`}
-          className="absolute inset-0 block cursor-pointer z-0"
+          className="absolute inset-0 block cursor-pointer z-10"
         >
           {!imageError && item.poster ? (
             <img
@@ -125,9 +132,9 @@ export const MediaCard: React.FC<MediaCardProps> = ({ item, className = '', show
           </div>
         </Link>
 
-        {/* Action Overlay - sibling to Link, avoids invalid HTML nesting and event conflicts */}
-        <div className="hidden sm:flex absolute inset-0 z-20 flex-col justify-end p-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none group-hover:pointer-events-auto">
-          <div className="flex items-center justify-center gap-2 mb-2">
+        {/* Action Overlay: container is strictly pointer-events-none so it NEVER blocks clicks on the poster */}
+        <div className="hidden sm:flex absolute inset-0 z-20 flex-col justify-end p-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
+          <div className="flex items-center justify-center gap-2 mb-2 pointer-events-auto">
             {/* Quick Play Glass Button */}
             <button
               type="button"
