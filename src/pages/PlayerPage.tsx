@@ -36,16 +36,24 @@ export const PlayerPage: React.FC = () => {
 
   const [title, setTitle] = useState<Title | null>(null);
   const [providers, setProviders] = useState<Provider[]>([]);
-  const [selectedServer, setSelectedServer] = useState<string>(() => {
-    return mediaType === 'anime' ? 'framex' : 'auto';
-  });
+  const [selectedServer, setSelectedServer] = useState<string>('auto');
   const [isIframeLoading, setIsIframeLoading] = useState(true);
+  const [loadTimeout, setLoadTimeout] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isEpisodeDrawerOpen, setIsEpisodeDrawerOpen] = useState(false);
   const [iframeKey, setIframeKey] = useState(0);
 
   const playerContainerRef = useRef<HTMLDivElement | null>(null);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
+
+  useEffect(() => {
+    setIsIframeLoading(true);
+    setLoadTimeout(false);
+    const timer = setTimeout(() => {
+      setLoadTimeout(true);
+    }, 10000);
+    return () => clearTimeout(timer);
+  }, [id, mediaType, seasonNum, episodeNum, selectedServer, iframeKey]);
 
   // Track Fullscreen changes
   useEffect(() => {
@@ -203,9 +211,15 @@ export const PlayerPage: React.FC = () => {
           {/* Left: Back & Media Info */}
           <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
             <button
-              onClick={() => navigate(`/detail/${mediaType}/${id}`)}
+              onClick={() => {
+                if (window.history.length > 1) {
+                  navigate(-1);
+                } else {
+                  navigate(`/detail/${mediaType}/${id}`);
+                }
+              }}
               className="w-8 h-8 sm:w-9 sm:h-9 rounded-full liquid-glass flex items-center justify-center text-white/80 hover:text-white hover:bg-white/[0.18] cursor-pointer ios-spring shrink-0"
-              title="Kembali ke halaman detail"
+              title="Kembali"
               aria-label="Kembali"
             >
               <ArrowLeft className="w-4 h-4" />
@@ -273,12 +287,10 @@ export const PlayerPage: React.FC = () => {
                 aria-label="Pilih server stream"
                 className="bg-transparent text-[11px] sm:text-xs text-white font-medium focus:outline-none cursor-pointer max-w-[100px] sm:max-w-none truncate"
               >
-                {mediaType !== 'anime' && (
-                  <option value="auto" className="bg-[#12141F] text-white">
-                    Server Otomatis
-                  </option>
-                )}
-                {providers.map((p) => (
+                <option value="auto" className="bg-[#12141F] text-white">
+                  {mediaType === 'anime' ? 'FrameX Otomatis (Rekomendasi)' : 'Server Otomatis'}
+                </option>
+                {providers.filter((p) => p.id !== 'auto').map((p) => (
                   <option key={p.id} value={p.id} className="bg-[#12141F] text-white">
                     {p.name}
                   </option>
@@ -362,15 +374,29 @@ export const PlayerPage: React.FC = () => {
       >
         {/* Loading Overlay */}
         {isIframeLoading && (
-          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-[#06070B] space-y-3 pointer-events-none">
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-[#06070B] space-y-3 pointer-events-none px-4 text-center">
             <div className="w-10 h-10 border-3 border-white/20 border-t-[#FFB224] rounded-full animate-spin" />
             <span className="text-xs font-mono text-white/50 tracking-wider uppercase">
               Memuat Stream Pemutar Zhafx...
             </span>
+            {loadTimeout && (
+              <div className="pointer-events-auto pt-2 space-y-2 max-w-sm">
+                <p className="text-xs text-white/60">
+                  Stream membutuhkan waktu lebih lama. Coba beralih server di menu atas atau muat ulang pemutar.
+                </p>
+                <button
+                  type="button"
+                  onClick={handleReload}
+                  className="px-4 py-1.5 rounded-full liquid-glass text-xs text-[#FFB224] font-semibold hover:bg-white/10 cursor-pointer"
+                >
+                  Muat Ulang Stream
+                </button>
+              </div>
+            )}
           </div>
         )}
 
-        {/* Clean, Full-Viewport Video Stream Iframe */}
+        {/* Clean, Full-Viewport Video Stream Iframe (Strictly sandboxed without allow-popups so it never opens new tabs) */}
         <iframe
           ref={iframeRef}
           key={`${id}-${mediaType}-${seasonNum}-${episodeNum}-${selectedServer}-${iframeKey}`}
@@ -378,7 +404,7 @@ export const PlayerPage: React.FC = () => {
           title={title?.title || 'Zhafx Stream'}
           onLoad={() => setIsIframeLoading(false)}
           allow="autoplay; fullscreen; picture-in-picture; encrypted-media; gyroscope; accelerometer"
-          sandbox="allow-scripts allow-same-origin allow-presentation allow-fullscreen allow-forms allow-popups"
+          sandbox="allow-scripts allow-same-origin allow-presentation allow-fullscreen allow-forms"
           loading="eager"
           className="w-full h-full border-0 absolute inset-0 pt-14 sm:pt-16"
         />

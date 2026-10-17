@@ -61,6 +61,8 @@ export const HomePage: React.FC = () => {
     rating: '0.0',
     overview: h.episode ? `Terakhir ditonton: Musim ${h.season || 1} Ep ${h.episode}` : 'Sedang ditonton',
     genres: [],
+    season: h.season,
+    episode: h.episode,
   }));
 
   // Format my list items into Title shape
@@ -141,6 +143,16 @@ export const HomePage: React.FC = () => {
     <div className="space-y-4 pb-12">
       {/* Hero Billboard Carousel */}
       <HeroBillboard items={heroItems} />
+
+      {/* Continue Watching / Lanjutkan Menonton */}
+      {historyTitles.length > 0 && (
+        <MediaRow
+          title="Lanjutkan Menonton"
+          subtitle="Lanjutkan pemutaran tayangan terakhir Anda"
+          items={historyTitles}
+          viewAllLink="/history"
+        />
+      )}
 
       {/* Trending Now */}
       <MediaRow

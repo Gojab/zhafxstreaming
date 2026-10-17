@@ -4,6 +4,7 @@ import { Play, Bookmark, BookmarkCheck, Star, Info } from 'lucide-react';
 import { Title } from '../types';
 import { useMyList } from '../hooks/useMyList';
 import { useActiveMedia } from '../context/ActiveMediaContext';
+import { storage } from '../lib/storage';
 
 interface MediaCardProps {
   item: Title;
@@ -21,11 +22,16 @@ export const MediaCard: React.FC<MediaCardProps> = ({ item, className = '', show
   const saved = isSaved(item.id);
 
   const detailPath = `/detail/${item.type}/${item.id}`;
+
+  const lastHistory = storage.getHistory().find((h) => h.id === item.id);
+  const targetSeason = item.season ?? lastHistory?.season ?? 1;
+  const targetEpisode = item.episode ?? lastHistory?.episode ?? 1;
+
   const playPath =
     item.type === 'anime'
-      ? `/watch/anime/${item.id}/1/1`
+      ? `/watch/anime/${item.id}/1/${targetEpisode}`
       : item.type === 'tv'
-      ? `/watch/tv/${item.id}/1/1`
+      ? `/watch/tv/${item.id}/${targetSeason}/${targetEpisode}`
       : `/watch/movie/${item.id}`;
 
   const handleToggleWatchlist = (e: React.MouseEvent) => {
@@ -72,51 +78,54 @@ export const MediaCard: React.FC<MediaCardProps> = ({ item, className = '', show
       }}
       className={`group flex flex-col gap-2 relative ${className}`}
     >
-      {/* Clickable Poster Link - 100% accessible and responsive on touch & mobile */}
-      <Link
-        to={detailPath}
-        aria-label={`${item.title} (${item.year || 'Detail'})`}
-        className="relative aspect-[2/3] w-full block overflow-hidden rounded-[20px] bg-[#0E1017] shadow-lg transition-all duration-300 ease-out group-hover:scale-[1.04] group-hover:shadow-[0_16px_36px_rgba(0,0,0,0.65)] ios-spring-soft cursor-pointer select-none"
-      >
-        {!imageError && item.poster ? (
-          <img
-            src={item.poster}
-            alt={item.title}
-            loading="lazy"
-            onError={() => setImageError(true)}
-            className="w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-105 pointer-events-none"
-          />
-        ) : (
-          <div className="w-full h-full flex flex-col items-center justify-center p-3 text-center bg-[#0E1017] pointer-events-none">
-            <span className="text-xl font-bold text-white/40 tracking-wider mb-1">
-              {getInitials(item.title)}
-            </span>
-            <span className="text-[11px] text-white/50 line-clamp-2 px-1">
-              {item.title}
-            </span>
-          </div>
-        )}
-
-        {/* Subtle Dark Gradient at bottom of poster */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent opacity-80 group-hover:opacity-95 transition-opacity pointer-events-none" />
-
-        {/* Top Badges (Rating & Type) */}
-        <div className="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between pointer-events-none gap-1 z-10">
-          {item.rating && parseFloat(item.rating) > 0 ? (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-md text-amber-300 text-[10px] font-semibold">
-              <Star className="w-2.5 h-2.5 fill-current" />
-              <span>{item.rating}</span>
-            </span>
-          ) : <span />}
-
-          {showType && (
-            <span className="px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-md text-white/80 text-[10px] font-medium">
-              {typeLabel}
-            </span>
+      {/* Poster Media Box with clean DOM separation (no nested button inside <a>) */}
+      <div className="relative aspect-[2/3] w-full overflow-hidden rounded-[20px] bg-[#0E1017] shadow-lg transition-all duration-300 ease-out group-hover:scale-[1.04] group-hover:shadow-[0_16px_36px_rgba(0,0,0,0.65)] ios-spring-soft select-none">
+        {/* Clickable Poster Link to Detail */}
+        <Link
+          to={detailPath}
+          aria-label={`${item.title} (${item.year || 'Detail'})`}
+          className="absolute inset-0 block cursor-pointer z-0"
+        >
+          {!imageError && item.poster ? (
+            <img
+              src={item.poster}
+              alt={item.title}
+              loading="lazy"
+              onError={() => setImageError(true)}
+              className="w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-105 pointer-events-none"
+            />
+          ) : (
+            <div className="w-full h-full flex flex-col items-center justify-center p-3 text-center bg-[#0E1017] pointer-events-none">
+              <span className="text-xl font-bold text-white/40 tracking-wider mb-1">
+                {getInitials(item.title)}
+              </span>
+              <span className="text-[11px] text-white/50 line-clamp-2 px-1">
+                {item.title}
+              </span>
+            </div>
           )}
-        </div>
 
-        {/* Desktop Hover Quick Action Overlay (pointer-events-none unless hovered on desktop) */}
+          {/* Subtle Dark Gradient at bottom of poster */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent opacity-80 group-hover:opacity-95 transition-opacity pointer-events-none" />
+
+          {/* Top Badges (Rating & Type) */}
+          <div className="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between pointer-events-none gap-1 z-10">
+            {item.rating && parseFloat(item.rating) > 0 ? (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-md text-amber-300 text-[10px] font-semibold">
+                <Star className="w-2.5 h-2.5 fill-current" />
+                <span>{item.rating}</span>
+              </span>
+            ) : <span />}
+
+            {showType && (
+              <span className="px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-md text-white/80 text-[10px] font-medium">
+                {typeLabel}
+              </span>
+            )}
+          </div>
+        </Link>
+
+        {/* Action Overlay - sibling to Link, avoids invalid HTML nesting and event conflicts */}
         <div className="hidden sm:flex absolute inset-0 z-20 flex-col justify-end p-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none group-hover:pointer-events-auto">
           <div className="flex items-center justify-center gap-2 mb-2">
             {/* Quick Play Glass Button */}
@@ -157,7 +166,7 @@ export const MediaCard: React.FC<MediaCardProps> = ({ item, className = '', show
             </button>
           </div>
         </div>
-      </Link>
+      </div>
 
       {/* Title & Metadata (Clean SF Pro typography) */}
       <Link to={detailPath} className="flex flex-col px-0.5 group/text">

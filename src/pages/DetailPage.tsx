@@ -277,22 +277,34 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
 
           {/* Liquid Glass Action Pills */}
           <div className="flex items-center justify-center md:justify-start gap-2.5 sm:gap-3 pt-2 flex-wrap">
-            {/* Play Button */}
-            <button
-              onClick={() =>
-                navigate(
-                  title.type === 'anime'
-                    ? `/watch/anime/${title.id}/1/1`
-                    : title.type === 'tv'
-                    ? `/watch/tv/${title.id}/1/1`
-                    : `/watch/movie/${title.id}`
-                )
-              }
-              className="inline-flex items-center gap-2 px-7 py-3 rounded-full bg-white text-[#06070B] font-bold text-sm shadow-[0_8px_25px_rgba(255,255,255,0.25)] hover:bg-[#FFB224] hover:text-[#06070B] transition-all ios-spring cursor-pointer min-h-[46px]"
-            >
-              <Play className="w-4 h-4 fill-current ml-0.5" />
-              <span>Putar sekarang</span>
-            </button>
+            {/* Play / Continue Watching Button */}
+            {(() => {
+              const lastHistory = history.find((h) => h.id === title.id);
+              const resumeSeason = lastHistory?.season ?? (title.seasons?.[0]?.number ?? 1);
+              const resumeEpisode = lastHistory?.episode ?? 1;
+              const hasHistory = Boolean(lastHistory && (lastHistory.season || lastHistory.episode));
+
+              const playTargetUrl =
+                title.type === 'anime'
+                  ? `/watch/anime/${title.id}/1/${resumeEpisode}`
+                  : title.type === 'tv'
+                  ? `/watch/tv/${title.id}/${resumeSeason}/${resumeEpisode}`
+                  : `/watch/movie/${title.id}`;
+
+              return (
+                <button
+                  onClick={() => navigate(playTargetUrl)}
+                  className="inline-flex items-center gap-2 px-7 py-3 rounded-full bg-white text-[#06070B] font-bold text-sm shadow-[0_8px_25px_rgba(255,255,255,0.25)] hover:bg-[#FFB224] hover:text-[#06070B] transition-all ios-spring cursor-pointer min-h-[46px]"
+                >
+                  <Play className="w-4 h-4 fill-current ml-0.5" />
+                  <span>
+                    {hasHistory && (title.type === 'tv' || title.type === 'anime')
+                      ? `Lanjutkan (Ep ${resumeEpisode})`
+                      : 'Putar sekarang'}
+                  </span>
+                </button>
+              );
+            })()}
 
             {/* Add to My List Pill */}
             <button

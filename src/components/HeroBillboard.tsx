@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Title } from '../types';
 import { useMyList } from '../hooks/useMyList';
 import { useActiveMedia } from '../context/ActiveMediaContext';
+import { storage } from '../lib/storage';
 
 interface HeroBillboardProps {
   items: Title[];
@@ -160,22 +161,34 @@ export const HeroBillboard: React.FC<HeroBillboardProps> = ({ items }) => {
 
           {/* Liquid Glass Action Buttons with Apple Spring Physics */}
           <div className="flex items-center gap-3 pt-3 flex-wrap">
-            {/* Putar Button (White Liquid Glass Pill with bounce) */}
-            <button
-              onClick={() =>
-                navigate(
-                  current.type === 'anime'
-                    ? `/watch/anime/${current.id}/1/1`
-                    : current.type === 'tv'
-                    ? `/watch/tv/${current.id}/1/1`
-                    : `/watch/movie/${current.id}`
-                )
-              }
-              className="inline-flex items-center justify-center gap-2 px-7 py-3 rounded-full bg-white text-[#06070B] hover:bg-white/90 font-bold text-sm shadow-[0_8px_25px_rgba(255,255,255,0.25)] ios-spring cursor-pointer min-h-[46px]"
-            >
-              <Play className="w-4 h-4 fill-current ml-0.5 text-[#06070B]" />
-              <span>Putar</span>
-            </button>
+            {/* Putar Button (White Liquid Glass Pill with bounce & progress resumption) */}
+            {(() => {
+              const lastHistory = storage.getHistory().find((h) => h.id === current.id);
+              const targetSeason = lastHistory?.season ?? 1;
+              const targetEpisode = lastHistory?.episode ?? 1;
+              const hasHistory = Boolean(lastHistory && (lastHistory.season || lastHistory.episode));
+
+              const playPath =
+                current.type === 'anime'
+                  ? `/watch/anime/${current.id}/1/${targetEpisode}`
+                  : current.type === 'tv'
+                  ? `/watch/tv/${current.id}/${targetSeason}/${targetEpisode}`
+                  : `/watch/movie/${current.id}`;
+
+              return (
+                <button
+                  onClick={() => navigate(playPath)}
+                  className="inline-flex items-center justify-center gap-2 px-7 py-3 rounded-full bg-white text-[#06070B] hover:bg-white/90 font-bold text-sm shadow-[0_8px_25px_rgba(255,255,255,0.25)] ios-spring cursor-pointer min-h-[46px]"
+                >
+                  <Play className="w-4 h-4 fill-current ml-0.5 text-[#06070B]" />
+                  <span>
+                    {hasHistory && (current.type === 'tv' || current.type === 'anime')
+                      ? `Lanjutkan (Ep ${targetEpisode})`
+                      : 'Putar'}
+                  </span>
+                </button>
+              );
+            })()}
 
             {/* Daftar Saya (Liquid Glass Pill) */}
             <button

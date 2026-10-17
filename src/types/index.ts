@@ -37,6 +37,8 @@ export interface Title {
   seasons?: Season[];
   episodes?: Episode[];
   similar?: Title[];
+  season?: number;
+  episode?: number;
 }
 
 export interface Season {

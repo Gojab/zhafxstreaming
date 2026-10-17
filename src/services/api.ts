@@ -562,11 +562,34 @@ export const api = {
    */
   async getProviders(signal?: AbortSignal, type?: MediaType): Promise<Provider[]> {
     if (type === 'anime') {
+      try {
+        const url = `${CONFIG.API_ANIME_BASE_URL}${CONFIG.ENDPOINTS.PROVIDERS}`;
+        const data = await fetchWithRetry<any>(url, { signal, ttlMs: 15 * 60 * 1000 });
+        if (data && Array.isArray(data.providers) && data.providers.length > 0) {
+          return [
+            { id: 'auto', name: 'FrameX Otomatis (Rekomendasi)', tagline: 'Server Cepat & Multi-Sub' },
+            ...data.providers.map((p: any) => ({
+              id: p.id,
+              name: `FrameX - ${p.name || p.id}`,
+              tagline: p.tagline || 'Server Cepat 1080p',
+              category: p.category || 'anime',
+              status: p.status,
+            })),
+          ];
+        }
+      } catch {
+        // Fallback to official FrameX anime providers
+      }
+
+      // Official FrameX Anime Servers
       return [
-        { id: 'framex', name: 'Server Resmi (FrameX)', tagline: 'Server Cepat & Multi-Sub' },
-        { id: 'multiembed', name: 'Server Cadangan 1 (MultiEmbed)', tagline: 'Multi-Server Global' },
-        { id: '2embed', name: 'Server Cadangan 2 (2Embed)', tagline: 'Stream Alternatif HD' },
-        { id: 'videasy', name: 'Server Cadangan 3 (Videasy)', tagline: '1080p Stream' },
+        { id: 'auto', name: 'FrameX Otomatis (Rekomendasi)', tagline: 'Server Cepat & Multi-Sub' },
+        { id: 'grand_warden', name: 'FrameX - Grand Warden XI', tagline: '1080p Ultra Fast Cloud' },
+        { id: 'wizard', name: 'FrameX - Wizard I', tagline: 'Dual Audio & Softsub' },
+        { id: 'valkyrie', name: 'FrameX - Valkyrie II', tagline: 'FlixCloud HD' },
+        { id: 'archer', name: 'FrameX - Archer IV', tagline: 'Multi-Audio' },
+        { id: 'goblin', name: 'FrameX - Goblin V', tagline: 'Direct Fast Auto Stream' },
+        { id: 'dragon', name: 'FrameX - Dragon VIII', tagline: 'VidNest Multi-Source' },
       ];
     }
 
@@ -612,29 +635,26 @@ export const api = {
       poster,
     } = params;
 
-    // Direct provider servers for anime
+    // Official FrameX Anime embed player (https://framextv.xyz only)
     if (type === 'anime') {
       const ep = episode || 1;
       const cleanId = encodeURIComponent(id);
 
-      if (server === 'multiembed') {
-        return `https://multiembed.mov/?video_id=${cleanId}&s=1&e=${ep}`;
-      }
-
-      if (server === '2embed') {
-        return `https://anime.2embed.cc/embed/${cleanId}/${ep}`;
-      }
-
-      if (server === 'videasy') {
-        return `https://player.videasy.to/anime/${cleanId}/${ep}?autoplay=${autoplay ? 1 : 0}`;
-      }
-
-      // Default: Official FrameX Anime embed (Cloudflare-backed, multi-sub)
       const q = new URLSearchParams();
+      q.set('id', String(id));
+      q.set('episode', String(ep));
+      q.set('season', String(season || 1));
+      q.set('type', 'tv');
+      q.set('sub_type', 'sub');
       q.set('autoplay', autoplay ? '1' : '0');
       q.set('muted', muted ? '1' : '0');
+      if (server && server !== 'auto' && server !== 'framex') {
+        q.set('provider', server);
+      }
       if (title) q.set('title', title);
       if (poster) q.set('poster', poster);
+
+      // Dedicated FrameX Embed URL for anime: https://framextv.xyz/embed/anime/:id/:episode?...
       return `${CONFIG.EMBED_BASE_URL}/anime/${cleanId}/${ep}?${q.toString()}`;
     }
 
