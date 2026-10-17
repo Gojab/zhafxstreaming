@@ -1,10 +1,10 @@
 import express, { Request, Response } from 'express';
-import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import crypto from 'crypto';
 import fs from 'fs';
+import { executeMultiModelChat } from './api/ai/pipeline';
 
 dotenv.config();
 
@@ -200,122 +200,14 @@ function getUserIdFromAuthHeader(req: Request): string | null {
   return session ? session.userId : null;
 }
 
-// Initialize GoogleGenAI client (Server-side only)
 const apiKey = process.env.GEMINI_API_KEY || '';
-let aiClient: GoogleGenAI | null = null;
-if (apiKey) {
-  aiClient = new GoogleGenAI({
-    apiKey,
-    httpOptions: {
-      headers: {
-        'User-Agent': 'aistudio-build',
-      },
-    },
-  });
-}
 
-// System instruction for Zhafx AI
-const SYSTEM_INSTRUCTION = `Anda adalah asisten cerdas untuk "Zhafx", sebuah platform streaming film, serial TV, dan anime modern.
-Karakteristik & Aturan Anda:
-1. Selalu ramah, asyik, santun, dan komunikatif dalam Bahasa Indonesia yang baik dan luwes.
-2. Fokus utama Anda adalah memberikan rekomendasi film, serial TV, dan anime, ulasan singkat, trivia menarik, perbandingan karya, serta panduan fitur Zhafx.
-3. Tolak dengan sopan topik di luar dunia perfilman, serial, anime, hiburan, dan penggunaan Zhafx.
-4. JANGAN pernah memberikan spoiler alur cerita atau akhir cerita kecuali pengguna secara eksplisit memintanya ("beri tahu spoiler", "siapa yang mati", dll.).
-5. Jangan pernah mengklaim bahwa suatu judul pasti 100% tersedia di Zhafx sebelum pengguna mencarinya, sampaikan dengan kalimat seperti "Kamu bisa cek langsung di Zhafx...".
-6. Rekomendasi Cerdas: Ketika Anda merekomendasikan judul-judul film, serial TV, atau anime spesifik (biasanya 1 sampai 5 judul), tambahkan blok terstruktur persis di paling akhir respons Anda dalam tag:
-<picks>[{"title":"Nama Judul","type":"movie|tv|anime","year":"Tahun"}]</picks>
-Pastikan format JSON di dalam tag <picks> valid tanpa markdown tambahan di dalam tag tersebut. Client Zhafx akan membaca tag ini untuk menampilkan kartu rekomendasi interaktif.`;
-
-// Intelligent Built-in Fallback Assistant for Zhafx
-function generateSmartFallback(message: string, contextTitle?: any) {
-  const lower = message.toLowerCase();
-  let text = '';
-  let picks: Array<{ title: string; type: string; year: string }> = [];
-
-  if (contextTitle) {
-    text = `Mengenai **${contextTitle.title}** (${contextTitle.year || 'N/A'}), tayangan ini menawarkan alur cerita yang memikat dengan sinematografi apik. `;
-    if (contextTitle.type === 'anime') {
-      text += `Bagi penggemar anime serupa, kamu juga wajib menonton petualangan seru berikut di Zhafx:`;
-      picks = [
-        { title: 'Attack on Titan', type: 'anime', year: '2013' },
-        { title: 'Demon Slayer', type: 'anime', year: '2019' },
-        { title: 'Jujutsu Kaisen', type: 'anime', year: '2020' },
-      ];
-    } else if (contextTitle.type === 'tv') {
-      text += `Jika kamu menyukai alur cerita serial ini, berikut serial rekomendasi yang tak kalah seru:`;
-      picks = [
-        { title: 'Breaking Bad', type: 'tv', year: '2008' },
-        { title: 'Stranger Things', type: 'tv', year: '2016' },
-        { title: 'The Last of Us', type: 'tv', year: '2023' },
-      ];
-    } else {
-      text += `Film ini sangat direkomendasikan untuk ditonton santai maupun bersama keluarga. Film-film bertema serupa di Zhafx:`;
-      picks = [
-        { title: 'Interstellar', type: 'movie', year: '2014' },
-        { title: 'Inception', type: 'movie', year: '2010' },
-        { title: 'Dune: Part Two', type: 'movie', year: '2024' },
-      ];
-    }
-  } else if (lower.includes('anime') || lower.includes('wibu') || lower.includes('jepang')) {
-    text = `Untuk kamu pencinta anime, ini beberapa pilihan anime terpopuler dengan cerita mendalam dan aksi epik di Zhafx:
-- **Attack on Titan**: Perjuangan mati-matian manusia melawan raksasa titan.
-- **Solo Leveling**: Hunter terlemah yang bangkit menjadi penguasa bayangan.
-- **Demon Slayer: Kimetsu no Yaiba**: Pertarungan spektakuler para pembasmi iblis dengan animasi kelas dunia.`;
-    picks = [
-      { title: 'Attack on Titan', type: 'anime', year: '2013' },
-      { title: 'Solo Leveling', type: 'anime', year: '2024' },
-      { title: 'Demon Slayer', type: 'anime', year: '2019' },
-    ];
-  } else if (lower.includes('horor') || lower.includes('horror') || lower.includes('seram') || lower.includes('hantu')) {
-    text = `Siap dibuat merinding? Ini rekomendasi film horor terbaik yang wajib kamu tonton di Zhafx:
-- **The Conjuring**: Kisah investigasi paranormal pasangan Warren yang mencekam.
-- **Hereditary**: Horor psikologis keluarga yang gelap dan penuh trauma.
-- **Siksa Kubur**: Karya horor misteri tanah air yang menyentuh tema eksistensial.`;
-    picks = [
-      { title: 'The Conjuring', type: 'movie', year: '2013' },
-      { title: 'Hereditary', type: 'movie', year: '2018' },
-      { title: 'Siksa Kubur', type: 'movie', year: '2024' },
-    ];
-  } else if (lower.includes('aksi') || lower.includes('action') || lower.includes('laga') || lower.includes('perang')) {
-    text = `Berikut rekomendasi film laga blockbuster dengan aksi tanpa henti untuk memompa adrenalinmu:
-- **John Wick: Chapter 4**: Koreografi aksi dan tembak-menembak paling memukau dari Keanu Reeves.
-- **Top Gun: Maverick**: Aksi jet tempur nyata berkecepatan tinggi yang intens.
-- **The Dark Knight**: Pertarungan epik Batman melawan Joker dalam mahakarya Christopher Nolan.`;
-    picks = [
-      { title: 'John Wick: Chapter 4', type: 'movie', year: '2023' },
-      { title: 'Top Gun: Maverick', type: 'movie', year: '2022' },
-      { title: 'The Dark Knight', type: 'movie', year: '2008' },
-    ];
-  } else if (lower.includes('romantis') || lower.includes('romance') || lower.includes('cinta')) {
-    text = `Mencari kisah yang menghangatkan hati? Ini rekomendasi film romantis terbaik:
-- **La La Land**: Kisah cinta antara pianis jazz dan calon aktris di gemerlap Los Angeles.
-- **Before Sunrise**: Pertemuan magis dua insan di kereta menuju Wina.
-- **About Time**: Kisah perjalanan waktu yang dipenuhi kehangatan cinta dan keluarga.`;
-    picks = [
-      { title: 'La La Land', type: 'movie', year: '2016' },
-      { title: 'Before Sunrise', type: 'movie', year: '1995' },
-      { title: 'About Time', type: 'movie', year: '2013' },
-    ];
-  } else {
-    text = `Halo! Saya Zhafx AI, asisten streaming pribadimu. Saya siap memberikan rekomendasi film, serial TV, dan anime terbaik. Berikut beberapa tayangan unggulan yang sedang trending di Zhafx:
-- **Interstellar**: Mahakarya fiksi ilmiah tentang penjelajahan luar angkasa melintasi lubang cacing.
-- **Shogun**: Kisah intrik perebutan kekuasaan samurai Jepang abad ke-17.
-- **Oppenheimer**: Drama biopik intens seputar proyek bom atom Manhattan.`;
-    picks = [
-      { title: 'Interstellar', type: 'movie', year: '2014' },
-      { title: 'Shogun', type: 'tv', year: '2024' },
-      { title: 'Oppenheimer', type: 'movie', year: '2023' },
-    ];
-  }
-
-  return { text, picks };
-}
 
 // Endpoint: AI Chat GET health check
 app.get(['/api/ai/chat', '/api/chat'], (_req: Request, res: Response) => {
   res.status(200).json({
     status: 'ok',
-    service: 'Zhafx AI Assistant API',
+    service: 'Zhafx Multi-Provider AI Engine (16 Models Active)',
     configured: Boolean(process.env.GEMINI_API_KEY),
   });
 });
@@ -334,94 +226,23 @@ app.post(['/api/ai/chat', '/api/chat'], async (req: Request, res: Response) => {
   res.setHeader('Connection', 'keep-alive');
   res.flushHeaders();
 
-  // If no API key configured, stream smart fallback immediately
-  if (!currentKey) {
-    const fallback = generateSmartFallback(message, contextTitle);
-    const words = fallback.text.split(' ');
-    for (let i = 0; i < words.length; i += 3) {
-      const slice = words.slice(i, i + 3).join(' ') + ' ';
-      res.write(`data: ${JSON.stringify({ text: slice })}\n\n`);
-      await new Promise((r) => setTimeout(r, 45));
-    }
-    const picksJson = `<picks>${JSON.stringify(fallback.picks)}</picks>`;
-    res.write(`data: ${JSON.stringify({ text: `\n\n${picksJson}` })}\n\n`);
-    res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
-    return res.end();
-  }
-
-  const ai = new GoogleGenAI({
-    apiKey: currentKey,
-    httpOptions: {
-      headers: {
-        'User-Agent': 'aistudio-build',
+  try {
+    await executeMultiModelChat(
+      {
+        message,
+        history,
+        contextTitle,
+        geminiApiKey: currentKey,
       },
-    },
-  });
-
-  const modelsToTry = ['gemini-2.5-flash', 'gemini-3.8-flash', 'gemini-2.0-flash', 'gemini-flash-latest'];
-  let succeeded = false;
-
-  for (const model of modelsToTry) {
-    try {
-      const contents: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }> = [];
-
-      if (Array.isArray(history)) {
-        for (const item of history.slice(-8)) {
-          if (item && item.role && item.text) {
-            contents.push({
-              role: item.role === 'user' ? 'user' : 'model',
-              parts: [{ text: item.text }]
-            });
-          }
-        }
+      (chunk: string) => {
+        res.write(`data: ${JSON.stringify({ text: chunk })}\n\n`);
       }
-
-      let userPrompt = message;
-      if (contextTitle) {
-        userPrompt = `[Konteks Tayangan saat ini: ${contextTitle.title} (${contextTitle.year || 'N/A'}, Tipe: ${contextTitle.type || 'Media'}, Sinopsis: ${contextTitle.overview || 'Tidak ada'})]\n\nPertanyaan pengguna: ${message}`;
-      }
-
-      contents.push({
-        role: 'user',
-        parts: [{ text: userPrompt }]
-      });
-
-      const responseStream = await ai.models.generateContentStream({
-        model,
-        contents,
-        config: {
-          systemInstruction: SYSTEM_INSTRUCTION,
-          temperature: 0.7,
-        }
-      });
-
-      for await (const chunk of responseStream) {
-        const text = chunk.text;
-        if (text) {
-          res.write(`data: ${JSON.stringify({ text })}\n\n`);
-        }
-      }
-
-      res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
-      res.end();
-      succeeded = true;
-      break;
-    } catch (err: any) {
-      console.warn(`[Gemini API] Failed with model ${model}:`, err?.message || err);
-    }
-  }
-
-  // If all models failed (e.g. quota 429 or network issue), stream resilient smart fallback
-  if (!succeeded) {
-    const fallback = generateSmartFallback(message, contextTitle);
-    const words = fallback.text.split(' ');
-    for (let i = 0; i < words.length; i += 3) {
-      const slice = words.slice(i, i + 3).join(' ') + ' ';
-      res.write(`data: ${JSON.stringify({ text: slice })}\n\n`);
-      await new Promise((r) => setTimeout(r, 45));
-    }
-    const picksJson = `<picks>${JSON.stringify(fallback.picks)}</picks>`;
-    res.write(`data: ${JSON.stringify({ text: `\n\n${picksJson}` })}\n\n`);
+    );
+    res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+    res.end();
+  } catch (err: any) {
+    console.error('[Server AI Chat Error]:', err);
+    res.write(`data: ${JSON.stringify({ text: 'Maaf, terjadi gangguan pada pemrosesan AI.' })}\n\n`);
     res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
     res.end();
   }
@@ -488,6 +309,13 @@ app.get('/api/anime/providers', async (_req: Request, res: Response) => {
     });
     if (upstreamRes.ok) {
       const data = await upstreamRes.json();
+      if (data && Array.isArray(data.providers)) {
+        data.providers = data.providers.map((p: any, idx: number) => ({
+          ...p,
+          name: `ZHAFX ENTITY ${String(idx + 1).padStart(3, '0')}`,
+        }));
+        return res.json(data);
+      }
       return res.json(data);
     }
   } catch (err) {
@@ -497,15 +325,16 @@ app.get('/api/anime/providers', async (_req: Request, res: Response) => {
   // Fallback providers catalogue if upstream is slow
   return res.json({
     providers: [
-      { id: 'grand_warden', name: 'Grand Warden XI', tagline: '1080p Ultra Fast Multi-Source Cloud', audio: 'sub', category: 'anime' },
-      { id: 'grand_warden_dub', name: 'Grand Warden XI (Dub)', tagline: 'Multi-Source Cloud Dub', audio: 'dub', category: 'anime' },
-      { id: 'wizard', name: 'Wizard I', tagline: 'Dual Audio & Softsub', audio: 'sub', category: 'anime' },
-      { id: 'wizard_dub', name: 'Wizard I (Dub)', tagline: 'Dual Audio English Dub', audio: 'dub', category: 'anime' },
-      { id: 'valkyrie', name: 'Valkyrie II', tagline: 'FlixCloud HD', audio: 'sub', category: 'anime' },
-      { id: 'valkyrie_dub', name: 'Valkyrie II (Dub)', tagline: 'FlixCloud HD Dub', audio: 'dub', category: 'anime' },
-      { id: 'super_pekka', name: 'Super PEKKA X', tagline: 'Direct Fast CDN', audio: 'sub', category: 'anime' },
-      { id: 'dragon', name: 'Dragon VIII', tagline: 'VidNest Multi-Source', audio: 'sub', category: 'anime' },
-      { id: 'archer', name: 'Archer IV', tagline: 'Multi-Audio', audio: 'sub', category: 'anime' },
+      { id: 'grand_warden', name: 'ZHAFX ENTITY 001', tagline: '1080p Ultra Fast Multi-Source Cloud', audio: 'sub', category: 'anime' },
+      { id: 'grand_warden_dub', name: 'ZHAFX ENTITY 002', tagline: 'Multi-Source Cloud Dub', audio: 'dub', category: 'anime' },
+      { id: 'wizard', name: 'ZHAFX ENTITY 003', tagline: 'Dual Audio & Softsub', audio: 'sub', category: 'anime' },
+      { id: 'wizard_dub', name: 'ZHAFX ENTITY 004', tagline: 'Dual Audio English Dub', audio: 'dub', category: 'anime' },
+      { id: 'valkyrie', name: 'ZHAFX ENTITY 005', tagline: 'FlixCloud HD', audio: 'sub', category: 'anime' },
+      { id: 'valkyrie_dub', name: 'ZHAFX ENTITY 006', tagline: 'FlixCloud HD Dub', audio: 'dub', category: 'anime' },
+      { id: 'super_pekka', name: 'ZHAFX ENTITY 007', tagline: 'Direct Fast CDN', audio: 'sub', category: 'anime' },
+      { id: 'dragon', name: 'ZHAFX ENTITY 008', tagline: 'VidNest Multi-Source', audio: 'sub', category: 'anime' },
+      { id: 'archer', name: 'ZHAFX ENTITY 009', tagline: 'Multi-Audio', audio: 'sub', category: 'anime' },
+      { id: 'giant', name: 'ZHAFX ENTITY 010', tagline: 'High Bitrate HD Stream', audio: 'sub', category: 'anime' },
     ],
   });
 });

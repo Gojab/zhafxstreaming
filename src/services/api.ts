@@ -872,10 +872,10 @@ export const api = {
         const data = await fetchWithRetry<any>('/api/anime/providers', { signal, ttlMs: 15 * 60 * 1000 });
         if (data && Array.isArray(data.providers) && data.providers.length > 0) {
           return [
-            { id: 'auto', name: '⚡ Server Otomatis (Rekomendasi Cepat)', tagline: 'Auto-Select Server Terbaik' },
-            ...data.providers.map((p: any) => ({
+            { id: 'auto', name: '⚡ ZHAFX AUTO (Otomatis)', tagline: 'Auto-Select Server Terbaik' },
+            ...data.providers.map((p: any, idx: number) => ({
               id: p.id,
-              name: p.name || p.id,
+              name: `ZHAFX ENTITY ${String(idx + 1).padStart(3, '0')}`,
               tagline: p.tagline || (p.audio === 'dub' ? 'Audio English Dub' : 'Server Cepat 1080p Multi-Sub'),
               category: p.category || 'anime',
               status: p.status,
@@ -888,33 +888,47 @@ export const api = {
 
       // Official FrameX Anime Servers
       return [
-        { id: 'auto', name: '⚡ Server Otomatis (Rekomendasi Cepat)', tagline: 'Auto-Select Server Terbaik' },
-        { id: 'grand_warden', name: 'Grand Warden XI', tagline: '1080p Ultra Fast Multi-Source Cloud' },
-        { id: 'grand_warden_dub', name: 'Grand Warden XI (Dub)', tagline: 'Multi-Source Cloud Dub' },
-        { id: 'wizard', name: 'Wizard I', tagline: 'Dual Audio & Softsub' },
-        { id: 'wizard_dub', name: 'Wizard I (Dub)', tagline: 'Dual Audio English Dub' },
-        { id: 'valkyrie', name: 'Valkyrie II', tagline: 'FlixCloud HD' },
-        { id: 'valkyrie_dub', name: 'Valkyrie II (Dub)', tagline: 'FlixCloud HD Dub' },
-        { id: 'super_pekka', name: 'Super PEKKA X', tagline: 'Direct Fast CDN' },
-        { id: 'dragon', name: 'Dragon VIII', tagline: 'VidNest Multi-Source' },
-        { id: 'archer', name: 'Archer IV', tagline: 'Multi-Audio' },
+        { id: 'auto', name: '⚡ ZHAFX AUTO (Otomatis)', tagline: 'Auto-Select Server Terbaik' },
+        { id: 'grand_warden', name: 'ZHAFX ENTITY 001', tagline: '1080p Ultra Fast Multi-Source Cloud' },
+        { id: 'grand_warden_dub', name: 'ZHAFX ENTITY 002', tagline: 'Multi-Source Cloud Dub' },
+        { id: 'wizard', name: 'ZHAFX ENTITY 003', tagline: 'Dual Audio & Softsub' },
+        { id: 'wizard_dub', name: 'ZHAFX ENTITY 004', tagline: 'Dual Audio English Dub' },
+        { id: 'valkyrie', name: 'ZHAFX ENTITY 005', tagline: 'FlixCloud HD' },
+        { id: 'valkyrie_dub', name: 'ZHAFX ENTITY 006', tagline: 'FlixCloud HD Dub' },
+        { id: 'super_pekka', name: 'ZHAFX ENTITY 007', tagline: 'Direct Fast CDN' },
+        { id: 'dragon', name: 'ZHAFX ENTITY 008', tagline: 'VidNest Multi-Source' },
+        { id: 'archer', name: 'ZHAFX ENTITY 009', tagline: 'Multi-Audio' },
+        { id: 'giant', name: 'ZHAFX ENTITY 010', tagline: 'High Bitrate HD Stream' },
       ];
     }
 
     try {
       const url = `${CONFIG.API_BASE_URL}${CONFIG.ENDPOINTS.PROVIDERS}`;
       const data = await fetchWithRetry<any>(url, { signal, ttlMs: 15 * 60 * 1000 });
-      return data.providers || [];
+      if (data && Array.isArray(data.providers) && data.providers.length > 0) {
+        return [
+          { id: 'auto', name: '⚡ ZHAFX AUTO (Otomatis)', tagline: 'Auto-Select Server Terbaik' },
+          ...data.providers.map((p: any, idx: number) => ({
+            ...p,
+            name: `ZHAFX ENTITY ${String(idx + 1).padStart(3, '0')}`,
+          })),
+        ];
+      }
     } catch {
       // Default fallback providers list
-      return [
-        { id: 'miner', name: 'Miner XIX', tagline: 'Server Cepat 4K / 1080p' },
-        { id: 'headhunter', name: 'Headhunter XXXI', tagline: 'VidLink Server Multi-Sub' },
-        { id: 'valkyrie', name: 'Valkyrie VI', tagline: 'Multi-Server Stabil' },
-        { id: 'super_barbarian', name: 'Super Barbarian', tagline: 'Direct Auto HLS' },
-        { id: 'bowler', name: 'Bowler XVIII', tagline: 'Multi-Bahasa' },
-      ];
     }
+
+    return [
+      { id: 'auto', name: '⚡ ZHAFX AUTO (Otomatis)', tagline: 'Auto-Select Server Terbaik' },
+      { id: 'miner', name: 'ZHAFX ENTITY 001', tagline: 'Server Cepat 4K / 1080p' },
+      { id: 'headhunter', name: 'ZHAFX ENTITY 002', tagline: 'VidLink Server Multi-Sub' },
+      { id: 'valkyrie', name: 'ZHAFX ENTITY 003', tagline: 'Multi-Server Stabil' },
+      { id: 'super_barbarian', name: 'ZHAFX ENTITY 004', tagline: 'Direct Auto HLS' },
+      { id: 'bowler', name: 'ZHAFX ENTITY 005', tagline: 'Multi-Bahasa' },
+      { id: 'goblin', name: 'ZHAFX ENTITY 006', tagline: 'Ultra Cloud 1080p' },
+      { id: 'pekka', name: 'ZHAFX ENTITY 007', tagline: 'High Bitrate HD' },
+      { id: 'healer', name: 'ZHAFX ENTITY 008', tagline: 'Cloud CDN Stream' },
+    ];
   },
 
   /**

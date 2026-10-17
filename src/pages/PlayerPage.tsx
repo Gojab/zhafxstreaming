@@ -70,6 +70,7 @@ export const PlayerPage: React.FC = () => {
   const [isMuted, setIsMuted] = useState(false);
   const [playbackRate, setPlaybackRate] = useState(1);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isCssFullscreen, setIsCssFullscreen] = useState(false);
   const [showControls, setShowControls] = useState(true);
 
   // Quality & Subtitle menus
@@ -366,14 +367,39 @@ export const PlayerPage: React.FC = () => {
     };
   }, [id, mediaType, animeStream, episodeNum]);
 
-  // Handle Fullscreen tracking
+  // Handle Fullscreen tracking (Native + CSS Fallback)
   useEffect(() => {
     const handleFsChange = () => {
-      setIsFullscreen(!!document.fullscreenElement);
+      const isNativeFs = !!(
+        document.fullscreenElement ||
+        (document as any).webkitFullscreenElement ||
+        (document as any).mozFullScreenElement ||
+        (document as any).msFullscreenElement
+      );
+      setIsFullscreen(isNativeFs || isCssFullscreen);
     };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isCssFullscreen) {
+        setIsCssFullscreen(false);
+        setIsFullscreen(false);
+      }
+    };
+
     document.addEventListener('fullscreenchange', handleFsChange);
-    return () => document.removeEventListener('fullscreenchange', handleFsChange);
-  }, []);
+    document.addEventListener('webkitfullscreenchange', handleFsChange);
+    document.addEventListener('mozfullscreenchange', handleFsChange);
+    document.addEventListener('MSFullscreenChange', handleFsChange);
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFsChange);
+      document.removeEventListener('webkitfullscreenchange', handleFsChange);
+      document.removeEventListener('mozfullscreenchange', handleFsChange);
+      document.removeEventListener('MSFullscreenChange', handleFsChange);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isCssFullscreen]);
 
   // Controls auto-hide timer
   const resetControlsTimeout = useCallback(() => {
@@ -479,23 +505,79 @@ export const PlayerPage: React.FC = () => {
   };
 
   const toggleFullscreen = () => {
-    try {
-      if (!document.fullscreenElement) {
-        if (playerContainerRef.current?.requestFullscreen) {
-          playerContainerRef.current.requestFullscreen();
-        } else if ((playerContainerRef.current as any)?.webkitRequestFullscreen) {
-          (playerContainerRef.current as any).webkitRequestFullscreen();
+    const isCurrentlyFs =
+      !!(
+        document.fullscreenElement ||
+        (document as any).webkitFullscreenElement ||
+        (document as any).mozFullScreenElement ||
+        (document as any).msFullscreenElement
+      ) || isCssFullscreen;
+
+    if (isCurrentlyFs) {
+      // Exit fullscreen mode
+      setIsCssFullscreen(false);
+      setIsFullscreen(false);
+      try {
+        if (document.exitFullscreen) {
+          document.exitFullscreen().catch(() => {});
+        } else if ((document as any).webkitExitFullscreen) {
+          (document as any).webkitExitFullscreen();
+        } else if ((document as any).mozCancelFullScreen) {
+          (document as any).mozCancelFullScreen();
+        } else if ((document as any).msExitFullscreen) {
+          (document as any).msExitFullscreen();
+        }
+      } catch {
+        // ignore
+      }
+    } else {
+      // Enter fullscreen mode
+      const container = playerContainerRef.current;
+      if (!container) return;
+
+      const reqFs =
+        container.requestFullscreen ||
+        (container as any).webkitRequestFullscreen ||
+        (container as any).mozRequestFullScreen ||
+        (container as any).msRequestFullscreen;
+
+      if (reqFs) {
+        try {
+          const promise = reqFs.call(container);
+          if (promise && typeof promise.then === 'function') {
+            promise
+              .then(() => {
+                setIsFullscreen(true);
+              })
+              .catch((err: any) => {
+                console.warn('[PlayerPage] Native fullscreen denied/unsupported, activating CSS Fullscreen:', err);
+                setIsCssFullscreen(true);
+                setIsFullscreen(true);
+              });
+          } else {
+            setIsFullscreen(true);
+          }
+        } catch (err: any) {
+          console.warn('[PlayerPage] RequestFullscreen error, activating CSS Fullscreen:', err);
+          setIsCssFullscreen(true);
+          setIsFullscreen(true);
         }
       } else {
-        if (document.exitFullscreen) {
-          document.exitFullscreen();
-        } else if ((document as any)?.webkitExitFullscreen) {
-          (document as any).webkitExitFullscreen();
+        // iOS Safari / WebKit fallback
+        if (videoRef.current && (videoRef.current as any).webkitEnterFullscreen) {
+          try {
+            (videoRef.current as any).webkitEnterFullscreen();
+          } catch {
+            setIsCssFullscreen(true);
+            setIsFullscreen(true);
+          }
+        } else {
+          setIsCssFullscreen(true);
+          setIsFullscreen(true);
         }
       }
-    } catch (err) {
-      console.warn('[PlayerPage] Fullscreen error:', err);
     }
+    resetControlsTimeout();
   };
 
   const totalEpisodes =
@@ -620,7 +702,9 @@ export const PlayerPage: React.FC = () => {
       ref={playerContainerRef}
       onMouseMove={resetControlsTimeout}
       onTouchStart={resetControlsTimeout}
-      className="min-h-screen w-full bg-[#06070B] flex flex-col relative select-none overflow-hidden"
+      className={`min-h-screen w-full bg-[#06070B] flex flex-col relative select-none overflow-hidden ${
+        isCssFullscreen ? 'fixed inset-0 z-[99999] w-screen h-screen !m-0 !p-0' : ''
+      }`}
     >
       {/* Sleek Top Navigation Header */}
       <header
@@ -725,18 +809,23 @@ export const PlayerPage: React.FC = () => {
                   setIframeKey((k) => k + 1);
                 }}
                 aria-label="Pilih server stream"
-                className="bg-transparent text-[10px] sm:text-xs text-white font-medium focus:outline-none cursor-pointer max-w-[90px] sm:max-w-[135px] truncate"
+                className="bg-transparent text-[10px] sm:text-xs text-white font-medium focus:outline-none cursor-pointer max-w-[95px] sm:max-w-[155px] truncate"
               >
                 <option value="auto" className="bg-[#12141F] text-white">
-                  Server Otomatis
+                  ⚡ ZHAFX AUTO
                 </option>
                 {providers
                   .filter((p) => p.id !== 'auto' && p.id !== 'direct_stream')
-                  .map((p) => (
-                    <option key={p.id} value={p.id} className="bg-[#12141F] text-white">
-                      {p.name}
-                    </option>
-                  ))}
+                  .map((p, idx) => {
+                    const serverLabel = p.name.startsWith('ZHAFX ENTITY')
+                      ? p.name
+                      : `ZHAFX ENTITY ${String(idx + 1).padStart(3, '0')}`;
+                    return (
+                      <option key={p.id} value={p.id} className="bg-[#12141F] text-white">
+                        {serverLabel}
+                      </option>
+                    );
+                  })}
               </select>
             </div>
 
@@ -755,12 +844,12 @@ export const PlayerPage: React.FC = () => {
               <RotateCw className="w-3.5 h-3.5" />
             </button>
 
-            {/* Fullscreen Button */}
+            {/* Fullscreen Button (always visible on mobile & desktop) */}
             <button
               onClick={toggleFullscreen}
               title={isFullscreen ? 'Keluar Layar Penuh' : 'Layar Penuh'}
               aria-label={isFullscreen ? 'Keluar Layar Penuh' : 'Layar Penuh'}
-              className="w-7 h-7 sm:w-8 sm:h-8 rounded-full liquid-glass hidden sm:flex items-center justify-center text-white/80 hover:text-white hover:bg-white/[0.18] transition-all cursor-pointer ios-spring"
+              className="w-7 h-7 sm:w-8 sm:h-8 rounded-full liquid-glass flex items-center justify-center text-white/80 hover:text-white hover:bg-white/[0.18] transition-all cursor-pointer ios-spring"
             >
               {isFullscreen ? <Minimize className="w-3.5 h-3.5" /> : <Maximize className="w-3.5 h-3.5" />}
             </button>
@@ -1289,6 +1378,11 @@ export const PlayerPage: React.FC = () => {
             title={title?.title || 'Zhafx Stream'}
             onLoad={() => setIsIframeLoading(false)}
             allow="autoplay; fullscreen; picture-in-picture; encrypted-media; gyroscope; accelerometer"
+            allowFullScreen={true}
+            // @ts-ignore
+            webkitallowfullscreen="true"
+            // @ts-ignore
+            mozallowfullscreen="true"
             loading="eager"
             className="w-full h-full border-0 absolute inset-0 pt-14 sm:pt-16"
           />

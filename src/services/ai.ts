@@ -72,6 +72,95 @@ export async function resolvePicks(picks: RecommendationPick[]): Promise<Map<str
 }
 
 /**
+ * Tries multiple public AI cloud models directly if backend server is unreachable
+ */
+async function streamDirectCloudAIFallback(
+  message: string,
+  history: Array<{ role: 'user' | 'model'; text: string }>,
+  contextTitle: Title | null | undefined,
+  callbacks: StreamCallbacks,
+  abortSignal?: AbortSignal
+): Promise<boolean> {
+  const models = ['openai', 'deepseek', 'mistral', 'llama', 'qwen'];
+  const systemPrompt = `Anda adalah asisten cerdas untuk "Zhafx", platform streaming film, serial TV, dan anime. Berikan ulasan dan rekomendasi dalam Bahasa Indonesia yang santun, ramah, dan komunikatif tanpa spoiler. Di akhir respon selalu sertakan rekomendasi terstruktur persis dalam format: <picks>[{"title":"Judul","type":"movie|tv|anime","year":"2024"}]</picks>`;
+
+  let userPrompt = message;
+  if (contextTitle) {
+    userPrompt = `[Konteks Tayangan saat ini: ${contextTitle.title} (${contextTitle.year || 'N/A'}, Tipe: ${contextTitle.type || 'Media'}, Sinopsis: ${contextTitle.overview || 'Tidak ada'})]\n\nPertanyaan pengguna: ${message}`;
+  }
+
+  const messages: Array<{ role: string; content: string }> = [
+    { role: 'system', content: systemPrompt },
+  ];
+
+  if (Array.isArray(history)) {
+    for (const h of history.slice(-4)) {
+      if (h.text) {
+        messages.push({
+          role: h.role === 'user' ? 'user' : 'assistant',
+          content: h.text,
+        });
+      }
+    }
+  }
+
+  messages.push({ role: 'user', content: userPrompt });
+
+  for (const m of models) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 6500);
+
+      const res = await fetch('https://text.pollinations.ai/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages,
+          model: m,
+          seed: Math.floor(Math.random() * 999999),
+        }),
+        signal: abortSignal || controller.signal,
+      });
+
+      clearTimeout(timeout);
+
+      if (res.ok) {
+        const text = await res.text();
+        if (text && text.trim().length > 10) {
+          let accumulated = '';
+          const words = text.split(' ');
+          for (let i = 0; i < words.length; i += 3) {
+            const chunk = words.slice(i, i + 3).join(' ') + ' ';
+            accumulated += chunk;
+            const { cleanText, picks } = extractPicksAndCleanText(accumulated);
+            callbacks.onChunk(cleanText, picks);
+            await new Promise((r) => setTimeout(r, 20));
+          }
+
+          let { cleanText, picks } = extractPicksAndCleanText(accumulated);
+          if (picks.length === 0) {
+            const boldMatches = accumulated.match(/\*\*([^*]+)\*\*/g) || [];
+            for (const b of boldMatches) {
+              const raw = b.replace(/\*\*/g, '').trim();
+              if (raw.length > 2 && raw.length < 35 && !['zhafx', 'tips', 'genre', 'rekomendasi'].some(w => raw.toLowerCase().includes(w))) {
+                picks.push({ title: raw, type: 'movie', year: '2024' });
+              }
+              if (picks.length >= 3) break;
+            }
+          }
+          const resolved = await resolvePicks(picks);
+          callbacks.onDone(cleanText, picks, resolved);
+          return true;
+        }
+      }
+    } catch {
+      // try next model
+    }
+  }
+  return false;
+}
+
+/**
  * Sends chat message to server SSE endpoint and streams response chunks
  */
 export async function sendChatMessageStream(
@@ -129,79 +218,64 @@ export async function sendChatMessageStream(
           response = altResponse;
         }
       } catch {
-        // continue to fallback
+        // continue to cloud failover
       }
     }
 
     if (!response.ok) {
-      if (response.status === 404) {
-        // Smart offline/fallback response generator when serverless route is unreachable
+      // Try direct live AI cloud failover across 5 models
+      const cloudSuccess = await streamDirectCloudAIFallback(message, history, contextTitle, callbacks, abortSignal);
+      if (cloudSuccess) return;
 
-        // Smart offline/fallback response generator for Vercel deployments
-        const lowerMsg = message.toLowerCase();
-        let fallbackReply = `Halo! Saya Zhafx AI. `;
-        let picks: RecommendationPick[] = [];
+      // Smart dynamic assistant fallback when completely offline or blocked
+      const lowerMsg = message.toLowerCase();
+      let fallbackReply = `Halo! Saya Zhafx AI. `;
+      let picks: RecommendationPick[] = [];
 
-        if (lowerMsg.includes('anime') || lowerMsg.includes('kartun') || lowerMsg.includes('jepang')) {
-          fallbackReply += `Untuk penggemar anime, berikut adalah rekomendasi anime terpopuler dengan cerita memukau dan aksi seru yang bisa langsung kamu tonton di Zhafx:
+      if (lowerMsg.includes('anime') || lowerMsg.includes('kartun') || lowerMsg.includes('jepang')) {
+        fallbackReply += `Untuk penggemar anime, berikut adalah rekomendasi anime terpopuler dengan cerita memukau dan aksi seru di Zhafx:
 - **Attack on Titan**: Kisah pertempuran epik umat manusia melawan raksasa titan penuh intrik dan misteri.
 - **Demon Slayer: Kimetsu no Yaiba**: Petualangan Tanjiro dengan animasi pertarungan spektakuler dari Ufotable.
-- **Solo Leveling**: Perjalanan Sung Jinwoo dari hunter terlemah menjadi entitas terkuat.
-
-Kamu bisa langsung mencari judul-judul di atas lewat kolom pencarian atau menu Anime!`;
-          picks = [
-            { title: 'Attack on Titan', type: 'anime', year: '2013' },
-            { title: 'Demon Slayer', type: 'anime', year: '2019' },
-            { title: 'Solo Leveling', type: 'anime', year: '2024' },
-          ];
-        } else if (lowerMsg.includes('horor') || lowerMsg.includes('horror') || lowerMsg.includes('seram')) {
-          fallbackReply += `Mencari yang bikin merinding? Ini rekomendasi film horor terbaik pilihan Zhafx:
+- **Solo Leveling**: Perjalanan Sung Jinwoo dari hunter terlemah menjadi entitas terkuat.`;
+        picks = [
+          { title: 'Attack on Titan', type: 'anime', year: '2013' },
+          { title: 'Demon Slayer', type: 'anime', year: '2019' },
+          { title: 'Solo Leveling', type: 'anime', year: '2024' },
+        ];
+      } else if (lowerMsg.includes('horor') || lowerMsg.includes('horror') || lowerMsg.includes('seram')) {
+        fallbackReply += `Mencari yang bikin merinding? Ini rekomendasi film horor terbaik pilihan Zhafx:
 - **The Conjuring**: Investigasi paranormal Ed dan Lorraine Warren yang legendaris.
 - **Hereditary**: Horor psikologis keluarga yang sangat mencekam dan intens.
-- **Siksa Kubur**: Karya Joko Anwar yang memadukan misteri, drama keluarga, dan ketakutan mendalam.`;
-          picks = [
-            { title: 'The Conjuring', type: 'movie', year: '2013' },
-            { title: 'Hereditary', type: 'movie', year: '2018' },
-            { title: 'Siksa Kubur', type: 'movie', year: '2024' },
-          ];
-        } else if (lowerMsg.includes('aksi') || lowerMsg.includes('action') || lowerMsg.includes('laga')) {
-          fallbackReply += `Siap untuk aksi tanpa henti? Cek judul-judul blockbuster ini di Zhafx:
+- **Siksa Kubur**: Karya Joko Anwar yang memadukan misteri dan ketakutan mendalam.`;
+        picks = [
+          { title: 'The Conjuring', type: 'movie', year: '2013' },
+          { title: 'Hereditary', type: 'movie', year: '2018' },
+          { title: 'Siksa Kubur', type: 'movie', year: '2024' },
+        ];
+      } else if (lowerMsg.includes('aksi') || lowerMsg.includes('action') || lowerMsg.includes('laga')) {
+        fallbackReply += `Siap untuk aksi tanpa henti? Cek judul-judul blockbuster ini di Zhafx:
 - **John Wick: Chapter 4**: Koreografi laga kelas dunia dari Keanu Reeves.
 - **Top Gun: Maverick**: Sensasi pertempuran jet tempur udara yang nyata dan memacu adrenalin.
-- **The Batman**: Nuansa detektif noir Kota Gotham yang gelap dan menegangkan.`;
-          picks = [
-            { title: 'John Wick: Chapter 4', type: 'movie', year: '2023' },
-            { title: 'Top Gun: Maverick', type: 'movie', year: '2022' },
-            { title: 'The Batman', type: 'movie', year: '2022' },
-          ];
-        } else {
-          fallbackReply += `Saya siap merekomendasikan film, serial TV, dan anime terbaik untukmu di Zhafx! Coba tonton beberapa tayangan unggulan berikut:
-- **Interstellar**: Mahakarya fiksi ilmiah Christopher Nolan tentang perjalanan melintasi lubang cacing.
+- **The Dark Knight**: Konflik moral dan laga legendaris Batman melawan Joker.`;
+        picks = [
+          { title: 'John Wick: Chapter 4', type: 'movie', year: '2023' },
+          { title: 'Top Gun: Maverick', type: 'movie', year: '2022' },
+          { title: 'The Dark Knight', type: 'movie', year: '2008' },
+        ];
+      } else {
+        fallbackReply += `Saya siap merekomendasikan film, serial TV, dan anime terbaik untukmu di Zhafx:
+- **Interstellar**: Mahakarya fiksi ilmiah tentang perjalanan melintasi lubang cacing.
 - **Shogun**: Serial drama sejarah Jepang abad ke-17 dengan intrik politik yang mendebarkan.
 - **Dune: Part Two**: Visual spektakuler dan perang takdir di padang pasir Arrakis.`;
-          picks = [
-            { title: 'Interstellar', type: 'movie', year: '2014' },
-            { title: 'Shogun', type: 'tv', year: '2024' },
-            { title: 'Dune: Part Two', type: 'movie', year: '2024' },
-          ];
-        }
-
-        const resolved = await resolvePicks(picks);
-        callbacks.onDone(fallbackReply, picks, resolved);
-        return;
+        picks = [
+          { title: 'Interstellar', type: 'movie', year: '2014' },
+          { title: 'Shogun', type: 'tv', year: '2024' },
+          { title: 'Dune: Part Two', type: 'movie', year: '2024' },
+        ];
       }
 
-      // If server error or quota limit, deliver assistant recommendations
-      const fallback = extractPicksAndCleanText(
-        `Halo! Saya Zhafx AI. Berikut rekomendasi tayangan pilihan terbaik yang sangat seru untuk kamu nikmati di Zhafx:
-- **Interstellar**: Mahakarya fiksi ilmiah tentang penjelajahan galaksi.
-- **Attack on Titan**: Anime legendaris dengan intrik dan aksi pertempuran luar biasa.
-- **Top Gun: Maverick**: Laga tempur udara berkecepatan tinggi yang memukau.
-
-<picks>[{"title":"Interstellar","type":"movie","year":"2014"},{"title":"Attack on Titan","type":"anime","year":"2013"},{"title":"Top Gun: Maverick","type":"movie","year":"2022"}]</picks>`
-      );
-      const resolved = await resolvePicks(fallback.picks);
-      callbacks.onDone(fallback.cleanText, fallback.picks, resolved);
+      const resolved = await resolvePicks(picks);
+      callbacks.onDone(fallbackReply, picks, resolved);
       return;
     }
 
@@ -257,11 +331,14 @@ Kamu bisa langsung mencari judul-judul di atas lewat kolom pencarian atau menu A
     callbacks.onDone(cleanText, picks, resolved);
   } catch (err: any) {
     if (err.name === 'AbortError') {
-      // Stopped by user
       const { cleanText, picks } = extractPicksAndCleanText('');
       callbacks.onChunk(cleanText, picks);
       return;
     }
+    // Attempt direct live cloud failover before throwing error
+    const cloudSuccess = await streamDirectCloudAIFallback(message, history, contextTitle, callbacks, abortSignal);
+    if (cloudSuccess) return;
+
     callbacks.onError(err.message || 'Terjadi kesalahan saat berkomunikasi dengan Zhafx AI.');
   }
 }
