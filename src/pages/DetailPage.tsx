@@ -317,7 +317,15 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
                     </button>
 
                     <button
-                      onClick={() => navigate(`/watch/${title.type}/${title.id}?t=0`)}
+                      onClick={() =>
+                        navigate(
+                          title.type === 'anime'
+                            ? `/watch/anime/${title.id}/1/1?t=0`
+                            : title.type === 'tv'
+                            ? `/watch/tv/${title.id}/1/1?t=0`
+                            : `/watch/movie/${title.id}?t=0`
+                        )
+                      }
                       className="inline-flex items-center gap-1.5 px-4 py-3 rounded-full liquid-glass liquid-specular text-xs font-semibold text-white/80 hover:text-white transition-all cursor-pointer min-h-[46px] ios-spring"
                       title="Putar dari awal (0:00)"
                     >
@@ -330,10 +338,18 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
 
               return (
                 <button
-                  onClick={() => navigate(`/watch/${title.type}/${title.id}`)}
-                  className="inline-flex items-center gap-2 px-7 py-3 rounded-full bg-white text-[#06070B] font-bold text-sm shadow-[0_8px_25px_rgba(255,255,255,0.25)] ios-spring cursor-pointer min-h-[46px]"
+                  onClick={() =>
+                    navigate(
+                      title.type === 'anime'
+                        ? `/watch/anime/${title.id}/1/1`
+                        : title.type === 'tv'
+                        ? `/watch/tv/${title.id}/1/1`
+                        : `/watch/movie/${title.id}`
+                    )
+                  }
+                  className="inline-flex items-center gap-2 px-7 py-3 rounded-full bg-white text-[#06070B] font-bold text-sm shadow-[0_8px_25px_rgba(255,255,255,0.25)] hover:bg-[#FFB224] hover:text-[#06070B] transition-all ios-spring cursor-pointer min-h-[46px]"
                 >
-                  <Play className="w-4 h-4 fill-current ml-0.5 text-[#06070B]" />
+                  <Play className="w-4 h-4 fill-current ml-0.5" />
                   <span>Putar sekarang</span>
                 </button>
               );

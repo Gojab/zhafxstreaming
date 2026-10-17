@@ -162,7 +162,15 @@ export const HeroBillboard: React.FC<HeroBillboardProps> = ({ items }) => {
           <div className="flex items-center gap-3 pt-3 flex-wrap">
             {/* Putar Button (White Liquid Glass Pill with bounce) */}
             <button
-              onClick={() => navigate(`/watch/${current.type}/${current.id}`)}
+              onClick={() =>
+                navigate(
+                  current.type === 'anime'
+                    ? `/watch/anime/${current.id}/1/1`
+                    : current.type === 'tv'
+                    ? `/watch/tv/${current.id}/1/1`
+                    : `/watch/movie/${current.id}`
+                )
+              }
               className="inline-flex items-center justify-center gap-2 px-7 py-3 rounded-full bg-white text-[#06070B] hover:bg-white/90 font-bold text-sm shadow-[0_8px_25px_rgba(255,255,255,0.25)] ios-spring cursor-pointer min-h-[46px]"
             >
               <Play className="w-4 h-4 fill-current ml-0.5 text-[#06070B]" />

@@ -95,12 +95,12 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAI, onOpenFeatures }) => {
             </kbd>
           </button>
 
-          {/* Titik 3 Logo X - Akses Menu X */}
+          {/* Logo X */}
           <button
             type="button"
             onClick={onOpenFeatures}
-            aria-label="Menu X Zhafx"
-            title="Akses Menu X Zhafx"
+            aria-label="X"
+            title="X"
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/[0.08] hover:bg-white/[0.16] border border-white/20 text-white font-medium text-xs transition-all cursor-pointer h-9 ios-spring shadow-sm"
           >
             <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 fill-none" stroke="currentColor">

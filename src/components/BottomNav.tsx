@@ -31,12 +31,12 @@ export const BottomNav: React.FC<BottomNavProps> = ({ onOpenAI, onOpenFeatures }
           <span>Jelajahi</span>
         </NavLink>
 
-        {/* Center: Titik 3 dengan Logo X untuk Mengakses Menu X */}
+        {/* Center: Tombol X */}
         <button
           type="button"
           onClick={onOpenFeatures}
-          aria-label="Akses Menu X"
-          title="Menu X Zhafx"
+          aria-label="X"
+          title="X"
           className="flex flex-col items-center justify-center gap-0.5 px-3 py-1 rounded-full text-[10px] font-medium text-white active:scale-90 transition-transform ios-spring cursor-pointer"
         >
           <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-white/[0.14] to-white/[0.24] border border-white/30 flex items-center justify-center shadow-lg text-[#FFB224]">

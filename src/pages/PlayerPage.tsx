@@ -1,23 +1,17 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft,
   ChevronLeft,
   ChevronRight,
   Server,
-  AlertTriangle,
-  RotateCcw,
   RotateCw,
-  Check,
-  Flag,
-  Play,
-  Pause,
-  CheckCircle2,
-  X,
-  Clock,
-  Sparkles,
   Maximize,
   Minimize,
+  ListOrdered,
+  CheckCircle2,
+  X,
+  Tv,
 } from 'lucide-react';
 import { api } from '../services/api';
 import { Title, Provider, MediaType } from '../types';
@@ -43,45 +37,18 @@ export const PlayerPage: React.FC = () => {
 
   const [title, setTitle] = useState<Title | null>(null);
   const [providers, setProviders] = useState<Provider[]>([]);
-  const [selectedServer, setSelectedServer] = useState<string>('auto');
-  const [isIframeLoading, setIsIframeLoading] = useState(true);
-  const [isStalled, setIsStalled] = useState(false);
-  const [isReported, setIsReported] = useState(false);
-  const [showReportSuccess, setShowReportSuccess] = useState(false);
-
-  // Continue Watching Hook
-  const { saveProgress, getProgressForTitle } = useContinueWatching();
-
-  // Playback Tracking State
-  const [currentTime, setCurrentTime] = useState<number>(0);
-  const [duration, setDuration] = useState<number>(() => {
-    return mediaType === 'anime' ? 24 * 60 : mediaType === 'tv' ? 45 * 60 : 110 * 60;
+  const [selectedServer, setSelectedServer] = useState<string>(() => {
+    return mediaType === 'anime' ? 'videasy' : 'auto';
   });
-  const [isPlaying, setIsPlaying] = useState<boolean>(true);
-  const [resumeNotice, setResumeNotice] = useState<{ show: boolean; time: number } | null>(null);
-  const [isCompleted, setIsCompleted] = useState<boolean>(false);
-  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+  const [isIframeLoading, setIsIframeLoading] = useState(true);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isEpisodeDrawerOpen, setIsEpisodeDrawerOpen] = useState(false);
+  const [iframeKey, setIframeKey] = useState(0);
+
+  const { saveProgress } = useContinueWatching();
 
   const playerContainerRef = useRef<HTMLDivElement | null>(null);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
-  const stallTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const currentTimeRef = useRef<number>(0);
-  const durationRef = useRef<number>(duration);
-  const lastSavedTimeRef = useRef<number>(0);
-  const titleRef = useRef<Title | null>(null);
-
-  // Sync refs with state
-  useEffect(() => {
-    currentTimeRef.current = currentTime;
-  }, [currentTime]);
-
-  useEffect(() => {
-    durationRef.current = duration;
-  }, [duration]);
-
-  useEffect(() => {
-    titleRef.current = title;
-  }, [title]);
 
   // Track Fullscreen changes
   useEffect(() => {
@@ -92,34 +59,10 @@ export const PlayerPage: React.FC = () => {
     return () => document.removeEventListener('fullscreenchange', handleFsChange);
   }, []);
 
-  // Format seconds to mm:ss or hh:mm:ss
-  const formatTime = (totalSeconds: number): string => {
-    const s = Math.max(0, Math.round(totalSeconds));
-    const hours = Math.floor(s / 3600);
-    const minutes = Math.floor((s % 3600) / 60);
-    const seconds = s % 60;
-
-    if (hours > 0) {
-      return `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-    }
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-  };
-
-  // Immediate save helper
-  const performSave = useCallback(
-    (explicitTime?: number, explicitCompleted?: boolean) => {
-      if (!id || !titleRef.current) return;
-
-      const tToSave = explicitTime !== undefined ? explicitTime : currentTimeRef.current;
-      const dToSave = durationRef.current;
-      const pct = Math.min(100, Math.max(0, Math.round((tToSave / dToSave) * 100)));
-
-      const completed =
-        explicitCompleted !== undefined
-          ? explicitCompleted
-          : pct >= 95 || (dToSave > 60 && dToSave - tToSave <= 30 && tToSave > 30);
-
-      const t = titleRef.current;
+  // Save progress helper
+  const recordHistory = useCallback(
+    (t: Title) => {
+      if (!id) return;
       saveProgress({
         contentId: id,
         mediaType,
@@ -135,290 +78,83 @@ export const PlayerPage: React.FC = () => {
             : mediaType === 'anime'
             ? `Episode ${episodeNum}`
             : undefined,
-        currentTime: tToSave,
-        duration: dToSave,
-        completed,
+        currentTime: 60, // Mark as active watched
+        duration: mediaType === 'anime' ? 24 * 60 : mediaType === 'tv' ? 45 * 60 : 110 * 60,
+        completed: false,
       });
 
-      lastSavedTimeRef.current = tToSave;
+      storage.saveHistory({
+        id,
+        type: mediaType,
+        title: t.title,
+        poster: t.poster,
+        backdrop: t.backdrop,
+        year: t.year,
+        season: mediaType === 'tv' ? seasonNum : undefined,
+        episode: mediaType === 'tv' || mediaType === 'anime' ? episodeNum : undefined,
+        episodeName:
+          mediaType === 'tv'
+            ? `Musim ${seasonNum} Ep ${episodeNum}`
+            : mediaType === 'anime'
+            ? `Episode ${episodeNum}`
+            : undefined,
+        progressSeconds: 60,
+        durationSeconds: mediaType === 'anime' ? 24 * 60 : mediaType === 'tv' ? 45 * 60 : 110 * 60,
+      });
     },
     [id, mediaType, seasonNum, episodeNum, saveProgress]
   );
 
-  // Stable refs for callbacks to avoid re-triggering loader effect
-  const performSaveRef = useRef(performSave);
-  performSaveRef.current = performSave;
-
-  const getProgressForTitleRef = useRef(getProgressForTitle);
-  getProgressForTitleRef.current = getProgressForTitle;
-
-  // Load details and initialize starting time
+  // Load details and providers
   useEffect(() => {
     if (!id) return;
     const controller = new AbortController();
 
-    // Check if stream already reported
-    setIsReported(storage.isStreamReported(id));
-
-    // Parallel fetch with resilient fallback
     const fetchInitData = async () => {
       try {
         const [detailsResult, provsResult] = await Promise.allSettled([
           api.getDetails(id, mediaType, controller.signal),
-          api.getProviders(controller.signal),
+          api.getProviders(controller.signal, mediaType),
         ]);
 
         if (controller.signal.aborted) return;
 
-        // 1. Providers
         if (provsResult.status === 'fulfilled' && provsResult.value) {
           setProviders(provsResult.value);
         }
 
-        // 2. Details
         let finalTitle: Title;
         if (detailsResult.status === 'fulfilled' && detailsResult.value) {
           finalTitle = detailsResult.value;
         } else {
-          // If details fetch failed or rejected, check local storage caches first
           const historyItem = storage.getHistory().find((h) => h.id === id);
           const myListItem = storage.getMyList().find((m) => m.id === id);
-          const guestItem = storage.getGuestProgress().find((g) => g.contentId === id);
-
-          const titleFallback =
-            searchParams.get('title') ||
-            historyItem?.title ||
-            myListItem?.title ||
-            guestItem?.title ||
-            `Tayangan #${id}`;
-
-          const posterFallback =
-            searchParams.get('poster') ||
-            historyItem?.poster ||
-            myListItem?.poster ||
-            guestItem?.poster ||
-            '';
-
-          const backdropFallback =
-            historyItem?.backdrop ||
-            myListItem?.backdrop ||
-            guestItem?.backdrop ||
-            posterFallback;
-
           finalTitle = {
             id,
             type: mediaType,
-            title: titleFallback,
-            poster: posterFallback,
-            backdrop: backdropFallback,
-            year: String(historyItem?.year || new Date().getFullYear()),
-            rating: '0',
+            title: searchParams.get('title') || historyItem?.title || myListItem?.title || `Tayangan #${id}`,
+            poster: searchParams.get('poster') || historyItem?.poster || myListItem?.poster || '',
+            backdrop: historyItem?.backdrop,
+            year: historyItem?.year || '2024',
+            rating: '8.5',
             overview: '',
             genres: [],
+            numberOfEpisodes: mediaType === 'anime' ? 24 : 12,
           };
         }
 
         setTitle(finalTitle);
-        titleRef.current = finalTitle;
-
-        const runtimeNum = Number(finalTitle.runtime);
-        if (!isNaN(runtimeNum) && runtimeNum > 0) {
-          const estimatedSecs = runtimeNum * 60;
-          setDuration(estimatedSecs);
-          durationRef.current = estimatedSecs;
-        }
-
-        // Determine starting timestamp
-        const urlTimeParam = searchParams.get('t') || searchParams.get('start');
-        let initialTime = 0;
-
-        if (urlTimeParam && !isNaN(Number(urlTimeParam))) {
-          initialTime = Math.max(0, Number(urlTimeParam));
-        } else {
-          const savedProgress = getProgressForTitleRef.current(
-            id,
-            mediaType === 'tv' ? seasonNum : undefined,
-            mediaType === 'anime' || mediaType === 'tv' ? episodeNum : undefined
-          );
-
-          if (savedProgress && !savedProgress.completed && savedProgress.currentTime > 5) {
-            initialTime = savedProgress.currentTime;
-            setResumeNotice({ show: true, time: savedProgress.currentTime });
-          }
-        }
-
-        setCurrentTime(initialTime);
-        currentTimeRef.current = initialTime;
-
-        // Also record in legacy history for backward compatibility
-        storage.saveHistory({
-          id,
-          type: mediaType,
-          title: finalTitle.title,
-          poster: finalTitle.poster,
-          backdrop: finalTitle.backdrop,
-          year: finalTitle.year,
-          season: mediaType === 'tv' ? seasonNum : undefined,
-          episode: mediaType === 'tv' || mediaType === 'anime' ? episodeNum : undefined,
-          episodeName:
-            mediaType === 'tv'
-              ? `Musim ${seasonNum} Ep ${episodeNum}`
-              : mediaType === 'anime'
-              ? `Episode ${episodeNum}`
-              : undefined,
-          progressSeconds: initialTime,
-          durationSeconds: durationRef.current,
-        });
-
-        performSaveRef.current(initialTime);
+        recordHistory(finalTitle);
       } catch (err: any) {
-        if (
-          err?.name === 'AbortError' ||
-          err?.message?.includes('dibatalkan') ||
-          controller.signal.aborted
-        ) {
-          return;
+        if (!controller.signal.aborted) {
+          console.warn('[PlayerPage] Init fallback used:', err?.message || err);
         }
-        console.warn('[PlayerPage] Fallback initialization used:', err?.message || err);
       }
     };
 
     fetchInitData();
-
     return () => controller.abort();
-  }, [id, mediaType, seasonNum, episodeNum]);
-
-  // Periodic heartbeat timer (saves progress every 12 seconds)
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (isPlaying && !isIframeLoading) {
-        setCurrentTime((prev) => {
-          const next = Math.min(durationRef.current, prev + 12);
-          currentTimeRef.current = next;
-
-          if (Math.abs(next - lastSavedTimeRef.current) >= 10) {
-            performSave(next);
-          }
-          return next;
-        });
-      }
-    }, 12000);
-
-    return () => clearInterval(interval);
-  }, [isPlaying, isIframeLoading, performSave]);
-
-  // Listen to postMessage from iframe player
-  useEffect(() => {
-    const handlePlayerMessage = (event: MessageEvent) => {
-      try {
-        const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
-        if (!data || typeof data !== 'object') return;
-
-        if (data.type === 'timeupdate' || data.event === 'timeupdate') {
-          const t = Number(data.currentTime || data.time || data.seconds);
-          const d = Number(data.duration || data.total);
-          if (!isNaN(t) && t > 0) {
-            setCurrentTime(t);
-            currentTimeRef.current = t;
-          }
-          if (!isNaN(d) && d > 60) {
-            setDuration(d);
-            durationRef.current = d;
-          }
-        }
-
-        if (data.type === 'pause' || data.event === 'pause') {
-          setIsPlaying(false);
-          performSave();
-        }
-
-        if (data.type === 'play' || data.event === 'play') {
-          setIsPlaying(true);
-        }
-
-        if (data.type === 'ended' || data.event === 'ended') {
-          setIsCompleted(true);
-          performSave(durationRef.current, true);
-        }
-      } catch {
-        // Not a JSON postMessage
-      }
-    };
-
-    window.addEventListener('message', handlePlayerMessage);
-    return () => window.removeEventListener('message', handlePlayerMessage);
-  }, [performSave]);
-
-  // Save on page exit / unload / tab blur
-  useEffect(() => {
-    const handleBeforeUnload = () => {
-      performSave();
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    window.addEventListener('pagehide', handleBeforeUnload);
-
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-      window.removeEventListener('pagehide', handleBeforeUnload);
-    };
-  }, [performSave]);
-
-  // Guaranteed progress save on SPA unmount when navigating to another route
-  useEffect(() => {
-    return () => {
-      performSave();
-    };
-  }, [performSave]);
-
-  // 15 seconds stall helper timer
-  useEffect(() => {
-    setIsIframeLoading(true);
-    setIsStalled(false);
-
-    stallTimerRef.current = setTimeout(() => {
-      setIsStalled(true);
-    }, 15000);
-
-    return () => {
-      if (stallTimerRef.current) clearTimeout(stallTimerRef.current);
-    };
-  }, [id, mediaType, seasonNum, episodeNum, selectedServer]);
-
-  const handleIframeLoaded = () => {
-    setIsIframeLoading(false);
-    setIsStalled(false);
-    if (stallTimerRef.current) clearTimeout(stallTimerRef.current);
-  };
-
-  const handleReport = () => {
-    if (!id || isReported) return;
-    storage.reportStream(id, `Server: ${selectedServer}, S${seasonNum}E${episodeNum}`);
-    setIsReported(true);
-    setShowReportSuccess(true);
-    setTimeout(() => setShowReportSuccess(false), 3000);
-  };
-
-  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newTime = Number(e.target.value);
-    setCurrentTime(newTime);
-    currentTimeRef.current = newTime;
-    performSave(newTime);
-  };
-
-  const handleSkip = (deltaSeconds: number) => {
-    const next = Math.max(0, Math.min(duration, currentTime + deltaSeconds));
-    setCurrentTime(next);
-    currentTimeRef.current = next;
-    performSave(next);
-  };
-
-  const handleMarkCompleted = () => {
-    setIsCompleted(true);
-    setCurrentTime(duration);
-    currentTimeRef.current = duration;
-    performSave(duration, true);
-  };
+  }, [id, mediaType, seasonNum, episodeNum, recordHistory, searchParams]);
 
   const toggleFullscreen = () => {
     try {
@@ -440,29 +176,9 @@ export const PlayerPage: React.FC = () => {
     }
   };
 
-  const togglePlayPause = () => {
-    const nextState = !isPlaying;
-    setIsPlaying(nextState);
-    if (!nextState) {
-      performSave();
-    }
-    try {
-      if (iframeRef.current?.contentWindow) {
-        iframeRef.current.contentWindow.postMessage(
-          JSON.stringify({ event: nextState ? 'play' : 'pause', type: nextState ? 'play' : 'pause' }),
-          '*'
-        );
-      }
-    } catch {
-      // Cross-origin safe
-    }
-  };
-
-  const handleRestartFromBeginning = () => {
-    setCurrentTime(0);
-    currentTimeRef.current = 0;
-    setResumeNotice(null);
-    performSave(0, false);
+  const handleReload = () => {
+    setIsIframeLoading(true);
+    setIframeKey((k) => k + 1);
   };
 
   if (!id) {
@@ -473,7 +189,7 @@ export const PlayerPage: React.FC = () => {
     );
   }
 
-  // Construct official embed URL with timestamp support
+  // Construct embed URL
   const embedUrl = api.getEmbedUrl({
     type: mediaType,
     id,
@@ -484,74 +200,109 @@ export const PlayerPage: React.FC = () => {
     muted: false,
     title: title?.title,
     poster: title?.backdrop || title?.poster,
-    start: currentTimeRef.current > 0 ? currentTimeRef.current : undefined,
   });
 
-  const hasPrevEpisode = episodeNum > 1;
-  const hasNextEpisode =
-    mediaType === 'tv' || mediaType === 'anime'
-      ? episodeNum < (title?.numberOfEpisodes || 999)
-      : false;
+  const totalEpisodes =
+    mediaType === 'anime'
+      ? title?.numberOfEpisodes || 24
+      : title?.seasons?.find((s) => s.number === seasonNum)?.episodeCount || title?.numberOfEpisodes || 12;
 
-  const navigateEpisode = (direction: 'prev' | 'next') => {
-    performSave();
-    const nextEp = direction === 'prev' ? episodeNum - 1 : episodeNum + 1;
+  const hasPrevEpisode = episodeNum > 1;
+  const hasNextEpisode = (mediaType === 'tv' || mediaType === 'anime') && episodeNum < totalEpisodes;
+
+  const navigateEpisode = (targetEp: number) => {
+    setIsEpisodeDrawerOpen(false);
+    setIsIframeLoading(true);
     if (mediaType === 'tv') {
-      navigate(`/watch/tv/${id}/${seasonNum}/${nextEp}`);
+      navigate(`/watch/tv/${id}/${seasonNum}/${targetEp}`);
     } else if (mediaType === 'anime') {
-      navigate(`/watch/anime/${id}/1/${nextEp}`);
+      navigate(`/watch/anime/${id}/1/${targetEp}`);
     }
   };
 
-  const progressPct = Math.min(100, Math.max(0, Math.round((currentTime / duration) * 100)));
-
   return (
-    <div className="min-h-screen bg-[#06070B] flex flex-col relative select-none">
-      {/* Apple iOS 26 Floating Top Navigation Bar */}
-      <header className="fixed top-3 sm:top-5 left-3 right-3 sm:left-6 sm:right-6 max-w-7xl mx-auto z-40 pointer-events-none">
-        <div className="h-14 sm:h-16 px-3 sm:px-5 rounded-full liquid-glass-dense liquid-specular flex items-center justify-between gap-3 shadow-2xl pointer-events-auto border border-white/20">
-          {/* Left: Back to Detail Button & Title */}
-          <div className="flex items-center gap-3 min-w-0">
+    <div className="min-h-screen w-full bg-[#06070B] flex flex-col relative select-none overflow-hidden">
+      {/* Sleek Top Navigation Header */}
+      <header className="fixed top-2.5 sm:top-4 left-2.5 right-2.5 sm:left-6 sm:right-6 max-w-7xl mx-auto z-40 pointer-events-none">
+        <div className="h-13 sm:h-15 px-3 sm:px-5 rounded-full liquid-glass-dense liquid-specular flex items-center justify-between gap-2.5 shadow-2xl pointer-events-auto border border-white/20">
+          {/* Left: Back & Media Info */}
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
             <button
-              onClick={() => {
-                performSave();
-                navigate(`/detail/${mediaType}/${id}`);
-              }}
-              className="w-9 h-9 rounded-full liquid-glass flex items-center justify-center text-white/80 hover:text-white hover:bg-white/[0.16] cursor-pointer ios-spring shrink-0"
+              onClick={() => navigate(`/detail/${mediaType}/${id}`)}
+              className="w-8 h-8 sm:w-9 sm:h-9 rounded-full liquid-glass flex items-center justify-center text-white/80 hover:text-white hover:bg-white/[0.18] cursor-pointer ios-spring shrink-0"
               title="Kembali ke halaman detail"
-              aria-label="Kembali ke detail"
+              aria-label="Kembali"
             >
               <ArrowLeft className="w-4 h-4" />
             </button>
 
             <div className="min-w-0">
-              <h1 className="text-xs sm:text-sm font-semibold text-white truncate leading-tight">
-                {title?.title || 'Memuat pemutar...'}
+              <h1 className="text-xs sm:text-sm font-bold text-white truncate leading-tight">
+                {title?.title || 'Memuat Pemutar...'}
               </h1>
               {(mediaType === 'tv' || mediaType === 'anime') && (
-                <span className="text-[11px] text-[#FFB224] font-medium block truncate">
-                  {mediaType === 'tv'
-                    ? `Musim ${seasonNum} • Episode ${episodeNum}`
-                    : `Episode ${episodeNum}`}
-                </span>
+                <div className="flex items-center gap-1.5 text-[11px] text-[#FFB224] font-medium truncate">
+                  <span>{mediaType === 'anime' ? 'Anime' : `Musim ${seasonNum}`}</span>
+                  <span>•</span>
+                  <span>Episode {episodeNum}</span>
+                </div>
               )}
             </div>
           </div>
 
-          {/* Right: Server Provider Dropdown Pill & Report Button */}
-          <div className="flex items-center gap-2 shrink-0">
-            {/* Server Selector Glass Pill */}
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full liquid-glass text-xs text-white">
-              <Server className="w-3.5 h-3.5 text-[#FFB224]" />
+          {/* Right: Controls & Server Switcher */}
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            {/* Episode Quick Switcher for TV / Anime */}
+            {(mediaType === 'tv' || mediaType === 'anime') && (
+              <div className="flex items-center gap-1 bg-white/[0.06] border border-white/10 rounded-full p-0.5">
+                <button
+                  onClick={() => navigateEpisode(episodeNum - 1)}
+                  disabled={!hasPrevEpisode}
+                  title="Episode Sebelumnya"
+                  aria-label="Episode Sebelumnya"
+                  className="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-white/80 hover:text-white disabled:opacity-25 disabled:pointer-events-none ios-spring cursor-pointer"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                </button>
+
+                <button
+                  onClick={() => setIsEpisodeDrawerOpen(!isEpisodeDrawerOpen)}
+                  className="px-2.5 py-1 rounded-full bg-white/[0.12] hover:bg-white/[0.2] text-[11px] font-bold text-[#FFB224] flex items-center gap-1 cursor-pointer ios-spring"
+                  title="Buka daftar episode"
+                >
+                  <ListOrdered className="w-3 h-3 text-[#FFB224]" />
+                  <span>Ep {episodeNum}</span>
+                </button>
+
+                <button
+                  onClick={() => navigateEpisode(episodeNum + 1)}
+                  disabled={!hasNextEpisode}
+                  title="Episode Berikutnya"
+                  aria-label="Episode Berikutnya"
+                  className="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-white/80 hover:text-white disabled:opacity-25 disabled:pointer-events-none ios-spring cursor-pointer"
+                >
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+
+            {/* Server Selector Dropdown */}
+            <div className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full liquid-glass text-xs text-white">
+              <Server className="w-3.5 h-3.5 text-[#FFB224] shrink-0" />
               <select
                 value={selectedServer}
-                onChange={(e) => setSelectedServer(e.target.value)}
-                aria-label="Pilih server pemutar"
-                className="bg-transparent text-xs text-white font-medium focus:outline-none cursor-pointer max-w-[110px] sm:max-w-none truncate"
+                onChange={(e) => {
+                  setSelectedServer(e.target.value);
+                  setIsIframeLoading(true);
+                }}
+                aria-label="Pilih server stream"
+                className="bg-transparent text-[11px] sm:text-xs text-white font-medium focus:outline-none cursor-pointer max-w-[100px] sm:max-w-none truncate"
               >
-                <option value="auto" className="bg-[#12141F] text-white">
-                  Server Otomatis
-                </option>
+                {mediaType !== 'anime' && (
+                  <option value="auto" className="bg-[#12141F] text-white">
+                    Server Otomatis
+                  </option>
+                )}
                 {providers.map((p) => (
                   <option key={p.id} value={p.id} className="bg-[#12141F] text-white">
                     {p.name}
@@ -560,80 +311,83 @@ export const PlayerPage: React.FC = () => {
               </select>
             </div>
 
-            {/* Report Button Pill */}
+            {/* Refresh / Reconnect Button */}
             <button
-              onClick={handleReport}
-              disabled={isReported}
-              className={`h-9 px-3 rounded-full text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ios-spring ${
-                isReported
-                  ? 'liquid-glass text-emerald-400 border-emerald-400/30'
-                  : 'liquid-glass text-white/70 hover:text-white hover:bg-white/[0.16]'
-              }`}
-              title="Laporkan kendala pemutaran"
-              aria-label="Laporkan kendala"
+              onClick={handleReload}
+              title="Muat ulang stream"
+              aria-label="Muat ulang stream"
+              className="w-8 h-8 sm:w-9 sm:h-9 rounded-full liquid-glass flex items-center justify-center text-white/80 hover:text-white hover:bg-white/[0.18] transition-all cursor-pointer ios-spring"
             >
-              {isReported ? (
-                <>
-                  <Check className="w-3.5 h-3.5 text-emerald-400" />
-                  <span className="hidden sm:inline">Dilaporkan</span>
-                </>
-              ) : (
-                <>
-                  <Flag className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Lapor</span>
-                </>
-              )}
+              <RotateCw className="w-3.5 h-3.5" />
+            </button>
+
+            {/* Fullscreen Button */}
+            <button
+              onClick={toggleFullscreen}
+              title={isFullscreen ? 'Keluar Layar Penuh' : 'Layar Penuh'}
+              aria-label={isFullscreen ? 'Keluar Layar Penuh' : 'Layar Penuh'}
+              className="w-8 h-8 sm:w-9 sm:h-9 rounded-full liquid-glass hidden sm:flex items-center justify-center text-white/80 hover:text-white hover:bg-white/[0.18] transition-all cursor-pointer ios-spring"
+            >
+              {isFullscreen ? <Minimize className="w-3.5 h-3.5" /> : <Maximize className="w-3.5 h-3.5" />}
             </button>
           </div>
         </div>
       </header>
 
-      {/* Floating Apple Liquid Glass Resume Toast */}
-      {resumeNotice?.show && (
-        <div className="fixed top-20 sm:top-24 left-4 right-4 max-w-md mx-auto z-40">
-          <div className="rounded-full liquid-glass-dense liquid-specular px-4 py-2.5 flex items-center justify-between gap-3 text-xs text-white shadow-2xl border border-white/25 animate-in fade-in slide-in-from-top-2 duration-300">
-            <div className="flex items-center gap-2 truncate">
-              <Clock className="w-4 h-4 text-[#FFB224] shrink-0" />
-              <span>
-                Melanjutkan dari <strong className="text-[#FFB224] font-mono">{formatTime(resumeNotice.time)}</strong>
-              </span>
+      {/* Episode Selection Drawer Modal */}
+      {isEpisodeDrawerOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="fixed inset-0 bg-black/80 backdrop-blur-md transition-opacity"
+            onClick={() => setIsEpisodeDrawerOpen(false)}
+          />
+          <div className="relative w-full max-w-lg max-h-[80vh] overflow-y-auto rounded-[32px] liquid-glass-dense liquid-specular p-5 sm:p-6 space-y-4 z-10 border border-white/20 shadow-2xl text-white">
+            <div className="flex items-center justify-between pb-3 border-b border-white/10">
+              <div className="flex items-center gap-2">
+                <Tv className="w-4 h-4 text-[#FFB224]" />
+                <h3 className="text-sm font-bold text-white">
+                  Pilih Episode ({mediaType === 'anime' ? 'Anime' : `Musim ${seasonNum}`})
+                </h3>
+              </div>
+              <button
+                onClick={() => setIsEpisodeDrawerOpen(false)}
+                className="w-8 h-8 rounded-full liquid-glass flex items-center justify-center text-white/70 hover:text-white cursor-pointer ios-spring"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
-            <div className="flex items-center gap-1.5 shrink-0">
-              <button
-                onClick={handleRestartFromBeginning}
-                className="px-3 py-1 rounded-full bg-white/[0.12] hover:bg-white/20 border border-white/20 text-[11px] font-semibold text-white transition-all cursor-pointer ios-spring"
-              >
-                Dari Awal
-              </button>
-              <button
-                onClick={() => setResumeNotice(null)}
-                className="w-6 h-6 rounded-full hover:bg-white/10 text-white/60 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
-                title="Tutup pesan"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
+
+            <div className="grid grid-cols-4 sm:grid-cols-6 gap-2 pt-1 max-h-[60vh] overflow-y-auto pr-1">
+              {Array.from({ length: totalEpisodes }, (_, i) => i + 1).map((ep) => {
+                const isCurrent = ep === episodeNum;
+                return (
+                  <button
+                    key={ep}
+                    onClick={() => navigateEpisode(ep)}
+                    className={`py-2.5 px-2 rounded-[16px] text-xs font-semibold flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ios-spring ${
+                      isCurrent
+                        ? 'bg-[#FFB224] text-black font-bold shadow-lg scale-105'
+                        : 'bg-white/[0.06] hover:bg-white/[0.14] border border-white/10 text-white'
+                    }`}
+                  >
+                    <span>Ep {ep}</span>
+                    {isCurrent && <CheckCircle2 className="w-3 h-3 text-black" />}
+                  </button>
+                );
+              })}
             </div>
           </div>
         </div>
       )}
 
-      {/* Report Toast Notification */}
-      {showReportSuccess && (
-        <div className="fixed top-20 sm:top-24 left-4 right-4 max-w-md mx-auto z-40">
-          <div className="rounded-full liquid-glass-dense px-4 py-2 text-center text-xs text-white font-medium shadow-2xl border border-white/20">
-            Laporan diterima! Sistem akan memverifikasi server alternatif.
-          </div>
-        </div>
-      )}
-
-      {/* Main Video Viewport (Edge-to-edge cinematic canvas) */}
+      {/* Edge-to-Edge Direct Video Viewport */}
       <div
         ref={playerContainerRef}
-        className="relative flex-1 w-full bg-black flex items-center justify-center overflow-hidden pt-16 sm:pt-20 pb-24 md:pb-20"
+        className="relative flex-1 w-full h-screen bg-black flex items-center justify-center overflow-hidden"
       >
         {/* Loading Overlay */}
         {isIframeLoading && (
-          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-[#06070B] space-y-3">
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-[#06070B] space-y-3 pointer-events-none">
             <div className="w-10 h-10 border-3 border-white/20 border-t-[#FFB224] rounded-full animate-spin" />
             <span className="text-xs font-mono text-white/50 tracking-wider uppercase">
               Memuat Stream Pemutar Zhafx...
@@ -641,176 +395,18 @@ export const PlayerPage: React.FC = () => {
           </div>
         )}
 
-        {/* 15-Second Stalled Helper Notice */}
-        {isStalled && (
-          <div className="absolute top-20 left-4 right-4 z-20 max-w-lg mx-auto p-4 rounded-[24px] liquid-glass-dense liquid-specular shadow-2xl backdrop-blur-xl flex items-start gap-3.5 text-left border border-white/20">
-            <AlertTriangle className="w-5 h-5 text-[#FFB224] shrink-0 mt-0.5" />
-            <div className="flex-1 space-y-2">
-              <div>
-                <h2 className="text-xs font-semibold text-white">
-                  Video belum mulai memutar otomatis?
-                </h2>
-                <p className="text-[11px] text-white/60 leading-relaxed">
-                  Beberapa server memerlukan klik langsung pada tombol Play di tengah layar player, atau pilih server lain di bawah.
-                </p>
-              </div>
-              <div className="flex items-center gap-1.5 flex-wrap pt-1">
-                {providers.slice(0, 3).map((p) => (
-                  <button
-                    key={p.id}
-                    onClick={() => setSelectedServer(p.id)}
-                    className="px-3 py-1 rounded-full liquid-glass text-[10px] text-white hover:bg-white/[0.16] transition-all cursor-pointer ios-spring"
-                  >
-                    {p.name}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Sandboxed Embed Iframe */}
+        {/* Clean, Full-Viewport Video Stream Iframe */}
         <iframe
           ref={iframeRef}
-          key={`${id}-${mediaType}-${seasonNum}-${episodeNum}-${selectedServer}`}
+          key={`${id}-${mediaType}-${seasonNum}-${episodeNum}-${selectedServer}-${iframeKey}`}
           src={embedUrl}
-          title={title?.title || 'Zhafx Player'}
-          onLoad={handleIframeLoaded}
-          sandbox="allow-scripts allow-same-origin allow-presentation allow-fullscreen"
-          referrerPolicy="no-referrer"
-          allow="autoplay; fullscreen; picture-in-picture"
-          loading="lazy"
-          className="w-full h-full min-h-[60vh] sm:min-h-[75vh] border-0"
+          title={title?.title || 'Zhafx Stream'}
+          onLoad={() => setIsIframeLoading(false)}
+          allow="autoplay; fullscreen; picture-in-picture; encrypted-media; gyroscope; accelerometer"
+          sandbox="allow-scripts allow-same-origin allow-presentation allow-fullscreen allow-forms allow-popups"
+          loading="eager"
+          className="w-full h-full border-0 absolute inset-0 pt-14 sm:pt-16"
         />
-      </div>
-
-      {/* Floating Apple iOS 26 Liquid Glass Player Dock (Bottom Controls) */}
-      <div className="fixed bottom-3 sm:bottom-5 left-3 right-3 sm:left-6 sm:right-6 max-w-4xl mx-auto z-40 pointer-events-none">
-        <div className="rounded-[28px] sm:rounded-full liquid-glass-dense liquid-specular shadow-[0_16px_40px_rgba(0,0,0,0.65)] p-3 sm:p-4 flex flex-col gap-2.5 pointer-events-auto border border-white/20">
-          {/* Interactive Progress Slider & Counters */}
-          <div className="flex items-center gap-3 px-1">
-            <span className="text-[11px] font-mono text-white/90 min-w-[44px]">
-              {formatTime(currentTime)}
-            </span>
-
-            {/* Sleek Scrubber Bar */}
-            <div className="relative flex-1 flex items-center group/scrubber">
-              <input
-                type="range"
-                min={0}
-                max={duration}
-                value={currentTime}
-                onChange={handleSeek}
-                aria-label="Progres video"
-                className="w-full h-2 rounded-full appearance-none cursor-pointer accent-[#FFB224] focus:outline-none"
-                style={{
-                  background: `linear-gradient(to right, #FFB224 ${progressPct}%, rgba(255,255,255,0.18) ${progressPct}%)`,
-                }}
-              />
-            </div>
-
-            <span className="text-[11px] font-mono text-white/50 min-w-[44px] text-right">
-              {formatTime(duration)}
-            </span>
-          </div>
-
-          {/* Action Row: Skip -10s, Play/Pause, Skip +10s, Prev/Next Ep, Mark Complete, Fullscreen */}
-          <div className="flex items-center justify-between gap-2 pt-1 border-t border-white/[0.08]">
-            {/* Left Controls: Rewind, Play/Pause, & Forward Pills */}
-            <div className="flex items-center gap-1.5 sm:gap-2">
-              <button
-                onClick={() => handleSkip(-10)}
-                title="Mundur 10 detik"
-                aria-label="Mundur 10 detik"
-                className="w-8 h-8 rounded-full liquid-glass flex items-center justify-center text-white/80 hover:text-white hover:bg-white/[0.18] transition-all cursor-pointer ios-spring"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-              </button>
-
-              <button
-                onClick={togglePlayPause}
-                title={isPlaying ? 'Jeda Video' : 'Putar Video'}
-                aria-label={isPlaying ? 'Jeda Video' : 'Putar Video'}
-                className="w-8 h-8 rounded-full liquid-glass flex items-center justify-center text-[#FFB224] hover:bg-white/[0.18] transition-all cursor-pointer ios-spring"
-              >
-                {isPlaying ? (
-                  <Pause className="w-3.5 h-3.5 fill-current" />
-                ) : (
-                  <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
-                )}
-              </button>
-
-              <button
-                onClick={() => handleSkip(10)}
-                title="Maju 10 detik"
-                aria-label="Maju 10 detik"
-                className="w-8 h-8 rounded-full liquid-glass flex items-center justify-center text-white/80 hover:text-white hover:bg-white/[0.18] transition-all cursor-pointer ios-spring"
-              >
-                <RotateCw className="w-3.5 h-3.5" />
-              </button>
-            </div>
-
-            {/* Center Controls: Episode Navigation for Series/Anime */}
-            {(mediaType === 'tv' || mediaType === 'anime') && (
-              <div className="flex items-center gap-1.5">
-                <button
-                  onClick={() => navigateEpisode('prev')}
-                  disabled={!hasPrevEpisode}
-                  className="px-3 py-1.5 rounded-full liquid-glass text-xs font-medium text-white/80 hover:text-white hover:bg-white/[0.18] disabled:opacity-30 disabled:pointer-events-none transition-all flex items-center gap-1 ios-spring cursor-pointer"
-                  title="Episode Sebelumnya"
-                >
-                  <ChevronLeft className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Ep Sebelumnya</span>
-                </button>
-
-                <span className="px-2.5 py-1 rounded-full bg-white/[0.1] text-xs font-semibold text-[#FFB224] min-w-[64px] text-center">
-                  Ep {episodeNum}
-                </span>
-
-                <button
-                  onClick={() => navigateEpisode('next')}
-                  disabled={!hasNextEpisode}
-                  className="px-3 py-1.5 rounded-full liquid-glass text-xs font-medium text-white/80 hover:text-white hover:bg-white/[0.18] disabled:opacity-30 disabled:pointer-events-none transition-all flex items-center gap-1 ios-spring cursor-pointer"
-                  title="Episode Berikutnya"
-                >
-                  <span className="hidden sm:inline">Ep Selanjutnya</span>
-                  <ChevronRight className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            )}
-
-            {/* Right Controls: Mark as Complete & Fullscreen Toggle */}
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleMarkCompleted}
-                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all flex items-center gap-1.5 ios-spring cursor-pointer ${
-                  isCompleted
-                    ? 'liquid-glass text-emerald-400 font-semibold'
-                    : 'liquid-glass text-white/70 hover:text-white hover:bg-white/[0.18]'
-                }`}
-                title="Tandai telah selesai ditonton"
-              >
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">
-                  {isCompleted ? 'Selesai Ditonton' : 'Tandai Selesai'}
-                </span>
-              </button>
-
-              <button
-                onClick={toggleFullscreen}
-                title={isFullscreen ? 'Keluar Layar Penuh' : 'Layar Penuh'}
-                aria-label={isFullscreen ? 'Keluar Layar Penuh' : 'Layar Penuh'}
-                className="w-8 h-8 rounded-full liquid-glass flex items-center justify-center text-white/80 hover:text-white hover:bg-white/[0.18] transition-all cursor-pointer ios-spring"
-              >
-                {isFullscreen ? (
-                  <Minimize className="w-3.5 h-3.5" />
-                ) : (
-                  <Maximize className="w-3.5 h-3.5" />
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   );

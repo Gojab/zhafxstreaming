@@ -1,62 +1,26 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { WatchProgressItem } from '../types';
 import { storage } from '../lib/storage';
-import { progressApi, SaveProgressPayload } from '../services/progressApi';
-import { useAuth } from './useAuth';
+import { SaveProgressPayload } from '../services/progressApi';
 
 export function useContinueWatching() {
-  const { user } = useAuth();
   const [items, setItems] = useState<WatchProgressItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const isSyncingRef = useRef<boolean>(false);
   const isSavingRef = useRef<boolean>(false);
   const itemsRef = useRef<WatchProgressItem[]>([]);
   itemsRef.current = items;
 
-  // Load progress records based on auth status
-  const loadProgress = useCallback(async () => {
-    const token = storage.getToken();
-
-    if (user && token) {
-      // Authenticated user: load from local cache first for instant rendering
-      const cached = storage.getCachedUserProgress(user.id);
-      if (cached.length > 0) {
-        setItems(cached.filter((item) => !item.completed && item.currentTime > 5));
-      }
-
-      // Check if there are any guest items to migrate
-      const guestItems = storage.getGuestProgress();
-      if (guestItems.length > 0 && !isSyncingRef.current) {
-        isSyncingRef.current = true;
-        try {
-          await progressApi.syncBatch(token, guestItems);
-          storage.clearGuestProgress();
-        } catch (e) {
-          console.warn('[useContinueWatching] Failed to migrate guest progress:', e);
-        } finally {
-          isSyncingRef.current = false;
-        }
-      }
-
-      // Fetch fresh records from server
-      try {
-        const res = await progressApi.getProgress(token, { all: false });
-        if (res.success && Array.isArray(res.progress)) {
-          setItems(res.progress);
-          storage.setCachedUserProgress(user.id, res.progress);
-        }
-      } catch (err) {
-        console.warn('[useContinueWatching] Failed to fetch server progress:', err);
-      } finally {
-        setIsLoading(false);
-      }
-    } else {
-      // Guest: load from guest storage
+  // Load progress records from local storage
+  const loadProgress = useCallback(() => {
+    try {
       const guestItems = storage.getGuestProgress();
       setItems(guestItems.filter((item) => !item.completed && item.currentTime > 5));
+    } catch {
+      setItems([]);
+    } finally {
       setIsLoading(false);
     }
-  }, [user]);
+  }, []);
 
   useEffect(() => {
     loadProgress();
@@ -67,12 +31,10 @@ export function useContinueWatching() {
     };
 
     window.addEventListener('zhafx_progress_updated', handleUpdate);
-    window.addEventListener('zhafx_auth_change', handleUpdate);
     window.addEventListener('storage', handleUpdate);
 
     return () => {
       window.removeEventListener('zhafx_progress_updated', handleUpdate);
-      window.removeEventListener('zhafx_auth_change', handleUpdate);
       window.removeEventListener('storage', handleUpdate);
     };
   }, [loadProgress]);
@@ -84,7 +46,6 @@ export function useContinueWatching() {
     async (payload: SaveProgressPayload): Promise<void> => {
       isSavingRef.current = true;
       try {
-        const token = storage.getToken();
         const validDuration = Math.max(1, Math.round(payload.duration || 1));
         const validCurrent = Math.max(0, Math.min(validDuration, Math.round(payload.currentTime || 0)));
         const percentage = Math.min(100, Math.max(0, Math.round((validCurrent / validDuration) * 100)));
@@ -95,13 +56,11 @@ export function useContinueWatching() {
 
         const sNum = payload.season !== undefined ? Number(payload.season) : undefined;
         const epNum = payload.episode !== undefined ? Number(payload.episode) : undefined;
-        const progressRecordId = user
-          ? `${user.id}_${payload.contentId}_s${sNum ?? 1}_e${epNum ?? 1}`
-          : `guest_${payload.contentId}_s${sNum ?? 1}_e${epNum ?? 1}`;
+        const progressRecordId = `watch_${payload.contentId}_s${sNum ?? 1}_e${epNum ?? 1}`;
 
         const progressItem: WatchProgressItem = {
           id: progressRecordId,
-          userId: user ? user.id : 'guest',
+          userId: 'guest',
           contentId: payload.contentId,
           episodeId: payload.episodeId || (sNum || epNum ? `s${sNum || 1}_e${epNum || 1}` : undefined),
           mediaType: payload.mediaType,
@@ -135,6 +94,9 @@ export function useContinueWatching() {
           progressPercentage: percentage,
         });
 
+        // Save to local progress storage
+        storage.saveGuestProgress(progressItem);
+
         // Optimistic state update
         setItems((prev) => {
           const filtered = prev.filter(
@@ -145,40 +107,13 @@ export function useContinueWatching() {
           }
           return [progressItem, ...filtered];
         });
-
-        if (user && token) {
-          // Save to backend database
-          try {
-            await progressApi.saveProgress(token, {
-              ...payload,
-              currentTime: validCurrent,
-              duration: validDuration,
-              completed: isCompleted,
-            });
-            // Update user local cache
-            const currentCached = storage.getCachedUserProgress(user.id);
-            const updatedCache = [
-              progressItem,
-              ...currentCached.filter(
-                (p) => !(p.contentId === payload.contentId && p.season === sNum && p.episode === epNum)
-              ),
-            ];
-            storage.setCachedUserProgress(user.id, updatedCache);
-          } catch (e) {
-            console.warn('[useContinueWatching] Failed to save progress to server:', e);
-          }
-        } else {
-          // Save to guest storage
-          storage.saveGuestProgress(progressItem);
-        }
       } finally {
-        // Small delay so synchronous events don't trigger re-fetch loop
         setTimeout(() => {
           isSavingRef.current = false;
         }, 100);
       }
     },
-    [user]
+    []
   );
 
   /**
@@ -186,9 +121,6 @@ export function useContinueWatching() {
    */
   const removeProgress = useCallback(
     async (contentId: string, season?: number, episode?: number): Promise<void> => {
-      const token = storage.getToken();
-
-      // Optimistic UI update
       setItems((prev) =>
         prev.filter(
           (p) =>
@@ -200,30 +132,10 @@ export function useContinueWatching() {
         )
       );
 
-      // Remove from history storage as well
       storage.removeHistoryItem(contentId, season, episode);
-
-      if (user && token) {
-        try {
-          await progressApi.deleteProgress(token, contentId, season, episode);
-          const cached = storage.getCachedUserProgress(user.id);
-          const updated = cached.filter(
-            (p) =>
-              !(
-                p.contentId === contentId &&
-                (season === undefined || p.season === season) &&
-                (episode === undefined || p.episode === episode)
-              )
-          );
-          storage.setCachedUserProgress(user.id, updated);
-        } catch (err) {
-          console.warn('[useContinueWatching] Failed to delete on server:', err);
-        }
-      } else {
-        storage.removeGuestProgress(contentId, season, episode);
-      }
+      storage.removeGuestProgress(contentId, season, episode);
     },
-    [user]
+    []
   );
 
   /**
@@ -231,7 +143,6 @@ export function useContinueWatching() {
    */
   const getProgressForTitle = useCallback(
     (contentId: string, season?: number, episode?: number): WatchProgressItem | undefined => {
-      // 1. Check in ref items state
       const foundInState = itemsRef.current.find(
         (p) =>
           p.contentId === contentId &&
@@ -240,26 +151,15 @@ export function useContinueWatching() {
       );
       if (foundInState) return foundInState;
 
-      // 2. Check in user cache or guest storage
-      if (user) {
-        const cached = storage.getCachedUserProgress(user.id);
-        return cached.find(
-          (p) =>
-            p.contentId === contentId &&
-            (season === undefined || p.season === season) &&
-            (episode === undefined || p.episode === episode)
-        );
-      } else {
-        const guest = storage.getGuestProgress();
-        return guest.find(
-          (p) =>
-            p.contentId === contentId &&
-            (season === undefined || p.season === season) &&
-            (episode === undefined || p.episode === episode)
-        );
-      }
+      const guest = storage.getGuestProgress();
+      return guest.find(
+        (p) =>
+          p.contentId === contentId &&
+          (season === undefined || p.season === season) &&
+          (episode === undefined || p.episode === episode)
+      );
     },
-    [user]
+    []
   );
 
   return {

@@ -4,7 +4,6 @@ import { Sparkles } from 'lucide-react';
 import { Navbar } from './components/Navbar';
 import { BottomNav } from './components/BottomNav';
 import { Footer } from './components/Footer';
-import { OfflineBanner } from './components/OfflineBanner';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { AIChatDrawer } from './components/AIChatDrawer';
 import { CinematicIntro } from './components/CinematicIntro';
@@ -19,10 +18,7 @@ import { DetailPage } from './pages/DetailPage';
 import { PlayerPage } from './pages/PlayerPage';
 import { HistoryPage } from './pages/HistoryPage';
 import { MyListPage } from './pages/MyListPage';
-import { OfflinePage } from './pages/OfflinePage';
-import { LoginPage } from './pages/LoginPage';
 import { NotFoundPage } from './pages/NotFoundPage';
-import { ProtectedRoute } from './components/ProtectedRoute';
 import { Title } from './types';
 
 function AppLayout() {
@@ -47,8 +43,6 @@ function AppLayout() {
       {/* Cinematic Logo Intro Animation (Amazon Original Glass Panel Style) */}
       <CinematicIntro />
 
-      <OfflineBanner />
-
       {!isPlayerMode && (
         <Navbar
           onOpenAI={() => setIsAIOpen(true)}
@@ -68,18 +62,8 @@ function AppLayout() {
           />
           <Route path="/watch/:type/:id" element={<PlayerPage />} />
           <Route path="/watch/:type/:id/:season/:episode" element={<PlayerPage />} />
-          <Route path="/offline" element={<OfflinePage />} />
           <Route path="/history" element={<HistoryPage />} />
           <Route path="/my-list" element={<MyListPage />} />
-          <Route path="/login" element={<LoginPage />} />
-          <Route
-            path="/profile"
-            element={
-              <ProtectedRoute>
-                <LoginPage />
-              </ProtectedRoute>
-            }
-          />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </main>

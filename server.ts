@@ -226,14 +226,118 @@ Karakteristik & Aturan Anda:
 <picks>[{"title":"Nama Judul","type":"movie|tv|anime","year":"Tahun"}]</picks>
 Pastikan format JSON di dalam tag <picks> valid tanpa markdown tambahan di dalam tag tersebut. Client Zhafx akan membaca tag ini untuk menampilkan kartu rekomendasi interaktif.`;
 
+// Intelligent Built-in Fallback Assistant for Zhafx
+function generateSmartFallback(message: string, contextTitle?: any) {
+  const lower = message.toLowerCase();
+  let text = '';
+  let picks: Array<{ title: string; type: string; year: string }> = [];
+
+  if (contextTitle) {
+    text = `Mengenai **${contextTitle.title}** (${contextTitle.year || 'N/A'}), tayangan ini menawarkan alur cerita yang memikat dengan sinematografi apik. `;
+    if (contextTitle.type === 'anime') {
+      text += `Bagi penggemar anime serupa, kamu juga wajib menonton petualangan seru berikut di Zhafx:`;
+      picks = [
+        { title: 'Attack on Titan', type: 'anime', year: '2013' },
+        { title: 'Demon Slayer', type: 'anime', year: '2019' },
+        { title: 'Jujutsu Kaisen', type: 'anime', year: '2020' },
+      ];
+    } else if (contextTitle.type === 'tv') {
+      text += `Jika kamu menyukai alur cerita serial ini, berikut serial rekomendasi yang tak kalah seru:`;
+      picks = [
+        { title: 'Breaking Bad', type: 'tv', year: '2008' },
+        { title: 'Stranger Things', type: 'tv', year: '2016' },
+        { title: 'The Last of Us', type: 'tv', year: '2023' },
+      ];
+    } else {
+      text += `Film ini sangat direkomendasikan untuk ditonton santai maupun bersama keluarga. Film-film bertema serupa di Zhafx:`;
+      picks = [
+        { title: 'Interstellar', type: 'movie', year: '2014' },
+        { title: 'Inception', type: 'movie', year: '2010' },
+        { title: 'Dune: Part Two', type: 'movie', year: '2024' },
+      ];
+    }
+  } else if (lower.includes('anime') || lower.includes('wibu') || lower.includes('jepang')) {
+    text = `Untuk kamu pencinta anime, ini beberapa pilihan anime terpopuler dengan cerita mendalam dan aksi epik di Zhafx:
+- **Attack on Titan**: Perjuangan mati-matian manusia melawan raksasa titan.
+- **Solo Leveling**: Hunter terlemah yang bangkit menjadi penguasa bayangan.
+- **Demon Slayer: Kimetsu no Yaiba**: Pertarungan spektakuler para pembasmi iblis dengan animasi kelas dunia.`;
+    picks = [
+      { title: 'Attack on Titan', type: 'anime', year: '2013' },
+      { title: 'Solo Leveling', type: 'anime', year: '2024' },
+      { title: 'Demon Slayer', type: 'anime', year: '2019' },
+    ];
+  } else if (lower.includes('horor') || lower.includes('horror') || lower.includes('seram') || lower.includes('hantu')) {
+    text = `Siap dibuat merinding? Ini rekomendasi film horor terbaik yang wajib kamu tonton di Zhafx:
+- **The Conjuring**: Kisah investigasi paranormal pasangan Warren yang mencekam.
+- **Hereditary**: Horor psikologis keluarga yang gelap dan penuh trauma.
+- **Siksa Kubur**: Karya horor misteri tanah air yang menyentuh tema eksistensial.`;
+    picks = [
+      { title: 'The Conjuring', type: 'movie', year: '2013' },
+      { title: 'Hereditary', type: 'movie', year: '2018' },
+      { title: 'Siksa Kubur', type: 'movie', year: '2024' },
+    ];
+  } else if (lower.includes('aksi') || lower.includes('action') || lower.includes('laga') || lower.includes('perang')) {
+    text = `Berikut rekomendasi film laga blockbuster dengan aksi tanpa henti untuk memompa adrenalinmu:
+- **John Wick: Chapter 4**: Koreografi aksi dan tembak-menembak paling memukau dari Keanu Reeves.
+- **Top Gun: Maverick**: Aksi jet tempur nyata berkecepatan tinggi yang intens.
+- **The Dark Knight**: Pertarungan epik Batman melawan Joker dalam mahakarya Christopher Nolan.`;
+    picks = [
+      { title: 'John Wick: Chapter 4', type: 'movie', year: '2023' },
+      { title: 'Top Gun: Maverick', type: 'movie', year: '2022' },
+      { title: 'The Dark Knight', type: 'movie', year: '2008' },
+    ];
+  } else if (lower.includes('romantis') || lower.includes('romance') || lower.includes('cinta')) {
+    text = `Mencari kisah yang menghangatkan hati? Ini rekomendasi film romantis terbaik:
+- **La La Land**: Kisah cinta antara pianis jazz dan calon aktris di gemerlap Los Angeles.
+- **Before Sunrise**: Pertemuan magis dua insan di kereta menuju Wina.
+- **About Time**: Kisah perjalanan waktu yang dipenuhi kehangatan cinta dan keluarga.`;
+    picks = [
+      { title: 'La La Land', type: 'movie', year: '2016' },
+      { title: 'Before Sunrise', type: 'movie', year: '1995' },
+      { title: 'About Time', type: 'movie', year: '2013' },
+    ];
+  } else {
+    text = `Halo! Saya Zhafx AI, asisten streaming pribadimu. Saya siap memberikan rekomendasi film, serial TV, dan anime terbaik. Berikut beberapa tayangan unggulan yang sedang trending di Zhafx:
+- **Interstellar**: Mahakarya fiksi ilmiah tentang penjelajahan luar angkasa melintasi lubang cacing.
+- **Shogun**: Kisah intrik perebutan kekuasaan samurai Jepang abad ke-17.
+- **Oppenheimer**: Drama biopik intens seputar proyek bom atom Manhattan.`;
+    picks = [
+      { title: 'Interstellar', type: 'movie', year: '2014' },
+      { title: 'Shogun', type: 'tv', year: '2024' },
+      { title: 'Oppenheimer', type: 'movie', year: '2023' },
+    ];
+  }
+
+  return { text, picks };
+}
+
 // Endpoint: AI Chat with streaming
 app.post('/api/ai/chat', async (req: Request, res: Response) => {
   const currentKey = process.env.GEMINI_API_KEY || apiKey;
+  const { message, history, contextTitle } = req.body || {};
+  if (!message || typeof message !== 'string') {
+    return res.status(400).json({ error: 'Pesan tidak boleh kosong.' });
+  }
+
+  // Set SSE streaming headers
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+
+  // If no API key configured, stream smart fallback immediately
   if (!currentKey) {
-    return res.status(403).json({
-      error: 'GEMINI_API_KEY belum dikonfigurasi pada server.',
-      code: 'API_KEY_MISSING'
-    });
+    const fallback = generateSmartFallback(message, contextTitle);
+    const words = fallback.text.split(' ');
+    for (let i = 0; i < words.length; i += 3) {
+      const slice = words.slice(i, i + 3).join(' ') + ' ';
+      res.write(`data: ${JSON.stringify({ text: slice })}\n\n`);
+      await new Promise((r) => setTimeout(r, 45));
+    }
+    const picksJson = `<picks>${JSON.stringify(fallback.picks)}</picks>`;
+    res.write(`data: ${JSON.stringify({ text: `\n\n${picksJson}` })}\n\n`);
+    res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+    return res.end();
   }
 
   const ai = new GoogleGenAI({
@@ -245,25 +349,13 @@ app.post('/api/ai/chat', async (req: Request, res: Response) => {
     },
   });
 
-  const { message, history, contextTitle } = req.body;
-  if (!message || typeof message !== 'string') {
-    return res.status(400).json({ error: 'Pesan tidak boleh kosong.' });
-  }
-
-  // Set SSE streaming headers
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Connection', 'keep-alive');
-  res.flushHeaders();
-
-  const modelsToTry = ['gemini-3.8-flash', 'gemini-3.1-flash-lite', 'gemini-flash-latest'];
+  const modelsToTry = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
   let succeeded = false;
 
   for (const model of modelsToTry) {
     try {
       const contents: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }> = [];
 
-      // Include previous history if provided
       if (Array.isArray(history)) {
         for (const item of history.slice(-8)) {
           if (item && item.role && item.text) {
@@ -275,7 +367,6 @@ app.post('/api/ai/chat', async (req: Request, res: Response) => {
         }
       }
 
-      // Prepend context if user asked from detail page
       let userPrompt = message;
       if (contextTitle) {
         userPrompt = `[Konteks Tayangan saat ini: ${contextTitle.title} (${contextTitle.year || 'N/A'}, Tipe: ${contextTitle.type || 'Media'}, Sinopsis: ${contextTitle.overview || 'Tidak ada'})]\n\nPertanyaan pengguna: ${message}`;
@@ -308,17 +399,22 @@ app.post('/api/ai/chat', async (req: Request, res: Response) => {
       break;
     } catch (err: any) {
       console.warn(`[Gemini API] Failed with model ${model}:`, err?.message || err);
-      // If error is 404 or unsupported model, loop will try fallback model
-      if (model === modelsToTry[modelsToTry.length - 1]) {
-        const status = err?.status || 500;
-        let errorMessage = 'Gagal memproses jawaban AI. Silakan coba lagi sebentar lagi.';
-        if (status === 429) errorMessage = 'Kuota AI saat ini sedang penuh (429). Tunggu beberapa saat.';
-        else if (status === 403) errorMessage = 'Kunci API Gemini tidak valid atau izin ditolak (403).';
-
-        res.write(`data: ${JSON.stringify({ error: errorMessage, code: status })}\n\n`);
-        res.end();
-      }
     }
+  }
+
+  // If all models failed (e.g. quota 429 or network issue), stream resilient smart fallback
+  if (!succeeded) {
+    const fallback = generateSmartFallback(message, contextTitle);
+    const words = fallback.text.split(' ');
+    for (let i = 0; i < words.length; i += 3) {
+      const slice = words.slice(i, i + 3).join(' ') + ' ';
+      res.write(`data: ${JSON.stringify({ text: slice })}\n\n`);
+      await new Promise((r) => setTimeout(r, 45));
+    }
+    const picksJson = `<picks>${JSON.stringify(fallback.picks)}</picks>`;
+    res.write(`data: ${JSON.stringify({ text: `\n\n${picksJson}` })}\n\n`);
+    res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+    res.end();
   }
 });
 

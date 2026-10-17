@@ -531,9 +531,9 @@ export const api = {
   async getProviders(signal?: AbortSignal, type?: MediaType): Promise<Provider[]> {
     if (type === 'anime') {
       return [
+        { id: 'videasy', name: 'Videasy Anime', tagline: 'Server Cepat 1080p (Multi-Sub)' },
         { id: 'framex', name: 'FrameX Anime', tagline: 'Server Resmi Multi-Sub' },
-        { id: 'videasy', name: 'Videasy Anime', tagline: 'Stream Cepat 1080p' },
-        { id: 'vidsrc', name: 'VidSrc Anime', tagline: 'Server Cadangan Global' },
+        { id: 'multiembed', name: 'MultiEmbed Anime', tagline: 'Server Cadangan Global' },
       ];
     }
 
@@ -582,21 +582,26 @@ export const api = {
 
     // Direct provider servers for anime
     if (type === 'anime') {
-      if (server === 'videasy') {
-        return `https://player.videasy.to/anime/${encodeURIComponent(id)}/${episode}?autoplay=${autoplay ? 1 : 0}`;
+      const ep = episode || 1;
+      const cleanId = encodeURIComponent(id);
+
+      if (server === 'framex') {
+        const q = new URLSearchParams();
+        q.set('id', id);
+        q.set('episode', String(ep));
+        q.set('autoplay', autoplay ? '1' : '0');
+        q.set('muted', muted ? '1' : '0');
+        if (title) q.set('title', title);
+        if (poster) q.set('poster', poster);
+        return `${CONFIG.EMBED_BASE_URL}/anime/${cleanId}/${ep}?${q.toString()}`;
       }
-      if (server === 'vidsrc') {
-        return `https://vidsrc.to/embed/anime/${encodeURIComponent(id)}/${episode}`;
+
+      if (server === 'multiembed') {
+        return `https://multiembed.mov/?video_id=${cleanId}&s=1&e=${ep}`;
       }
-      // Default FrameX anime embed with full fallback params
-      const q = new URLSearchParams();
-      q.set('id', id);
-      q.set('episode', String(episode));
-      q.set('autoplay', autoplay ? '1' : '0');
-      q.set('muted', muted ? '1' : '0');
-      if (title) q.set('title', title);
-      if (poster) q.set('poster', poster);
-      return `${CONFIG.EMBED_BASE_URL}/anime/${encodeURIComponent(id)}/${episode}?${q.toString()}`;
+
+      // Default & Videasy Anime (fastest and verified for AniList IDs):
+      return `https://player.videasy.to/anime/${cleanId}/${ep}?autoplay=${autoplay ? 1 : 0}`;
     }
 
     let path = '';

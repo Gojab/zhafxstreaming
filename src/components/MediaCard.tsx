@@ -21,7 +21,12 @@ export const MediaCard: React.FC<MediaCardProps> = ({ item, className = '', show
   const saved = isSaved(item.id);
 
   const detailPath = `/detail/${item.type}/${item.id}`;
-  const playPath = `/watch/${item.type}/${item.id}`;
+  const playPath =
+    item.type === 'anime'
+      ? `/watch/anime/${item.id}/1/1`
+      : item.type === 'tv'
+      ? `/watch/tv/${item.id}/1/1`
+      : `/watch/movie/${item.id}`;
 
   const handleToggleWatchlist = (e: React.MouseEvent) => {
     e.preventDefault();
