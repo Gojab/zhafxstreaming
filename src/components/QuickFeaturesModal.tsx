@@ -10,6 +10,7 @@ import {
   Bookmark,
   History,
   ChevronRight,
+  Clapperboard,
 } from 'lucide-react';
 import { Logo } from './Logo';
 
@@ -176,7 +177,24 @@ export const QuickFeaturesModal: React.FC<QuickFeaturesModalProps> = ({
             </div>
             <div>
               <span className="text-xs font-bold text-white block">Riwayat</span>
-              <span className="text-[10px] text-white/50">Lanjut menonton</span>
+              <span className="text-[10px] text-white/50">Daftar tontonan</span>
+            </div>
+          </button>
+
+          {/* 8. Intro Sinematik Epic */}
+          <button
+            onClick={() => {
+              onClose();
+              window.dispatchEvent(new Event('play-zhafx-intro'));
+            }}
+            className="p-3.5 rounded-[20px] liquid-glass hover:bg-white/[0.14] transition-all flex flex-col items-start gap-2 text-left group ios-spring cursor-pointer border border-[#FFB224]/30"
+          >
+            <div className="w-8 h-8 rounded-full bg-[#FFB224]/20 flex items-center justify-center text-[#FFB224] group-hover:bg-[#FFB224] group-hover:text-black transition-colors">
+              <Clapperboard className="w-4 h-4" />
+            </div>
+            <div>
+              <span className="text-xs font-bold text-white block">Intro Epic</span>
+              <span className="text-[10px] text-white/50">Putar animasi</span>
             </div>
           </button>
         </div>

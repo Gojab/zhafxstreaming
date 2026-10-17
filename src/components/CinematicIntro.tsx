@@ -1,113 +1,192 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { gsap } from 'gsap';
-import { Volume2, VolumeX, X } from 'lucide-react';
+import { Volume2, VolumeX, Sparkles } from 'lucide-react';
 
 interface CinematicIntroProps {
   onComplete?: () => void;
   forcePlay?: boolean;
 }
 
-interface GlassPanel {
-  id: number;
-  width: number;
-  leftPct: number;
-  refractOffset: number;
-  edgeColor: string;
-}
-
-const GLITCH_CHARS = ['Z', 'H', 'A', 'F', 'X', '7', '0', '1', '/', '|', '#'];
-
 export const CinematicIntro: React.FC<CinematicIntroProps> = ({ onComplete, forcePlay = false }) => {
   const [isVisible, setIsVisible] = useState(false);
-  const [isMuted, setIsMuted] = useState(true);
-  const [glitchText, setGlitchText] = useState('ZHAFX');
+  const [isMuted, setIsMuted] = useState(false);
 
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const lightSweepsRef = useRef<HTMLDivElement | null>(null);
-  const leftBloomRef = useRef<HTMLDivElement | null>(null);
-  const centerTextRef = useRef<HTMLDivElement | null>(null);
-  const finalTitleRef = useRef<HTMLDivElement | null>(null);
-  const panelsContainerRef = useRef<HTMLDivElement | null>(null);
-  const bgLayerRef = useRef<HTMLDivElement | null>(null);
+  const starsCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const shockwaveRef = useRef<HTMLDivElement | null>(null);
+  const flareRef = useRef<HTMLDivElement | null>(null);
+  const logoGroupRef = useRef<SVGGElement | null>(null);
+  const arrowheadGleamRef = useRef<HTMLDivElement | null>(null);
+  const taglineRef = useRef<HTMLDivElement | null>(null);
+  const godRaysRef = useRef<HTMLDivElement | null>(null);
+  const letterboxTopRef = useRef<HTMLDivElement | null>(null);
+  const letterboxBottomRef = useRef<HTMLDivElement | null>(null);
 
   const timelineRef = useRef<gsap.core.Timeline | null>(null);
-  const glitchIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
+  const animFrameRef = useRef<number | null>(null);
 
-  // Generate panels depending on device screen
-  const [panels, setPanels] = useState<GlassPanel[]>([]);
-
-  useEffect(() => {
-    const isMobile = window.innerWidth < 640;
-    const panelCount = isMobile ? 6 : 14;
-    const colors = [
-      'rgba(255, 138, 76, 0.7)', // #FF8A4C Orange
-      'rgba(59, 108, 255, 0.7)', // #3B6CFF Blue
-      'rgba(255, 94, 138, 0.65)', // Pink
-      'rgba(147, 51, 234, 0.6)', // Purple
-    ];
-
-    const generated: GlassPanel[] = [];
-    const step = 100 / panelCount;
-    for (let i = 0; i < panelCount; i++) {
-      const width = isMobile ? 30 + Math.random() * 40 : 35 + Math.random() * 85;
-      const leftPct = i * step + (Math.random() * 4 - 2);
-      const refractOffset = (Math.random() - 0.5) * (isMobile ? 24 : 48);
-      const edgeColor = colors[i % colors.length];
-      generated.push({ id: i, width, leftPct, refractOffset, edgeColor });
-    }
-    setPanels(generated);
-  }, []);
-
-  // Web Audio subtle shimmer sound
-  const playShimmerSound = useCallback(() => {
+  // Initialize Web Audio Engine for Epic Cinema Soundscape (Ta-Dum / Braam / Shimmer)
+  const playEpicCinematicAudio = useCallback(() => {
     if (isMuted) return;
     try {
       const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       if (!AudioCtx) return;
       const ctx = new AudioCtx();
       audioCtxRef.current = ctx;
-      if (ctx.state === 'suspended') ctx.resume();
 
-      // Ambient sub drone
+      if (ctx.state === 'suspended') {
+        ctx.resume().catch(() => {});
+      }
+
+      const now = ctx.currentTime;
+
+      // 1. Atmospheric Shepard Rising Tension Tone (0.0s -> 2.2s)
+      const riserOsc = ctx.createOscillator();
+      const riserGain = ctx.createGain();
+      riserOsc.type = 'sawtooth';
+      riserOsc.frequency.setValueAtTime(60, now);
+      riserOsc.frequency.exponentialRampToValueAtTime(540, now + 2.1);
+      
+      const riserFilter = ctx.createBiquadFilter();
+      riserFilter.type = 'lowpass';
+      riserFilter.frequency.setValueAtTime(120, now);
+      riserFilter.frequency.exponentialRampToValueAtTime(3200, now + 2.1);
+
+      riserGain.gain.setValueAtTime(0.001, now);
+      riserGain.gain.linearRampToValueAtTime(0.07, now + 1.8);
+      riserGain.gain.exponentialRampToValueAtTime(0.0001, now + 2.2);
+
+      riserOsc.connect(riserFilter);
+      riserFilter.connect(riserGain);
+      riserGain.connect(ctx.destination);
+      riserOsc.start(now);
+      riserOsc.stop(now + 2.25);
+
+      // 2. Heavy Sub-Bass Boom (The "Ta-Dum" Impact at 2.2s)
       const subOsc = ctx.createOscillator();
       const subGain = ctx.createGain();
       subOsc.type = 'sine';
-      subOsc.frequency.setValueAtTime(45, ctx.currentTime);
-      subOsc.frequency.exponentialRampToValueAtTime(32, ctx.currentTime + 3.5);
-      subGain.gain.setValueAtTime(0.001, ctx.currentTime);
-      subGain.gain.linearRampToValueAtTime(0.08, ctx.currentTime + 0.8);
-      subGain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 3.8);
+      subOsc.frequency.setValueAtTime(110, now + 2.15);
+      subOsc.frequency.exponentialRampToValueAtTime(32, now + 3.8);
+
+      subGain.gain.setValueAtTime(0.001, now);
+      subGain.gain.setValueAtTime(0.001, now + 2.15);
+      subGain.gain.linearRampToValueAtTime(0.38, now + 2.22);
+      subGain.gain.exponentialRampToValueAtTime(0.0001, now + 4.2);
+
       subOsc.connect(subGain);
       subGain.connect(ctx.destination);
-      subOsc.start(ctx.currentTime);
-      subOsc.stop(ctx.currentTime + 4.0);
+      subOsc.start(now + 2.15);
+      subOsc.stop(now + 4.3);
 
-      // Shimmer sweep
-      const shimmer = ctx.createOscillator();
-      const sGain = ctx.createGain();
-      shimmer.type = 'triangle';
-      shimmer.frequency.setValueAtTime(380, ctx.currentTime + 0.8);
-      shimmer.frequency.exponentialRampToValueAtTime(920, ctx.currentTime + 2.5);
-      sGain.gain.setValueAtTime(0.0001, ctx.currentTime + 0.8);
-      sGain.gain.linearRampToValueAtTime(0.025, ctx.currentTime + 1.8);
-      sGain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 3.6);
-      shimmer.connect(sGain);
-      sGain.connect(ctx.destination);
-      shimmer.start(ctx.currentTime + 0.8);
-      shimmer.stop(ctx.currentTime + 3.8);
+      // 3. Timpani Impact Body (Metallic & punchy punch at 2.2s)
+      const punchOsc = ctx.createOscillator();
+      const punchGain = ctx.createGain();
+      punchOsc.type = 'triangle';
+      punchOsc.frequency.setValueAtTime(180, now + 2.18);
+      punchOsc.frequency.exponentialRampToValueAtTime(45, now + 2.7);
+
+      punchGain.gain.setValueAtTime(0.001, now);
+      punchGain.gain.setValueAtTime(0.001, now + 2.18);
+      punchGain.gain.linearRampToValueAtTime(0.25, now + 2.22);
+      punchGain.gain.exponentialRampToValueAtTime(0.0001, now + 3.2);
+
+      punchOsc.connect(punchGain);
+      punchGain.connect(ctx.destination);
+      punchOsc.start(now + 2.18);
+      punchOsc.stop(now + 3.3);
+
+      // 4. Ethereal Glass Shimmer Harmonic Chime (2.2s -> 4.2s)
+      const chimeOsc = ctx.createOscillator();
+      const chimeGain = ctx.createGain();
+      chimeOsc.type = 'sine';
+      chimeOsc.frequency.setValueAtTime(880, now + 2.2);
+      chimeOsc.frequency.exponentialRampToValueAtTime(1320, now + 3.6);
+
+      chimeGain.gain.setValueAtTime(0.001, now + 2.2);
+      chimeGain.gain.linearRampToValueAtTime(0.06, now + 2.3);
+      chimeGain.gain.exponentialRampToValueAtTime(0.0001, now + 4.1);
+
+      chimeOsc.connect(chimeGain);
+      chimeGain.connect(ctx.destination);
+      chimeOsc.start(now + 2.2);
+      chimeOsc.stop(now + 4.2);
     } catch {
-      // Browser audio policy safe
+      // Browser audio policy safety
     }
   }, [isMuted]);
 
+  // Starfield particle simulation for cosmic 3D depth
+  useEffect(() => {
+    if (!isVisible) return;
+    const canvas = starsCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    let width = (canvas.width = window.innerWidth);
+    let height = (canvas.height = window.innerHeight);
+
+    const onResize = () => {
+      width = canvas.width = window.innerWidth;
+      height = canvas.height = window.innerHeight;
+    };
+    window.addEventListener('resize', onResize);
+
+    const count = 120;
+    const stars = Array.from({ length: count }, () => ({
+      x: (Math.random() - 0.5) * width * 1.5,
+      y: (Math.random() - 0.5) * height * 1.5,
+      z: Math.random() * width,
+      size: Math.random() * 1.8 + 0.4,
+      brightness: Math.random() * 0.8 + 0.2,
+    }));
+
+    const render = () => {
+      ctx.fillStyle = '#030408';
+      ctx.fillRect(0, 0, width, height);
+
+      const cx = width / 2;
+      const cy = height / 2;
+
+      for (let i = 0; i < count; i++) {
+        const s = stars[i];
+        s.z -= 1.8;
+        if (s.z <= 0) {
+          s.z = width;
+          s.x = (Math.random() - 0.5) * width * 1.5;
+          s.y = (Math.random() - 0.5) * height * 1.5;
+        }
+
+        const k = 320 / s.z;
+        const px = s.x * k + cx;
+        const py = s.y * k + cy;
+
+        if (px >= 0 && px <= width && py >= 0 && py <= height) {
+          const alpha = (1 - s.z / width) * s.brightness;
+          const radius = Math.max(0.5, s.size * k);
+          ctx.beginPath();
+          ctx.arc(px, py, radius, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+          ctx.fill();
+        }
+      }
+
+      animFrameRef.current = requestAnimationFrame(render);
+    };
+
+    render();
+
+    return () => {
+      window.removeEventListener('resize', onResize);
+      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+    };
+  }, [isVisible]);
+
   const finishIntro = useCallback(() => {
-    if (timelineRef.current) {
-      timelineRef.current.kill();
-    }
-    if (glitchIntervalRef.current) {
-      clearInterval(glitchIntervalRef.current);
-    }
+    if (timelineRef.current) timelineRef.current.kill();
+    if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
     if (audioCtxRef.current) {
       audioCtxRef.current.close().catch(() => {});
     }
@@ -115,8 +194,9 @@ export const CinematicIntro: React.FC<CinematicIntroProps> = ({ onComplete, forc
     if (containerRef.current) {
       gsap.to(containerRef.current, {
         opacity: 0,
-        duration: 0.5,
-        ease: 'power2.out',
+        scale: 1.05,
+        duration: 0.6,
+        ease: 'power3.inOut',
         onComplete: () => {
           setIsVisible(false);
           sessionStorage.setItem('zhafx_intro_seen', 'true');
@@ -130,8 +210,8 @@ export const CinematicIntro: React.FC<CinematicIntroProps> = ({ onComplete, forc
     }
   }, [onComplete]);
 
-  // Main Intro Sequence (Total ±4.2 seconds)
-  const runAnimationSequence = useCallback(() => {
+  // Master Epic Animation Sequence
+  const runEpicSequence = useCallback(() => {
     setIsVisible(true);
 
     const prefersReducedMotion =
@@ -140,205 +220,211 @@ export const CinematicIntro: React.FC<CinematicIntroProps> = ({ onComplete, forc
         : false;
 
     if (prefersReducedMotion) {
-      setTimeout(() => finishIntro(), 600);
+      setTimeout(() => finishIntro(), 400);
       return;
     }
 
-    // Easing matching user request: cubic-bezier(0.22, 1, 0.36, 1)
-    const iosEase = 'cubic-bezier(0.22, 1, 0.36, 1)';
-
-    playShimmerSound();
+    playEpicCinematicAudio();
 
     const tl = gsap.timeline({
       onComplete: finishIntro,
     });
     timelineRef.current = tl;
 
-    // Reset initial states
-    if (containerRef.current) gsap.set(containerRef.current, { opacity: 1 });
-    if (bgLayerRef.current) gsap.set(bgLayerRef.current, { backgroundColor: '#000000' });
-    if (leftBloomRef.current) gsap.set(leftBloomRef.current, { opacity: 0, x: -30 });
-    if (centerTextRef.current) gsap.set(centerTextRef.current, { opacity: 0, scale: 0.95 });
-    if (finalTitleRef.current) gsap.set(finalTitleRef.current, { opacity: 0 });
-    if (panelsContainerRef.current) gsap.set(panelsContainerRef.current, { opacity: 0 });
+    // Reset components to initial states
+    if (containerRef.current) gsap.set(containerRef.current, { opacity: 1, scale: 1 });
+    if (flareRef.current) gsap.set(flareRef.current, { opacity: 0, scaleX: 0, xPercent: -50 });
+    if (shockwaveRef.current) gsap.set(shockwaveRef.current, { opacity: 0, scale: 0.1 });
+    if (arrowheadGleamRef.current) gsap.set(arrowheadGleamRef.current, { opacity: 0, scale: 0 });
+    if (taglineRef.current) gsap.set(taglineRef.current, { opacity: 0, y: 15 });
+    if (godRaysRef.current) gsap.set(godRaysRef.current, { opacity: 0 });
+    if (letterboxTopRef.current) gsap.set(letterboxTopRef.current, { height: '8vh' });
+    if (letterboxBottomRef.current) gsap.set(letterboxBottomRef.current, { height: '8vh' });
 
-    // 1. 0 – 0.8s: Layar hitam pekat. Garis cahaya vertikal menyapu. Huruf putih "ZHAFX" menyala di sisi kiri
+    // Setup SVG letter paths
+    if (logoGroupRef.current) {
+      const paths = logoGroupRef.current.querySelectorAll('path');
+      paths.forEach((p, idx) => {
+        gsap.set(p, {
+          opacity: 0,
+          scale: 0.88,
+          transformOrigin: '50% 50%',
+          filter: 'drop-shadow(0 0 0px transparent)',
+        });
+      });
+    }
+
+    // --- PHASE 1: The Horizontal Anamorphic Laser Flare Sweep (0.1s - 1.2s) ---
     tl.to(
-      leftBloomRef.current,
+      flareRef.current,
       {
-        opacity: 0.9,
-        x: 0,
-        duration: 0.7,
-        ease: iosEase,
+        opacity: 0.85,
+        scaleX: 1.6,
+        duration: 1.1,
+        ease: 'power2.inOut',
       },
       0.1
     );
 
-    if (lightSweepsRef.current) {
-      tl.fromTo(
-        lightSweepsRef.current.children,
-        { scaleY: 0, opacity: 0, transformOrigin: 'top' },
+    // --- PHASE 2: Neon Letter Strokes Assemble into Existence (0.8s - 2.1s) ---
+    if (logoGroupRef.current) {
+      const paths = Array.from(logoGroupRef.current.querySelectorAll('path'));
+      tl.to(
+        paths,
         {
-          scaleY: 1,
           opacity: 0.5,
-          stagger: 0.08,
-          duration: 0.6,
-          ease: 'power2.inOut',
-        },
-        0.05
-      );
-    }
-
-    // 2. 0.8 – 2.0s: Belasan panel kaca vertikal bergeser melintasi layar.
-    // Latar berubah jadi abu-biru berkabut (#2A3A4D) dengan sorotan biru terang.
-    tl.to(
-      leftBloomRef.current,
-      {
-        opacity: 0,
-        duration: 0.35,
-        ease: 'power1.out',
-      },
-      0.8
-    );
-
-    tl.to(
-      bgLayerRef.current,
-      {
-        backgroundColor: '#2A3A4D',
-        duration: 1.1,
-        ease: iosEase,
-      },
-      0.8
-    );
-
-    tl.to(
-      panelsContainerRef.current,
-      {
-        opacity: 1,
-        duration: 0.3,
-      },
-      0.8
-    );
-
-    if (panelsContainerRef.current) {
-      const panelElements = panelsContainerRef.current.children;
-      tl.fromTo(
-        panelElements,
-        { x: (i) => (i % 2 === 0 ? -120 : 120), opacity: 0 },
-        {
-          x: 0,
-          opacity: 1,
-          stagger: 0.035,
-          duration: 1.1,
-          ease: iosEase,
+          scale: 1,
+          stagger: 0.12,
+          duration: 0.8,
+          ease: 'power3.out',
         },
         0.8
       );
     }
 
-    // 3. 2.0 – 2.8s: Teks "ZHAFX" huruf renggang muncul di tengah dengan efek glitch (±40ms per frame)
-    tl.add(() => {
-      let stepCount = 0;
-      glitchIntervalRef.current = setInterval(() => {
-        stepCount++;
-        if (stepCount >= 18) {
-          if (glitchIntervalRef.current) clearInterval(glitchIntervalRef.current);
-          setGlitchText('ZHAFX');
-        } else {
-          // Scramble characters with jitter
-          const scrambled = 'ZHAFX'
-            .split('')
-            .map((c) => (Math.random() > 0.45 ? GLITCH_CHARS[Math.floor(Math.random() * GLITCH_CHARS.length)] : c))
-            .join('');
-          setGlitchText(scrambled);
-        }
-      }, 40);
-    }, 2.0);
+    // --- PHASE 3: THE BASS DROP IMPACT (2.2s) ---
+    // Massive illumination, shockwave blast, chromatic flash
+    tl.to(
+      shockwaveRef.current,
+      {
+        opacity: 0.9,
+        scale: 2.8,
+        duration: 1.2,
+        ease: 'power2.out',
+      },
+      2.18
+    );
 
-    tl.fromTo(
-      centerTextRef.current,
-      { opacity: 0, scale: 0.94 },
+    tl.to(
+      shockwaveRef.current,
+      {
+        opacity: 0,
+        duration: 0.6,
+        ease: 'power2.in',
+      },
+      2.6
+    );
+
+    // Blast god rays behind the logo
+    tl.to(
+      godRaysRef.current,
+      {
+        opacity: 0.8,
+        duration: 0.4,
+        ease: 'power2.out',
+      },
+      2.2
+    );
+
+    tl.to(
+      godRaysRef.current,
+      {
+        opacity: 0.2,
+        duration: 0.9,
+        ease: 'power2.out',
+      },
+      2.6
+    );
+
+    // Ignite the full solid logo into blinding white-gold brilliance
+    if (logoGroupRef.current) {
+      const paths = Array.from(logoGroupRef.current.querySelectorAll('path'));
+      tl.to(
+        paths,
+        {
+          opacity: 1,
+          filter: 'drop-shadow(0 0 28px rgba(255, 178, 36, 0.9)) drop-shadow(0 0 60px rgba(59, 130, 246, 0.5))',
+          duration: 0.25,
+          ease: 'power4.out',
+        },
+        2.2
+      );
+
+      // Settle glow into rich metallic gold
+      tl.to(
+        paths,
+        {
+          filter: 'drop-shadow(0 0 14px rgba(255, 178, 36, 0.65)) drop-shadow(0 0 32px rgba(255, 255, 255, 0.35))',
+          duration: 0.8,
+          ease: 'power2.out',
+        },
+        2.5
+      );
+    }
+
+    // Arrowhead Tip Flash (Spark at the upper-right arrow of the X)
+    tl.to(
+      arrowheadGleamRef.current,
       {
         opacity: 1,
+        scale: 1.8,
+        duration: 0.2,
+        ease: 'power4.out',
+      },
+      2.22
+    );
+
+    tl.to(
+      arrowheadGleamRef.current,
+      {
+        opacity: 0.4,
         scale: 1,
         duration: 0.6,
-        ease: iosEase,
-      },
-      2.0
-    );
-
-    // 4. 2.8 – 3.6s: Panel meredup, latar jadi biru tua gelap (#050814 ke #0B1230).
-    // Teks "ZHAFX" putih bersih, sangat renggang (letter-spacing ±0.5em), font geometric thin, lebar ~55% layar.
-    tl.to(
-      panelsContainerRef.current,
-      {
-        opacity: 0,
-        duration: 0.5,
         ease: 'power2.out',
       },
-      2.7
+      2.42
     );
 
+    // --- PHASE 4: Studio Tagline Fade-In & Camera Dolly Zoom (2.4s - 3.4s) ---
     tl.to(
-      centerTextRef.current,
+      taglineRef.current,
       {
-        opacity: 0,
-        duration: 0.3,
+        opacity: 1,
+        y: 0,
+        duration: 0.7,
         ease: 'power2.out',
       },
-      2.75
+      2.45
     );
 
+    // Cinematic anamorphic bars gently retreat
     tl.to(
-      bgLayerRef.current,
+      [letterboxTopRef.current, letterboxBottomRef.current],
       {
-        background: 'linear-gradient(180deg, #050814 0%, #0B1230 100%)',
+        height: '0vh',
         duration: 0.8,
-        ease: iosEase,
+        ease: 'power3.inOut',
       },
-      2.8
+      3.2
     );
 
-    tl.fromTo(
-      finalTitleRef.current,
-      { opacity: 0, scale: 0.98 },
-      {
-        opacity: 1,
-        scale: 1,
-        duration: 0.6,
-        ease: iosEase,
-      },
-      2.85
-    );
-
-    // Hold steady for 0.5s from 3.1s to 3.6s
-
-    // 5. 3.6 – 4.2s: Fade-out, beranda muncul halus.
+    // --- PHASE 5: Smooth Cinematic Zoom Dissolve into Homepage (3.4s - 4.1s) ---
     tl.to(
       containerRef.current,
       {
         opacity: 0,
-        duration: 0.6,
-        ease: iosEase,
+        scale: 1.08,
+        duration: 0.7,
+        ease: 'power2.inOut',
       },
-      3.6
+      3.4
     );
-  }, [finishIntro, isMuted, playShimmerSound]);
+  }, [finishIntro, playEpicCinematicAudio]);
 
-  const runAnimationSequenceRef = useRef(runAnimationSequence);
-  runAnimationSequenceRef.current = runAnimationSequence;
+  const runEpicSequenceRef = useRef(runEpicSequence);
+  runEpicSequenceRef.current = runEpicSequence;
 
   useEffect(() => {
     const hasSeen = sessionStorage.getItem('zhafx_intro_seen');
     if (!hasSeen || forcePlay) {
       const timer = setTimeout(() => {
-        runAnimationSequenceRef.current();
-      }, 50);
+        runEpicSequenceRef.current();
+      }, 60);
       return () => clearTimeout(timer);
     }
 
     const handleReplay = () => {
-      runAnimationSequenceRef.current();
+      runEpicSequenceRef.current();
     };
     window.addEventListener('play-zhafx-intro', handleReplay);
     return () => window.removeEventListener('play-zhafx-intro', handleReplay);
@@ -361,131 +447,145 @@ export const CinematicIntro: React.FC<CinematicIntroProps> = ({ onComplete, forc
   return (
     <div
       ref={containerRef}
-      className="fixed inset-0 z-50 overflow-hidden select-none bg-black text-white"
-      style={{ willChange: 'opacity' }}
+      className="fixed inset-0 z-50 overflow-hidden select-none bg-[#030408] text-white flex items-center justify-center pointer-events-auto"
+      style={{ willChange: 'opacity, transform' }}
     >
-      {/* Background Atmosphere Layer */}
+      {/* 3D Cosmic Starfield Canvas */}
+      <canvas
+        ref={starsCanvasRef}
+        className="absolute inset-0 w-full h-full pointer-events-none z-0"
+      />
+
+      {/* Atmospheric Deep Radial Nebula Core */}
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(255,178,36,0.18)_0%,rgba(59,130,246,0.12)_35%,transparent_75%)] pointer-events-none z-1" />
+
+      {/* Volumetric Radial God Rays */}
       <div
-        ref={bgLayerRef}
-        className="absolute inset-0 transition-colors duration-700 bg-black"
+        ref={godRaysRef}
+        className="absolute inset-0 pointer-events-none z-2 flex items-center justify-center opacity-0"
       >
-        {/* Soft Radial Spotlight at Center */}
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_48%,rgba(59,108,255,0.22)_0%,transparent_65%)] pointer-events-none" />
+        <div className="w-[120vw] h-[120vw] max-w-[900px] max-h-[900px] rounded-full bg-[conic-gradient(from_0deg_at_50%_50%,rgba(255,178,36,0.22)_0deg,transparent_40deg,rgba(59,130,246,0.2)_90deg,transparent_130deg,rgba(255,178,36,0.22)_180deg,transparent_220deg,rgba(59,130,246,0.2)_270deg,transparent_310deg,rgba(255,178,36,0.22)_360deg)] animate-spin [animation-duration:35s]" />
       </div>
 
-      {/* 0-0.8s: Thin Vertical Light Sweeps */}
+      {/* Explosive Shockwave Ring (Triggers on 2.2s Bass Drop) */}
       <div
-        ref={lightSweepsRef}
-        className="absolute inset-0 pointer-events-none overflow-hidden"
+        ref={shockwaveRef}
+        className="absolute w-[450px] h-[450px] rounded-full border-2 border-[#FFB224]/80 shadow-[0_0_80px_rgba(255,178,36,0.8),inset_0_0_50px_rgba(59,130,246,0.6)] pointer-events-none z-3 opacity-0"
+      />
+
+      {/* Anamorphic Horizontal Blue/Amber Laser Optical Flare */}
+      <div
+        ref={flareRef}
+        className="absolute top-1/2 left-1/2 -translate-y-1/2 w-[140vw] h-[3px] pointer-events-none z-4 opacity-0 flex items-center justify-center"
       >
-        <div className="absolute left-[15%] top-0 bottom-0 w-[1px] bg-gradient-to-b from-transparent via-white/40 to-transparent" />
-        <div className="absolute left-[28%] top-0 bottom-0 w-[1px] bg-gradient-to-b from-transparent via-blue-400/30 to-transparent" />
-        <div className="absolute left-[42%] top-0 bottom-0 w-[1.5px] bg-gradient-to-b from-transparent via-cyan-300/40 to-transparent" />
-        <div className="absolute left-[70%] top-0 bottom-0 w-[1px] bg-gradient-to-b from-transparent via-white/30 to-transparent" />
+        <div className="w-full h-full bg-gradient-to-r from-transparent via-[#FFB224] to-transparent blur-[1px]" />
+        <div className="absolute w-[60%] h-[8px] bg-gradient-to-r from-transparent via-[#00F0FF] to-transparent blur-[3px]" />
+        <div className="absolute w-24 h-24 rounded-full bg-white blur-xl opacity-90" />
       </div>
 
-      {/* 0-0.8s: Left Bloom Typography */}
-      <div
-        ref={leftBloomRef}
-        className="absolute left-6 sm:left-16 top-1/2 -translate-y-1/2 z-10 pointer-events-none opacity-0"
-      >
-        <span
-          className="text-4xl sm:text-6xl md:text-7xl font-light text-white tracking-[0.25em] drop-shadow-[0_0_24px_rgba(255,255,255,0.8)] font-sans"
-          style={{ fontFamily: 'Plus Jakarta Sans, -apple-system, sans-serif' }}
-        >
-          ZHAFX
-        </span>
-      </div>
-
-      {/* 0.8-2.0s: Refracting Vertical Glass Panels Container */}
-      <div
-        ref={panelsContainerRef}
-        className="absolute inset-0 pointer-events-none z-20 opacity-0 overflow-hidden"
-      >
-        {panels.map((p) => (
-          <div
-            key={p.id}
-            className="absolute top-0 bottom-0 overflow-hidden"
-            style={{
-              left: `${p.leftPct}%`,
-              width: `${p.width}px`,
-              backdropFilter: 'blur(7px)',
-              WebkitBackdropFilter: 'blur(7px)',
-              mixBlendMode: 'screen',
-              borderLeft: `1px solid ${p.edgeColor}`,
-              borderRight: '1px solid rgba(255, 255, 255, 0.12)',
-              boxShadow: `inset 0 0 16px ${p.edgeColor}`,
-            }}
-          >
-            {/* Edge gleam shine */}
-            <div
-              className="absolute inset-y-0 left-0 w-1 opacity-70"
-              style={{ background: p.edgeColor }}
-            />
-            {/* Shifted text reflection inside panel */}
-            <div
-              className="absolute top-1/2 -translate-y-1/2 flex items-center justify-center whitespace-nowrap text-3xl sm:text-5xl font-light tracking-[0.4em] text-white/80 pointer-events-none select-none"
-              style={{
-                left: `-${(p.leftPct / 100) * window.innerWidth}px`,
-                width: `${window.innerWidth}px`,
-                transform: `translateY(-50%) translateX(${p.refractOffset}px)`,
-                textShadow: `0 0 18px ${p.edgeColor}`,
-              }}
-            >
-              ZHAFX
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* 2.0-2.8s: Center Glitch Typography */}
-      <div
-        ref={centerTextRef}
-        className="absolute inset-0 flex items-center justify-center z-30 pointer-events-none opacity-0"
-      >
+      {/* Center Stage: The Iconic Official ZHAFX Logo & Arrow-X */}
+      <div className="relative z-10 flex flex-col items-center justify-center px-4 max-w-4xl w-full">
         <div className="relative">
-          <span
-            className="text-4xl sm:text-6xl md:text-7xl font-light text-white tracking-[0.38em] font-sans drop-shadow-[0_0_28px_rgba(59,108,255,0.7)]"
-            style={{
-              fontFamily: 'Plus Jakarta Sans, -apple-system, sans-serif',
-              textShadow:
-                '1.5px 0 #3B6CFF, -1.5px 0 #FF8A4C, 0 0 24px rgba(255,255,255,0.85)',
-            }}
+          {/* Main Vector Wordmark & Signature Arrow-X */}
+          <svg
+            viewBox="0 0 530 155"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+            className="w-[280px] sm:w-[440px] md:w-[580px] lg:w-[680px] h-auto overflow-visible filter"
           >
-            {glitchText}
+            <defs>
+              {/* Ultra-luminous Platinum Gold Shimmer Gradient */}
+              <linearGradient id="zhafxEpicGold" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#FFFFFF" />
+                <stop offset="25%" stopColor="#FFF2D6" />
+                <stop offset="50%" stopColor="#FFB224" />
+                <stop offset="75%" stopColor="#FFFFFF" />
+                <stop offset="100%" stopColor="#FF9500" />
+              </linearGradient>
+
+              {/* Specular Diagonal Gleam Mask */}
+              <linearGradient id="gleamMask" x1="-100%" y1="0%" x2="200%" y2="0%">
+                <stop offset="0%" stopColor="white" stopOpacity="0.1" />
+                <stop offset="50%" stopColor="white" stopOpacity="1" />
+                <stop offset="100%" stopColor="white" stopOpacity="0.1" />
+              </linearGradient>
+            </defs>
+
+            <g ref={logoGroupRef} fill="url(#zhafxEpicGold)">
+              {/* LETTER Z */}
+              <path d="M 30,45 H 98 V 65 L 53,115 H 98 V 135 H 30 V 115 L 75,65 H 30 Z" />
+
+              {/* LETTER H */}
+              <path d="M 118,45 H 138 V 80 H 166 V 45 H 186 V 135 H 166 V 100 H 138 V 135 H 118 Z" />
+
+              {/* LETTER A */}
+              <path
+                fillRule="evenodd"
+                clipRule="evenodd"
+                d="M 233,45 H 251 L 280,135 H 258 L 253,116 H 231 L 226,135 H 204 Z M 242,70 L 249,98 H 235 Z"
+              />
+
+              {/* LETTER F */}
+              <path d="M 298,45 H 362 V 65 H 318 V 82 H 350 V 102 H 318 V 135 H 298 Z" />
+
+              {/* LETTER X: Descending leg (\) */}
+              <path d="M 376,45 H 404 L 494,135 H 466 Z" />
+
+              {/* LETTER X: Signature Rising Arrowhead Leg (/) */}
+              <path d="M 380,135 H 408 L 495,48 L 507,60 L 518,11 L 469,22 L 481,34 Z" />
+            </g>
+          </svg>
+
+          {/* Glowing Star Sparkle on Arrowhead Tip */}
+          <div
+            ref={arrowheadGleamRef}
+            className="absolute top-[8%] right-[2%] pointer-events-none transform -translate-x-1/2 -translate-y-1/2 opacity-0"
+          >
+            <div className="w-8 h-8 rounded-full bg-[#FFB224] blur-md" />
+            <Sparkles className="w-7 h-7 text-white drop-shadow-[0_0_12px_#FFB224] absolute inset-0 animate-spin [animation-duration:8s]" />
+          </div>
+        </div>
+
+        {/* Epic Studio Tagline Reveal */}
+        <div
+          ref={taglineRef}
+          className="mt-6 sm:mt-8 flex flex-col items-center gap-2 text-center opacity-0"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-8 sm:w-16 h-[1px] bg-gradient-to-r from-transparent via-[#FFB224]/80 to-transparent" />
+            <span className="text-[10px] sm:text-xs md:text-sm font-semibold tracking-[0.45em] sm:tracking-[0.6em] text-white/90 uppercase font-mono">
+              STREAM WITHOUT LIMITS
+            </span>
+            <div className="w-8 sm:w-16 h-[1px] bg-gradient-to-l from-transparent via-[#FFB224]/80 to-transparent" />
+          </div>
+          <span className="text-[9px] sm:text-[11px] text-[#FFB224]/80 tracking-[0.25em] font-medium uppercase mt-0.5">
+            FILM • SERIAL TV • ANIME
           </span>
         </div>
       </div>
 
-      {/* 2.8-3.6s: Pure Pristine Wide-Spaced "ZHAFX" with Subtle Glow */}
+      {/* Cinematic 2.39:1 Anamorphic Top & Bottom Letterbox Bars */}
       <div
-        ref={finalTitleRef}
-        className="absolute inset-0 flex flex-col items-center justify-center z-30 pointer-events-none opacity-0 px-4"
-      >
-        <div className="w-[85%] sm:w-[55%] text-center">
-          <h1
-            className="text-3xl sm:text-5xl md:text-6xl lg:text-7xl font-extralight text-white uppercase tracking-[0.5em] leading-none drop-shadow-[0_0_30px_rgba(255,255,255,0.4)]"
-            style={{
-              fontFamily: 'Plus Jakarta Sans, "SF Pro Display", sans-serif',
-              letterSpacing: '0.5em',
-            }}
-          >
-            ZHAFX
-          </h1>
-          <div className="w-16 sm:w-24 h-[1px] bg-gradient-to-r from-transparent via-[#FFB224]/80 to-transparent mx-auto mt-4 sm:mt-6 opacity-80" />
-        </div>
-      </div>
+        ref={letterboxTopRef}
+        className="absolute top-0 left-0 right-0 bg-black pointer-events-none z-20 transition-all duration-700"
+        style={{ height: '8vh' }}
+      />
+      <div
+        ref={letterboxBottomRef}
+        className="absolute bottom-0 left-0 right-0 bg-black pointer-events-none z-20 transition-all duration-700"
+        style={{ height: '8vh' }}
+      />
 
-      {/* Top Controls: Audio Shimmer Toggle & Lewati Button */}
-      <div className="absolute top-4 sm:top-6 right-4 sm:right-6 z-40 flex items-center gap-2 pointer-events-auto">
+      {/* Top Right HUD Controls: Audio Shimmer Toggle & Lewati Button */}
+      <div className="absolute top-5 sm:top-7 right-5 sm:right-8 z-30 flex items-center gap-2.5 pointer-events-auto">
         <button
           onClick={() => {
             const nextMute = !isMuted;
             setIsMuted(nextMute);
-            if (!nextMute) playShimmerSound();
+            if (!nextMute) playEpicCinematicAudio();
           }}
-          className="w-9 h-9 rounded-full liquid-glass flex items-center justify-center text-white/70 hover:text-white transition-colors cursor-pointer"
-          title={isMuted ? 'Nyalakan Efek Suara' : 'Matikan Suara'}
+          className="w-10 h-10 rounded-full liquid-glass liquid-specular flex items-center justify-center text-white/80 hover:text-white hover:bg-white/20 transition-all cursor-pointer ios-spring shadow-lg"
+          title={isMuted ? 'Nyalakan Audio Sinematik' : 'Matikan Suara'}
           aria-label={isMuted ? 'Nyalakan Suara' : 'Matikan Suara'}
         >
           {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4 text-[#FFB224]" />}
@@ -493,7 +593,7 @@ export const CinematicIntro: React.FC<CinematicIntroProps> = ({ onComplete, forc
 
         <button
           onClick={finishIntro}
-          className="px-3.5 py-1.5 rounded-full liquid-glass text-xs font-medium text-white/80 hover:text-white transition-all cursor-pointer ios-spring"
+          className="px-4 py-2 rounded-full liquid-glass liquid-specular text-xs font-semibold text-white/90 hover:text-white hover:bg-white/20 transition-all cursor-pointer ios-spring shadow-lg"
           title="Lewati intro sinematik"
           aria-label="Lewati intro"
         >

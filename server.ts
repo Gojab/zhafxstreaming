@@ -358,7 +358,7 @@ app.post(['/api/ai/chat', '/api/chat'], async (req: Request, res: Response) => {
     },
   });
 
-  const modelsToTry = ['gemini-2.0-flash', 'gemini-1.5-flash'];
+  const modelsToTry = ['gemini-3.8-flash', 'gemini-flash-latest'];
   let succeeded = false;
 
   for (const model of modelsToTry) {

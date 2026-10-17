@@ -173,7 +173,7 @@ export default async function handler(req: any, res: any) {
     });
 
     // Valid Gemini models
-    const modelsToTry = ['gemini-2.0-flash', 'gemini-1.5-flash'];
+    const modelsToTry = ['gemini-3.8-flash', 'gemini-flash-latest'];
     const contents: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }> = [];
 
     if (Array.isArray(history)) {
