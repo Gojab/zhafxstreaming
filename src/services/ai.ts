@@ -106,6 +106,83 @@ export async function sendChatMessageStream(
     });
 
     if (!response.ok) {
+      if (response.status === 404) {
+        // Fallback for Vercel or hosts where /api/ai/chat serverless route is not yet provisioned
+        const clientKey = (import.meta as any).env?.VITE_GEMINI_API_KEY;
+        if (clientKey) {
+          try {
+            const { GoogleGenAI } = await import('@google/genai');
+            const ai = new GoogleGenAI({ apiKey: clientKey });
+            const result = await ai.models.generateContent({
+              model: 'gemini-2.5-flash',
+              contents: message,
+            });
+            const text = result.text || 'Tidak ada respons dari AI.';
+            const { cleanText, picks } = extractPicksAndCleanText(text);
+            const resolved = await resolvePicks(picks);
+            callbacks.onDone(cleanText, picks, resolved);
+            return;
+          } catch (clientErr: any) {
+            console.warn('[Zhafx AI] Client fallback failed:', clientErr);
+          }
+        }
+
+        // Smart offline/fallback response generator for Vercel deployments
+        const lowerMsg = message.toLowerCase();
+        let fallbackReply = `Halo! Saya Zhafx AI. `;
+        let picks: RecommendationPick[] = [];
+
+        if (lowerMsg.includes('anime') || lowerMsg.includes('kartun') || lowerMsg.includes('jepang')) {
+          fallbackReply += `Untuk penggemar anime, berikut adalah rekomendasi anime terpopuler dengan cerita memukau dan aksi seru yang bisa langsung kamu tonton di Zhafx:
+- **Attack on Titan**: Kisah pertempuran epik umat manusia melawan raksasa titan penuh intrik dan misteri.
+- **Demon Slayer: Kimetsu no Yaiba**: Petualangan Tanjiro dengan animasi pertarungan spektakuler dari Ufotable.
+- **Solo Leveling**: Perjalanan Sung Jinwoo dari hunter terlemah menjadi entitas terkuat.
+
+Kamu bisa langsung mencari judul-judul di atas lewat kolom pencarian atau menu Anime!`;
+          picks = [
+            { title: 'Attack on Titan', type: 'anime', year: '2013' },
+            { title: 'Demon Slayer', type: 'anime', year: '2019' },
+            { title: 'Solo Leveling', type: 'anime', year: '2024' },
+          ];
+        } else if (lowerMsg.includes('horor') || lowerMsg.includes('horror') || lowerMsg.includes('seram')) {
+          fallbackReply += `Mencari yang bikin merinding? Ini rekomendasi film horor terbaik pilihan Zhafx:
+- **The Conjuring**: Investigasi paranormal Ed dan Lorraine Warren yang legendaris.
+- **Hereditary**: Horor psikologis keluarga yang sangat mencekam dan intens.
+- **Siksa Kubur**: Karya Joko Anwar yang memadukan misteri, drama keluarga, dan ketakutan mendalam.`;
+          picks = [
+            { title: 'The Conjuring', type: 'movie', year: '2013' },
+            { title: 'Hereditary', type: 'movie', year: '2018' },
+            { title: 'Siksa Kubur', type: 'movie', year: '2024' },
+          ];
+        } else if (lowerMsg.includes('aksi') || lowerMsg.includes('action') || lowerMsg.includes('laga')) {
+          fallbackReply += `Siap untuk aksi tanpa henti? Cek judul-judul blockbuster ini di Zhafx:
+- **John Wick: Chapter 4**: Koreografi laga kelas dunia dari Keanu Reeves.
+- **Top Gun: Maverick**: Sensasi pertempuran jet tempur udara yang nyata dan memacu adrenalin.
+- **The Batman**: Nuansa detektif noir Kota Gotham yang gelap dan menegangkan.`;
+          picks = [
+            { title: 'John Wick: Chapter 4', type: 'movie', year: '2023' },
+            { title: 'Top Gun: Maverick', type: 'movie', year: '2022' },
+            { title: 'The Batman', type: 'movie', year: '2022' },
+          ];
+        } else {
+          fallbackReply += `Saya siap merekomendasikan film, serial TV, dan anime terbaik untukmu di Zhafx! Coba tonton beberapa tayangan unggulan berikut:
+- **Interstellar**: Mahakarya fiksi ilmiah Christopher Nolan tentang perjalanan melintasi lubang cacing.
+- **Shogun**: Serial drama sejarah Jepang abad ke-17 dengan intrik politik yang mendebarkan.
+- **Dune: Part Two**: Visual spektakuler dan perang takdir di padang pasir Arrakis.
+
+*(Tips untuk Deployment Vercel: Pastikan \`GEMINI_API_KEY\` sudah dimasukkan pada Vercel Dashboard → Settings → Environment Variables agar fitur live streaming AI aktif penuh).*`;
+          picks = [
+            { title: 'Interstellar', type: 'movie', year: '2014' },
+            { title: 'Shogun', type: 'tv', year: '2024' },
+            { title: 'Dune: Part Two', type: 'movie', year: '2024' },
+          ];
+        }
+
+        const resolved = await resolvePicks(picks);
+        callbacks.onDone(fallbackReply, picks, resolved);
+        return;
+      }
+
       if (response.status === 429) {
         callbacks.onError('Batas kuota pertanyaan AI tercapai (429). Silakan tunggu 1 menit.', 429);
         return;

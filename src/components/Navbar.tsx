@@ -1,8 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Search, Sparkles, User as UserIcon } from 'lucide-react';
+import { Search, Sparkles } from 'lucide-react';
 import { Logo } from './Logo';
-import { useAuth } from '../hooks/useAuth';
 
 interface NavbarProps {
   onOpenAI: () => void;
@@ -11,7 +10,6 @@ interface NavbarProps {
 
 export const Navbar: React.FC<NavbarProps> = ({ onOpenAI, onOpenFeatures }) => {
   const navigate = useNavigate();
-  const { user, isAuthenticated } = useAuth();
   const [hasScrolled, setHasScrolled] = useState(false);
 
   // Densify glass on scroll
@@ -97,12 +95,12 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAI, onOpenFeatures }) => {
             </kbd>
           </button>
 
-          {/* Titik 3 Logo X - Akses Semua Fitur */}
+          {/* Titik 3 Logo X - Akses Menu X */}
           <button
             type="button"
             onClick={onOpenFeatures}
-            aria-label="Semua Fitur Zhafx (Titik 3 X)"
-            title="Akses Semua Fitur Zhafx"
+            aria-label="Menu X Zhafx"
+            title="Akses Menu X Zhafx"
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/[0.08] hover:bg-white/[0.16] border border-white/20 text-white font-medium text-xs transition-all cursor-pointer h-9 ios-spring shadow-sm"
           >
             <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 fill-none" stroke="currentColor">
@@ -111,7 +109,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAI, onOpenFeatures }) => {
               <circle cx="12" cy="12" r="2" fill="#FFFFFF" stroke="none" />
               <circle cx="19" cy="19" r="1.8" fill="#FFB224" stroke="none" />
             </svg>
-            <span className="hidden sm:inline text-[12px] text-[#FFB224] font-semibold">Fitur X</span>
+            <span className="text-[12px] text-[#FFB224] font-bold">X</span>
           </button>
 
           {/* Tanya AI Glass Pill */}
@@ -123,27 +121,6 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAI, onOpenFeatures }) => {
             <Sparkles className="w-3.5 h-3.5 text-[#FFB224]" />
             <span className="hidden sm:inline text-[12px]">Tanya AI</span>
           </button>
-
-          {/* User Account Pill */}
-          <NavLink
-            to="/login"
-            className="inline-flex items-center gap-2 px-2.5 sm:px-3 py-1.5 rounded-full bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-xs font-medium text-white transition-all cursor-pointer h-9 ios-spring"
-            title={isAuthenticated && user ? `Akun: ${user.name}` : 'Masuk ke Zhafx'}
-          >
-            {isAuthenticated && user ? (
-              <>
-                <div className="w-5 h-5 rounded-full bg-[#FFB224] text-[#06070B] flex items-center justify-center font-bold text-[10px] shrink-0">
-                  {user.name.charAt(0).toUpperCase()}
-                </div>
-                <span className="hidden sm:inline max-w-[90px] truncate text-[12px]">{user.name}</span>
-              </>
-            ) : (
-              <>
-                <UserIcon className="w-3.5 h-3.5 text-white/80" />
-                <span className="hidden sm:inline text-[12px]">Masuk</span>
-              </>
-            )}
-          </NavLink>
         </div>
       </div>
     </header>

@@ -396,6 +396,86 @@ export const api = {
    * Get title detail by ID and type
    */
   async getDetails(id: string, type: MediaType = 'movie', signal?: AbortSignal): Promise<Title> {
+    if (type === 'anime') {
+      try {
+        const url = `${CONFIG.API_BASE_URL}${CONFIG.ENDPOINTS.DETAILS}?id=${encodeURIComponent(id)}&type=anime`;
+        const data = await fetchWithRetry<any>(url, { signal, useProxyFallback: true });
+        if (data && (data.title || data.name)) {
+          return normalize(data, 'anime');
+        }
+      } catch (err) {
+        console.warn('[API] Upstream anime details failed, falling back to AniList GraphQL:', err);
+      }
+
+      // Fetch from AniList GraphQL directly (100% reliable for all anime IDs)
+      try {
+        const numericId = parseInt(id, 10);
+        const query = isNaN(numericId)
+          ? `query ($search: String) {
+              Media(search: $search, type: ANIME) {
+                id
+                title { romaji english native }
+                description
+                episodes
+                bannerImage
+                coverImage { extraLarge large }
+                averageScore
+                startDate { year }
+                genres
+                status
+              }
+            }`
+          : `query ($id: Int) {
+              Media(id: $id, type: ANIME) {
+                id
+                title { romaji english native }
+                description
+                episodes
+                bannerImage
+                coverImage { extraLarge large }
+                averageScore
+                startDate { year }
+                genres
+                status
+              }
+            }`;
+
+        const variables = isNaN(numericId) ? { search: id } : { id: numericId };
+
+        const aniRes = await fetch('https://graphql.anilist.co', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query, variables }),
+          signal,
+        });
+
+        if (aniRes.ok) {
+          const aniData = await aniRes.json();
+          const media = aniData.data?.Media;
+          if (media) {
+            const epCount = media.episodes || 24;
+            const animeTitle = media.title?.english || media.title?.romaji || media.title?.native || 'Anime';
+            return {
+              id: String(media.id || id),
+              type: 'anime',
+              title: animeTitle,
+              originalTitle: media.title?.native || media.title?.romaji,
+              poster: media.coverImage?.extraLarge || media.coverImage?.large || CONFIG.PLACEHOLDER_POSTER,
+              backdrop: media.bannerImage || media.coverImage?.extraLarge || CONFIG.PLACEHOLDER_BACKDROP,
+              year: String(media.startDate?.year || '2024'),
+              rating: media.averageScore ? (media.averageScore / 10).toFixed(1) : '8.5',
+              overview: media.description ? media.description.replace(/<[^>]*>/g, '').trim() : 'Sinopsis belum tersedia.',
+              genres: media.genres || ['Action', 'Fantasy'],
+              numberOfEpisodes: epCount,
+              status: media.status,
+            };
+          }
+        }
+      } catch (aniErr) {
+        console.warn('[API] AniList fallback error:', aniErr);
+      }
+    }
+
     const url = `${CONFIG.API_BASE_URL}${CONFIG.ENDPOINTS.DETAILS}?id=${encodeURIComponent(id)}&type=${type}`;
     const data = await fetchWithRetry<any>(url, { signal });
     const normalized = normalize(data, type);
@@ -444,7 +524,15 @@ export const api = {
   /**
    * Get list of streaming providers (Miner, Headhunter, Valkyrie, etc.)
    */
-  async getProviders(signal?: AbortSignal): Promise<Provider[]> {
+  async getProviders(signal?: AbortSignal, type?: MediaType): Promise<Provider[]> {
+    if (type === 'anime') {
+      return [
+        { id: 'framex', name: 'FrameX Anime', tagline: 'Server Resmi Multi-Sub' },
+        { id: 'videasy', name: 'Videasy Anime', tagline: 'Stream Cepat 1080p' },
+        { id: 'vidsrc', name: 'VidSrc Anime', tagline: 'Server Cadangan Global' },
+      ];
+    }
+
     try {
       const url = `${CONFIG.API_BASE_URL}${CONFIG.ENDPOINTS.PROVIDERS}`;
       const data = await fetchWithRetry<any>(url, { signal, ttlMs: 15 * 60 * 1000 });
@@ -488,11 +576,28 @@ export const api = {
       poster,
     } = params;
 
+    // Direct provider servers for anime
+    if (type === 'anime') {
+      if (server === 'videasy') {
+        return `https://player.videasy.to/anime/${encodeURIComponent(id)}/${episode}?autoplay=${autoplay ? 1 : 0}`;
+      }
+      if (server === 'vidsrc') {
+        return `https://vidsrc.to/embed/anime/${encodeURIComponent(id)}/${episode}`;
+      }
+      // Default FrameX anime embed with full fallback params
+      const q = new URLSearchParams();
+      q.set('id', id);
+      q.set('episode', String(episode));
+      q.set('autoplay', autoplay ? '1' : '0');
+      q.set('muted', muted ? '1' : '0');
+      if (title) q.set('title', title);
+      if (poster) q.set('poster', poster);
+      return `${CONFIG.EMBED_BASE_URL}/anime/${encodeURIComponent(id)}/${episode}?${q.toString()}`;
+    }
+
     let path = '';
     if (type === 'tv') {
       path = `${CONFIG.EMBED_BASE_URL}/tv/${encodeURIComponent(id)}/${season}/${episode}`;
-    } else if (type === 'anime') {
-      path = `${CONFIG.EMBED_BASE_URL}/anime/${encodeURIComponent(id)}/${episode}`;
     } else {
       path = `${CONFIG.EMBED_BASE_URL}/${encodeURIComponent(id)}`;
     }

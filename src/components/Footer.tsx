@@ -34,17 +34,6 @@ export const Footer: React.FC = () => {
             <Link to="/my-list" className="hover:text-white transition-colors">
               Daftar Saya
             </Link>
-            <Link to="/login" className="hover:text-white transition-colors">
-              Akun / Masuk
-            </Link>
-            <button
-              type="button"
-              onClick={() => window.dispatchEvent(new CustomEvent('play-zhafx-intro'))}
-              className="hover:text-white transition-colors cursor-pointer text-left text-xs text-[#FFB224]"
-              title="Putar animasi pembuka sinematik logo ZHAFX"
-            >
-              Putar Intro
-            </button>
           </div>
         </div>
 

@@ -157,7 +157,7 @@ export const PlayerPage: React.FC = () => {
     // Fetch title details and providers
     Promise.all([
       api.getDetails(id, mediaType, controller.signal),
-      api.getProviders(controller.signal),
+      api.getProviders(controller.signal, mediaType),
     ])
       .then(([details, provs]) => {
         setTitle(details);
@@ -625,7 +625,7 @@ export const PlayerPage: React.FC = () => {
           src={embedUrl}
           title={title?.title || 'Zhafx Player'}
           onLoad={handleIframeLoaded}
-          sandbox="allow-scripts allow-same-origin allow-presentation allow-fullscreen"
+          sandbox="allow-scripts allow-same-origin allow-presentation allow-fullscreen allow-forms"
           referrerPolicy="no-referrer"
           allow="autoplay; fullscreen; picture-in-picture"
           loading="lazy"

@@ -14,7 +14,6 @@ import {
   ChevronDown,
   CheckCircle2,
   Film,
-  Download,
 } from 'lucide-react';
 import { api } from '../services/api';
 import { Title, Episode, MediaType } from '../types';
@@ -22,7 +21,6 @@ import { DetailSkeleton } from '../components/Skeleton';
 import { MediaRow } from '../components/MediaRow';
 import { useMyList } from '../hooks/useMyList';
 import { useContinueWatching } from '../hooks/useContinueWatching';
-import { useOfflineDownloads } from '../hooks/useOfflineDownloads';
 import { useActiveMedia } from '../context/ActiveMediaContext';
 import { storage } from '../lib/storage';
 
@@ -53,33 +51,11 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
 
   // Share feedback toast
   const [showShareToast, setShowShareToast] = useState(false);
-  const [isDownloading, setIsDownloading] = useState(false);
 
   const { isSaved, toggle } = useMyList();
   const { getProgressForTitle } = useContinueWatching();
-  const { isDownloaded, startDownload } = useOfflineDownloads();
   const { setActiveMedia } = useActiveMedia();
   const history = storage.getHistory();
-
-  const isItemDownloaded = id ? isDownloaded(id) : false;
-
-  const handleDownloadOffline = async () => {
-    if (!title || isDownloading || isItemDownloaded) return;
-    setIsDownloading(true);
-    try {
-      await startDownload({
-        contentId: title.id,
-        mediaType: title.type,
-        title: title.title,
-        poster: title.poster,
-        backdrop: title.backdrop,
-        year: title.year,
-        overview: title.overview,
-      });
-    } finally {
-      setIsDownloading(false);
-    }
-  };
 
   const loadDetails = async (signal?: AbortSignal) => {
     if (!id) return;
@@ -393,33 +369,6 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
               )}
             </button>
 
-            {/* Download Offline Pill */}
-            <button
-              onClick={handleDownloadOffline}
-              disabled={isDownloading}
-              className={`inline-flex items-center gap-2 px-5 py-3 rounded-full liquid-glass liquid-specular text-sm font-semibold transition-all cursor-pointer min-h-[46px] ios-spring ${
-                isItemDownloaded
-                  ? 'text-emerald-400 bg-white/[0.16] border-emerald-400/30'
-                  : 'text-white hover:bg-white/[0.14]'
-              }`}
-            >
-              {isDownloading ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white/20 border-t-[#FFB224] rounded-full animate-spin" />
-                  <span>Mengunduh...</span>
-                </>
-              ) : isItemDownloaded ? (
-                <>
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                  <span>Tersimpan Offline</span>
-                </>
-              ) : (
-                <>
-                  <Download className="w-4 h-4 text-[#FFB224]" />
-                  <span>Download Offline</span>
-                </>
-              )}
-            </button>
 
             {/* Share Pill */}
             <button
