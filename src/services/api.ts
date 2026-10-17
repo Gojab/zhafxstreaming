@@ -230,7 +230,17 @@ async function fetchWithRetry<T>(
           throw new Error(`Server merespons dengan status HTTP ${res.status}`);
         }
 
-        const data = await res.json();
+        const text = await res.text();
+        let data: any;
+        try {
+          data = JSON.parse(text);
+        } catch {
+          throw new Error(
+            text.startsWith('<') || text.toLowerCase().includes('the page')
+              ? `Server merespons dengan halaman HTML (HTTP ${res.status}).`
+              : 'Format respons bukan JSON yang valid.'
+          );
+        }
 
         // Save to cache
         memoryCache.set(url, {
@@ -268,9 +278,14 @@ async function fetchWithRetry<T>(
         const proxyUrl = `${CONFIG.PROXY_URL}?url=${encodeURIComponent(url)}`;
         const res = await fetch(proxyUrl);
         if (res.ok) {
-          const data = await res.json();
-          memoryCache.set(url, { data, expiry: Date.now() + ttlMs });
-          return data;
+          try {
+            const text = await res.text();
+            const data = JSON.parse(text);
+            memoryCache.set(url, { data, expiry: Date.now() + ttlMs });
+            return data;
+          } catch {
+            // ignore non-json response
+          }
         }
       } catch {
         // ignore and throw last error
@@ -631,7 +646,12 @@ export const api = {
             signal,
           });
           if (aniRes.ok) {
-            aniData = await aniRes.json();
+            try {
+              const text = await aniRes.text();
+              aniData = JSON.parse(text);
+            } catch {
+              aniData = null;
+            }
           }
         } catch {
           // If direct fetch blocked by browser adblock/CORS, use proxy
@@ -643,7 +663,12 @@ export const api = {
               signal,
             });
             if (proxyRes.ok) {
-              aniData = await proxyRes.json();
+              try {
+                const text = await proxyRes.text();
+                aniData = JSON.parse(text);
+              } catch {
+                aniData = null;
+              }
             }
           } catch {
             // silent
