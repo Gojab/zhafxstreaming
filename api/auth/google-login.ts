@@ -22,21 +22,77 @@ export default async function handler(req: any, res: any) {
     }
   }
 
-  const { email, name } = body || {};
-  if (!email || typeof email !== 'string') {
-    return res.status(400).json({ success: false, error: 'Email Google wajib diisi.' });
+  const { email, name, credential, code, redirectUri } = body || {};
+
+  let verifiedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
+  let verifiedName = typeof name === 'string' ? name.trim() : '';
+
+  // 1. If Google Authorization Code is provided, exchange for tokens using client secret
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET || '';
+  const clientId = process.env.VITE_GOOGLE_CLIENT_ID || '358715674309-hdh36g2l56bqv0rckcvcd4666kemh4sj.apps.googleusercontent.com';
+
+  if (code && clientSecret) {
+    try {
+      const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          code,
+          client_id: clientId,
+          client_secret: clientSecret,
+          redirect_uri: redirectUri || 'postmessage',
+          grant_type: 'authorization_code',
+        }),
+      });
+
+      if (tokenRes.ok) {
+        const tokenData = await tokenRes.json();
+        if (tokenData.access_token) {
+          const userRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+            headers: { Authorization: `Bearer ${tokenData.access_token}` },
+          });
+          if (userRes.ok) {
+            const userData = await userRes.json();
+            if (userData.email) {
+              verifiedEmail = userData.email.toLowerCase();
+              verifiedName = userData.name || verifiedEmail.split('@')[0];
+            }
+          }
+        }
+      }
+    } catch (e: any) {
+      console.warn('[Google Auth] Token exchange warning:', e?.message || e);
+    }
   }
 
-  const cleanEmail = email.trim().toLowerCase();
-  const cleanName = (name && typeof name === 'string' && name.trim()) || cleanEmail.split('@')[0];
-  const baseUsername = cleanEmail.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '');
+  // 2. If Google ID Token / Credential provided, verify with Google tokeninfo
+  if (!verifiedEmail && credential && typeof credential === 'string') {
+    try {
+      const verifyRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential)}`);
+      if (verifyRes.ok) {
+        const payload = await verifyRes.json();
+        if (payload.email) {
+          verifiedEmail = payload.email.toLowerCase();
+          verifiedName = payload.name || verifiedEmail.split('@')[0];
+        }
+      }
+    } catch {
+      // silent
+    }
+  }
+
+  if (!verifiedEmail) {
+    return res.status(400).json({ success: false, error: 'Email Google atau kredensial tidak valid.' });
+  }
+
+  const baseUsername = verifiedEmail.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '');
   const username = baseUsername || `g_${Date.now().toString(36)}`;
 
   const user = {
     id: `usr_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
-    name: cleanName,
+    name: verifiedName || baseUsername,
     username,
-    email: cleanEmail,
+    email: verifiedEmail,
     joinedAt: Date.now(),
   };
 

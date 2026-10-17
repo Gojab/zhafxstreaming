@@ -877,15 +877,72 @@ app.post('/api/auth/verify-code', (req: Request, res: Response) => {
 });
 
 // Google / Gmail Direct 1-Click Login
-app.post('/api/auth/google-login', (req: Request, res: Response) => {
+app.post('/api/auth/google-login', async (req: Request, res: Response) => {
   try {
-    const { email, name } = req.body || {};
-    if (!email || typeof email !== 'string') {
+    const { email, name, credential, code, redirectUri } = req.body || {};
+
+    let cleanEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
+    let cleanName = typeof name === 'string' ? name.trim() : '';
+
+    const clientSecret = process.env.GOOGLE_CLIENT_SECRET || '';
+    const clientId = process.env.VITE_GOOGLE_CLIENT_ID || '358715674309-hdh36g2l56bqv0rckcvcd4666kemh4sj.apps.googleusercontent.com';
+
+    // Verify code with client secret if present
+    if (code && clientSecret) {
+      try {
+        const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({
+            code,
+            client_id: clientId,
+            client_secret: clientSecret,
+            redirect_uri: redirectUri || 'postmessage',
+            grant_type: 'authorization_code',
+          }),
+        });
+        if (tokenRes.ok) {
+          const tokenData = await tokenRes.json();
+          if (tokenData.access_token) {
+            const userRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+              headers: { Authorization: `Bearer ${tokenData.access_token}` },
+            });
+            if (userRes.ok) {
+              const userData = await userRes.json();
+              if (userData.email) {
+                cleanEmail = userData.email.toLowerCase();
+                cleanName = userData.name || cleanEmail.split('@')[0];
+              }
+            }
+          }
+        }
+      } catch {
+        // silent
+      }
+    }
+
+    if (!cleanEmail && credential && typeof credential === 'string') {
+      try {
+        const verifyRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential)}`);
+        if (verifyRes.ok) {
+          const payload = await verifyRes.json();
+          if (payload.email) {
+            cleanEmail = payload.email.toLowerCase();
+            cleanName = payload.name || cleanEmail.split('@')[0];
+          }
+        }
+      } catch {
+        // silent
+      }
+    }
+
+    if (!cleanEmail) {
       return res.status(400).json({ success: false, error: 'Email Google wajib diisi.' });
     }
 
-    const cleanEmail = email.trim().toLowerCase();
-    const cleanName = (name && typeof name === 'string' && name.trim()) || cleanEmail.split('@')[0];
+    if (!cleanName) {
+      cleanName = cleanEmail.split('@')[0];
+    }
 
     const db = readAuthDb();
     let user = db.users.find((u) => u.email.toLowerCase() === cleanEmail);
