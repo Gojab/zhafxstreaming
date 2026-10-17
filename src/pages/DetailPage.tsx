@@ -20,7 +20,6 @@ import { Title, Episode, MediaType } from '../types';
 import { DetailSkeleton } from '../components/Skeleton';
 import { MediaRow } from '../components/MediaRow';
 import { useMyList } from '../hooks/useMyList';
-import { useContinueWatching } from '../hooks/useContinueWatching';
 import { useActiveMedia } from '../context/ActiveMediaContext';
 import { storage } from '../lib/storage';
 
@@ -53,7 +52,6 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
   const [showShareToast, setShowShareToast] = useState(false);
 
   const { isSaved, toggle } = useMyList();
-  const { getProgressForTitle } = useContinueWatching();
   const { setActiveMedia } = useActiveMedia();
   const history = storage.getHistory();
 
@@ -279,81 +277,22 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
 
           {/* Liquid Glass Action Pills */}
           <div className="flex items-center justify-center md:justify-start gap-2.5 sm:gap-3 pt-2 flex-wrap">
-            {/* Play Button (Dynamic Continue Watching or Start Fresh) */}
-            {(() => {
-              const activeProgress = getProgressForTitle(title.id);
-              const formatSecs = (sec: number) => {
-                const s = Math.max(0, Math.round(sec));
-                const m = Math.floor(s / 60);
-                const rem = s % 60;
-                return `${m}:${rem.toString().padStart(2, '0')}`;
-              };
-
-              if (activeProgress && !activeProgress.completed && activeProgress.currentTime > 5) {
-                const seasonParam = activeProgress.season || 1;
-                const epParam = activeProgress.episode || 1;
-                const startParam = Math.floor(activeProgress.currentTime);
-
-                const continueUrl =
-                  title.type === 'tv'
-                    ? `/watch/tv/${title.id}/${seasonParam}/${epParam}?t=${startParam}`
-                    : title.type === 'anime'
-                    ? `/watch/anime/${title.id}/1/${epParam}?t=${startParam}`
-                    : `/watch/movie/${title.id}?t=${startParam}`;
-
-                return (
-                  <>
-                    <button
-                      onClick={() => navigate(continueUrl)}
-                      className="inline-flex items-center gap-2 px-6 sm:px-7 py-3 rounded-full bg-white text-[#06070B] font-bold text-sm shadow-[0_8px_25px_rgba(255,255,255,0.25)] ios-spring cursor-pointer min-h-[46px]"
-                    >
-                      <Play className="w-4 h-4 fill-current ml-0.5 text-[#06070B]" />
-                      <span>
-                        Lanjutkan{' '}
-                        {activeProgress.episode
-                          ? `(Ep ${activeProgress.episode} • ${formatSecs(activeProgress.currentTime)})`
-                          : `(${formatSecs(activeProgress.currentTime)})`}
-                      </span>
-                    </button>
-
-                    <button
-                      onClick={() =>
-                        navigate(
-                          title.type === 'anime'
-                            ? `/watch/anime/${title.id}/1/1?t=0`
-                            : title.type === 'tv'
-                            ? `/watch/tv/${title.id}/1/1?t=0`
-                            : `/watch/movie/${title.id}?t=0`
-                        )
-                      }
-                      className="inline-flex items-center gap-1.5 px-4 py-3 rounded-full liquid-glass liquid-specular text-xs font-semibold text-white/80 hover:text-white transition-all cursor-pointer min-h-[46px] ios-spring"
-                      title="Putar dari awal (0:00)"
-                    >
-                      <RotateCcw className="w-3.5 h-3.5" />
-                      <span className="hidden sm:inline">Mulai dari awal</span>
-                    </button>
-                  </>
-                );
+            {/* Play Button */}
+            <button
+              onClick={() =>
+                navigate(
+                  title.type === 'anime'
+                    ? `/watch/anime/${title.id}/1/1`
+                    : title.type === 'tv'
+                    ? `/watch/tv/${title.id}/1/1`
+                    : `/watch/movie/${title.id}`
+                )
               }
-
-              return (
-                <button
-                  onClick={() =>
-                    navigate(
-                      title.type === 'anime'
-                        ? `/watch/anime/${title.id}/1/1`
-                        : title.type === 'tv'
-                        ? `/watch/tv/${title.id}/1/1`
-                        : `/watch/movie/${title.id}`
-                    )
-                  }
-                  className="inline-flex items-center gap-2 px-7 py-3 rounded-full bg-white text-[#06070B] font-bold text-sm shadow-[0_8px_25px_rgba(255,255,255,0.25)] hover:bg-[#FFB224] hover:text-[#06070B] transition-all ios-spring cursor-pointer min-h-[46px]"
-                >
-                  <Play className="w-4 h-4 fill-current ml-0.5" />
-                  <span>Putar sekarang</span>
-                </button>
-              );
-            })()}
+              className="inline-flex items-center gap-2 px-7 py-3 rounded-full bg-white text-[#06070B] font-bold text-sm shadow-[0_8px_25px_rgba(255,255,255,0.25)] hover:bg-[#FFB224] hover:text-[#06070B] transition-all ios-spring cursor-pointer min-h-[46px]"
+            >
+              <Play className="w-4 h-4 fill-current ml-0.5" />
+              <span>Putar sekarang</span>
+            </button>
 
             {/* Add to My List Pill */}
             <button

@@ -4,9 +4,7 @@ import { Title } from '../types';
 import { HeroBillboard } from '../components/HeroBillboard';
 import { MediaRow } from '../components/MediaRow';
 import { HeroSkeleton, MediaCardSkeleton } from '../components/Skeleton';
-import { ContinueWatchingSection } from '../components/ContinueWatchingSection';
 import { useWatchHistory } from '../hooks/useWatchHistory';
-import { useContinueWatching } from '../hooks/useContinueWatching';
 import { useMyList } from '../hooks/useMyList';
 import {
   RotateCcw,
@@ -30,7 +28,6 @@ export const HomePage: React.FC = () => {
 
   const { history } = useWatchHistory();
   const { myList } = useMyList();
-  const { items: continueWatchingItems, removeProgress, isLoading: isLoadingProgress } = useContinueWatching();
 
   const loadData = async (signal?: AbortSignal) => {
     setIsLoading(true);
@@ -144,13 +141,6 @@ export const HomePage: React.FC = () => {
     <div className="space-y-4 pb-12">
       {/* Hero Billboard Carousel */}
       <HeroBillboard items={heroItems} />
-
-      {/* Dedicated Continue Watching Section */}
-      <ContinueWatchingSection
-        items={continueWatchingItems}
-        onRemove={removeProgress}
-        isLoading={isLoadingProgress}
-      />
 
       {/* Trending Now */}
       <MediaRow

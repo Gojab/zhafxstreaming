@@ -69,23 +69,14 @@ export const HistoryPage: React.FC = () => {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {history.map((item) => {
-            const startParam =
-              item.progressSeconds && item.progressSeconds > 5
-                ? `?t=${Math.floor(item.progressSeconds)}`
-                : '';
             const playPath =
               item.type === 'tv'
-                ? `/watch/tv/${item.id}/${item.season || 1}/${item.episode || 1}${startParam}`
+                ? `/watch/tv/${item.id}/${item.season || 1}/${item.episode || 1}`
                 : item.type === 'anime'
-                ? `/watch/anime/${item.id}/1/${item.episode || 1}${startParam}`
-                : `/watch/movie/${item.id}${startParam}`;
+                ? `/watch/anime/${item.id}/1/${item.episode || 1}`
+                : `/watch/movie/${item.id}`;
 
             const detailPath = `/detail/${item.type}/${item.id}`;
-            const pct =
-              item.progressPercentage ||
-              (item.progressSeconds && item.durationSeconds
-                ? Math.round((item.progressSeconds / item.durationSeconds) * 100)
-                : 0);
 
             return (
               <div
@@ -115,13 +106,6 @@ export const HistoryPage: React.FC = () => {
                       <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
                     </div>
                   </div>
-
-                  {/* Thumbnail Progress Bar */}
-                  {pct > 0 && (
-                    <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/10">
-                      <div className="h-full bg-[#FFB224]" style={{ width: `${pct}%` }} />
-                    </div>
-                  )}
                 </Link>
 
                 {/* Details */}

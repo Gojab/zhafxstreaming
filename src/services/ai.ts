@@ -107,25 +107,7 @@ export async function sendChatMessageStream(
 
     if (!response.ok) {
       if (response.status === 404) {
-        // Fallback for Vercel or hosts where /api/ai/chat serverless route is not yet provisioned
-        const clientKey = (import.meta as any).env?.VITE_GEMINI_API_KEY;
-        if (clientKey) {
-          try {
-            const { GoogleGenAI } = await import('@google/genai');
-            const ai = new GoogleGenAI({ apiKey: clientKey });
-            const result = await ai.models.generateContent({
-              model: 'gemini-2.5-flash',
-              contents: message,
-            });
-            const text = result.text || 'Tidak ada respons dari AI.';
-            const { cleanText, picks } = extractPicksAndCleanText(text);
-            const resolved = await resolvePicks(picks);
-            callbacks.onDone(cleanText, picks, resolved);
-            return;
-          } catch (clientErr: any) {
-            console.warn('[Zhafx AI] Client fallback failed:', clientErr);
-          }
-        }
+        // Smart offline/fallback response generator when serverless route is unreachable
 
         // Smart offline/fallback response generator for Vercel deployments
         const lowerMsg = message.toLowerCase();

@@ -16,7 +16,6 @@ import {
 import { api } from '../services/api';
 import { Title, Provider, MediaType } from '../types';
 import { storage } from '../lib/storage';
-import { useContinueWatching } from '../hooks/useContinueWatching';
 
 export const PlayerPage: React.FC = () => {
   const { type: rawType, id, season: rawSeason, episode: rawEpisode } = useParams<{
@@ -45,8 +44,6 @@ export const PlayerPage: React.FC = () => {
   const [isEpisodeDrawerOpen, setIsEpisodeDrawerOpen] = useState(false);
   const [iframeKey, setIframeKey] = useState(0);
 
-  const { saveProgress } = useContinueWatching();
-
   const playerContainerRef = useRef<HTMLDivElement | null>(null);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
 
@@ -59,30 +56,10 @@ export const PlayerPage: React.FC = () => {
     return () => document.removeEventListener('fullscreenchange', handleFsChange);
   }, []);
 
-  // Save progress helper
+  // Save history helper
   const recordHistory = useCallback(
     (t: Title) => {
       if (!id) return;
-      saveProgress({
-        contentId: id,
-        mediaType,
-        title: t.title,
-        poster: t.poster,
-        backdrop: t.backdrop,
-        year: t.year,
-        season: mediaType === 'tv' ? seasonNum : undefined,
-        episode: mediaType === 'tv' || mediaType === 'anime' ? episodeNum : undefined,
-        episodeName:
-          mediaType === 'tv'
-            ? `Musim ${seasonNum} Ep ${episodeNum}`
-            : mediaType === 'anime'
-            ? `Episode ${episodeNum}`
-            : undefined,
-        currentTime: 60, // Mark as active watched
-        duration: mediaType === 'anime' ? 24 * 60 : mediaType === 'tv' ? 45 * 60 : 110 * 60,
-        completed: false,
-      });
-
       storage.saveHistory({
         id,
         type: mediaType,
@@ -98,11 +75,9 @@ export const PlayerPage: React.FC = () => {
             : mediaType === 'anime'
             ? `Episode ${episodeNum}`
             : undefined,
-        progressSeconds: 60,
-        durationSeconds: mediaType === 'anime' ? 24 * 60 : mediaType === 'tv' ? 45 * 60 : 110 * 60,
       });
     },
-    [id, mediaType, seasonNum, episodeNum, saveProgress]
+    [id, mediaType, seasonNum, episodeNum]
   );
 
   // Load details and providers

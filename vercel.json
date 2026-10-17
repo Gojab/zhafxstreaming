@@ -1,14 +1,5 @@
 {
-  "version": 2,
   "rewrites": [
-    {
-      "source": "/api/ai/chat",
-      "destination": "/api/ai/chat"
-    },
-    {
-      "source": "/api/proxy",
-      "destination": "/api/proxy"
-    },
     {
       "source": "/((?!api/).*)",
       "destination": "/index.html"

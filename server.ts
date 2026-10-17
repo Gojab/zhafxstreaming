@@ -311,6 +311,15 @@ function generateSmartFallback(message: string, contextTitle?: any) {
   return { text, picks };
 }
 
+// Endpoint: AI Chat GET health check
+app.get('/api/ai/chat', (_req: Request, res: Response) => {
+  res.status(200).json({
+    status: 'ok',
+    service: 'Zhafx AI Assistant API',
+    configured: Boolean(process.env.GEMINI_API_KEY),
+  });
+});
+
 // Endpoint: AI Chat with streaming
 app.post('/api/ai/chat', async (req: Request, res: Response) => {
   const currentKey = process.env.GEMINI_API_KEY || apiKey;
