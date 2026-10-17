@@ -677,10 +677,8 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3.5">
             {(episodes.length > 0
               ? episodes
-              : Array.from({ length: title.numberOfEpisodes || 24 }, (_, i) => ({
-                  id: `${title.id}-${i + 1}`,
+              : Array.from({ length: Math.min(title.numberOfEpisodes || 24, 48) }, (_, i) => ({
                   number: i + 1,
-                  seasonNumber: 1,
                   name: `Episode ${i + 1}`,
                   still: title.backdrop || title.poster,
                   stillPath: title.backdrop || title.poster,

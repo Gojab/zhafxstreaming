@@ -44,8 +44,8 @@ export const PlayerPage: React.FC = () => {
   const [selectedServer, setSelectedServer] = useState<string>('auto');
   const [animeAudio, setAnimeAudio] = useState<'sub' | 'dub'>('sub');
 
-  // Direct streaming vs Embed player mode for anime (default to official FrameX embed player)
-  const [animePlayerMode, setAnimePlayerMode] = useState<'direct' | 'embed'>('embed');
+  // Direct streaming vs Embed player mode for anime
+  const [animePlayerMode, setAnimePlayerMode] = useState<'direct' | 'embed'>('direct');
   const [directStream, setDirectStream] = useState<StreamData | null>(null);
   const [isLoadingDirect, setIsLoadingDirect] = useState(false);
   const [directStreamError, setDirectStreamError] = useState<string | null>(null);
@@ -169,9 +169,9 @@ export const PlayerPage: React.FC = () => {
     return () => controller.abort();
   }, [id, mediaType, seasonNum, episodeNum, recordHistory, searchParams]);
 
-  // Load Direct Anime Stream directly from FrameX API only when in direct mode
+  // Load Direct Anime Stream directly from FrameX API
   useEffect(() => {
-    if (mediaType === 'anime' && id && animePlayerMode === 'direct') {
+    if (mediaType === 'anime' && id) {
       setIsLoadingDirect(true);
       setDirectStreamError(null);
       const controller = new AbortController();

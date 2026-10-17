@@ -20,6 +20,8 @@ export const CONFIG = {
   // Google OAuth Client ID
   GOOGLE_CLIENT_ID: (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID || '358715674309-hdh36g2l56bqv0rckcvcd4666kemh4sj.apps.googleusercontent.com',
 
+  // AniList GraphQL API (100% free, CORS open, high-res posters & details)
+  ANILIST_GRAPHQL_URL: 'https://graphql.anilist.co',
 
   // Gemini AI Models
   AI_MODEL: 'gemini-3.8-flash',
