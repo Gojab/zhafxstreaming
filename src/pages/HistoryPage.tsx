@@ -122,18 +122,13 @@ export const HistoryPage: React.FC = () => {
                       <span>•</span>
                       <span className="capitalize">{item.type}</span>
                     </div>
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      {item.episodeName && (
+                    {item.episodeName && (
+                      <div className="flex items-center gap-1.5 flex-wrap">
                         <span className="inline-block px-2 py-0.5 rounded-full bg-white/[0.08] text-[10px] text-[#FFB224] font-semibold">
                           {item.episodeName}
                         </span>
-                      )}
-                      {pct > 0 && (
-                        <span className="text-[10px] text-white/60 font-mono">
-                          {pct}% selesai
-                        </span>
-                      )}
-                    </div>
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex items-center justify-between text-[11px] text-white/50 pt-2 border-t border-white/[0.08]">

@@ -150,9 +150,7 @@ Kamu bisa langsung mencari judul-judul di atas lewat kolom pencarian atau menu A
           fallbackReply += `Saya siap merekomendasikan film, serial TV, dan anime terbaik untukmu di Zhafx! Coba tonton beberapa tayangan unggulan berikut:
 - **Interstellar**: Mahakarya fiksi ilmiah Christopher Nolan tentang perjalanan melintasi lubang cacing.
 - **Shogun**: Serial drama sejarah Jepang abad ke-17 dengan intrik politik yang mendebarkan.
-- **Dune: Part Two**: Visual spektakuler dan perang takdir di padang pasir Arrakis.
-
-*(Tips untuk Deployment Vercel: Pastikan \`GEMINI_API_KEY\` sudah dimasukkan pada Vercel Dashboard → Settings → Environment Variables agar fitur live streaming AI aktif penuh).*`;
+- **Dune: Part Two**: Visual spektakuler dan perang takdir di padang pasir Arrakis.`;
           picks = [
             { title: 'Interstellar', type: 'movie', year: '2014' },
             { title: 'Shogun', type: 'tv', year: '2024' },

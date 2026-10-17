@@ -312,7 +312,7 @@ function generateSmartFallback(message: string, contextTitle?: any) {
 }
 
 // Endpoint: AI Chat GET health check
-app.get('/api/ai/chat', (_req: Request, res: Response) => {
+app.get(['/api/ai/chat', '/api/chat'], (_req: Request, res: Response) => {
   res.status(200).json({
     status: 'ok',
     service: 'Zhafx AI Assistant API',
@@ -321,7 +321,7 @@ app.get('/api/ai/chat', (_req: Request, res: Response) => {
 });
 
 // Endpoint: AI Chat with streaming
-app.post('/api/ai/chat', async (req: Request, res: Response) => {
+app.post(['/api/ai/chat', '/api/chat'], async (req: Request, res: Response) => {
   const currentKey = process.env.GEMINI_API_KEY || apiKey;
   const { message, history, contextTitle } = req.body || {};
   if (!message || typeof message !== 'string') {
@@ -358,7 +358,7 @@ app.post('/api/ai/chat', async (req: Request, res: Response) => {
     },
   });
 
-  const modelsToTry = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+  const modelsToTry = ['gemini-2.0-flash', 'gemini-1.5-flash'];
   let succeeded = false;
 
   for (const model of modelsToTry) {
@@ -428,8 +428,8 @@ app.post('/api/ai/chat', async (req: Request, res: Response) => {
 });
 
 // Endpoint: Proxy to FrameX API (to prevent any CORS or network issues)
-app.get('/api/proxy', async (req: Request, res: Response) => {
-  const targetUrl = req.query.url as string;
+app.all('/api/proxy', async (req: Request, res: Response) => {
+  const targetUrl = (req.query.url as string) || (req.body?.targetUrl as string);
   if (!targetUrl || !targetUrl.startsWith('http')) {
     return res.status(400).json({ error: 'URL target tidak valid.' });
   }
@@ -438,12 +438,16 @@ app.get('/api/proxy', async (req: Request, res: Response) => {
   const timeoutId = setTimeout(() => controller.abort(), 12000);
 
   try {
+    const isPost = req.method === 'POST';
     const upstreamRes = await fetch(targetUrl, {
+      method: req.method,
       signal: controller.signal,
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
         'Accept': 'application/json, text/plain, */*',
-      }
+        ...(isPost ? { 'Content-Type': 'application/json' } : {}),
+      },
+      ...(isPost && req.body ? { body: JSON.stringify(req.body) } : {}),
     });
     clearTimeout(timeoutId);
 

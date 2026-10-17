@@ -387,15 +387,12 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
               {episodes.map((ep) => {
                 const watched = isEpisodeWatched(selectedSeason, ep.number);
-                const epProgress = getProgressForTitle(title.id, selectedSeason, ep.number);
-                const hasProgress = epProgress && !epProgress.completed && epProgress.currentTime > 5;
-                const epStart = hasProgress ? `?t=${Math.floor(epProgress.currentTime)}` : '';
 
                 return (
                   <button
                     key={ep.number}
                     onClick={() =>
-                      navigate(`/watch/tv/${title.id}/${selectedSeason}/${ep.number}${epStart}`)
+                      navigate(`/watch/tv/${title.id}/${selectedSeason}/${ep.number}`)
                     }
                     className="flex items-center gap-3 p-3.5 rounded-[20px] bg-white/[0.04] hover:bg-white/[0.09] border border-white/10 text-left transition-all active:scale-[0.97] cursor-pointer group relative overflow-hidden ios-spring"
                   >
@@ -418,23 +415,8 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
                       </div>
                       <div className="flex items-center justify-between text-[11px] text-white/50 mt-0.5">
                         <span>Musim {selectedSeason} • Ep {ep.number}</span>
-                        {hasProgress && (
-                          <span className="text-[#FFB224] font-semibold">
-                            {epProgress.progressPercentage}%
-                          </span>
-                        )}
                       </div>
                     </div>
-
-                    {/* Progress Bar under episode card if in progress */}
-                    {hasProgress && (
-                      <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/10">
-                        <div
-                          className="h-full bg-[#FFB224]"
-                          style={{ width: `${epProgress.progressPercentage}%` }}
-                        />
-                      </div>
-                    )}
                   </button>
                 );
               })}
@@ -463,32 +445,19 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
           <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-10 lg:grid-cols-12 gap-2">
             {Array.from({ length: Math.min(title.numberOfEpisodes || 24, 48) }, (_, i) => i + 1).map((epNum) => {
               const watched = isEpisodeWatched(1, epNum);
-              const epProgress = getProgressForTitle(title.id, 1, epNum);
-              const hasProgress = epProgress && !epProgress.completed && epProgress.currentTime > 5;
-              const epStart = hasProgress ? `?t=${Math.floor(epProgress.currentTime)}` : '';
 
               return (
                 <button
                   key={epNum}
-                  onClick={() => navigate(`/watch/anime/${title.id}/1/${epNum}${epStart}`)}
+                  onClick={() => navigate(`/watch/anime/${title.id}/1/${epNum}`)}
                   className={`p-3 rounded-[16px] text-xs font-semibold flex flex-col items-center justify-center gap-1 transition-all cursor-pointer relative overflow-hidden ios-spring ${
-                    hasProgress
-                      ? 'bg-white/[0.14] border border-[#FFB224]/50 text-[#FFB224]'
-                      : watched
+                    watched
                       ? 'bg-white/10 border border-white/20 text-white'
                       : 'bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 text-white/90'
                   }`}
                 >
                   <span>Ep {epNum}</span>
                   {watched && <CheckCircle2 className="w-3 h-3 text-emerald-400" />}
-                  {hasProgress && !watched && (
-                    <div className="absolute bottom-0 left-0 right-0 h-1 bg-black/40">
-                      <div
-                        className="h-full bg-[#FFB224]"
-                        style={{ width: `${epProgress.progressPercentage}%` }}
-                      />
-                    </div>
-                  )}
                 </button>
               );
             })}

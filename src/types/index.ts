@@ -67,26 +67,6 @@ export interface Provider {
   status?: string;
 }
 
-export interface WatchProgressItem {
-  id: string; // Unique ID: e.g. `${userId}_${contentId}_s${season || 1}_e${episode || 1}`
-  userId: string;
-  contentId: string;
-  episodeId?: string;
-  mediaType: MediaType;
-  title: string;
-  poster: string;
-  backdrop?: string;
-  year: string;
-  season?: number;
-  episode?: number;
-  episodeName?: string;
-  currentTime: number; // in seconds
-  duration: number; // in seconds
-  progressPercentage: number; // 0 to 100
-  lastWatchedAt: number; // epoch ms
-  completed: boolean;
-}
-
 export interface HistoryItem {
   id: string;
   type: MediaType;
@@ -98,9 +78,6 @@ export interface HistoryItem {
   episode?: number;
   episodeName?: string;
   updatedAt: number;
-  progressSeconds?: number;
-  durationSeconds?: number;
-  progressPercentage?: number;
 }
 
 export interface MyListItem {

@@ -563,9 +563,10 @@ export const api = {
   async getProviders(signal?: AbortSignal, type?: MediaType): Promise<Provider[]> {
     if (type === 'anime') {
       return [
-        { id: 'videasy', name: 'Videasy Anime', tagline: 'Server Cepat 1080p (Multi-Sub)' },
-        { id: 'framex', name: 'FrameX Anime', tagline: 'Server Resmi Multi-Sub' },
-        { id: 'multiembed', name: 'MultiEmbed Anime', tagline: 'Server Cadangan Global' },
+        { id: 'framex', name: 'Server Resmi (FrameX)', tagline: 'Server Cepat & Multi-Sub' },
+        { id: 'multiembed', name: 'Server Cadangan 1 (MultiEmbed)', tagline: 'Multi-Server Global' },
+        { id: '2embed', name: 'Server Cadangan 2 (2Embed)', tagline: 'Stream Alternatif HD' },
+        { id: 'videasy', name: 'Server Cadangan 3 (Videasy)', tagline: '1080p Stream' },
       ];
     }
 
@@ -598,7 +599,6 @@ export const api = {
     muted?: boolean;
     title?: string;
     poster?: string;
-    start?: number;
   }): string {
     const {
       type,
@@ -617,23 +617,25 @@ export const api = {
       const ep = episode || 1;
       const cleanId = encodeURIComponent(id);
 
-      if (server === 'framex') {
-        const q = new URLSearchParams();
-        q.set('id', id);
-        q.set('episode', String(ep));
-        q.set('autoplay', autoplay ? '1' : '0');
-        q.set('muted', muted ? '1' : '0');
-        if (title) q.set('title', title);
-        if (poster) q.set('poster', poster);
-        return `${CONFIG.EMBED_BASE_URL}/anime/${cleanId}/${ep}?${q.toString()}`;
-      }
-
       if (server === 'multiembed') {
         return `https://multiembed.mov/?video_id=${cleanId}&s=1&e=${ep}`;
       }
 
-      // Default & Videasy Anime (fastest and verified for AniList IDs):
-      return `https://player.videasy.to/anime/${cleanId}/${ep}?autoplay=${autoplay ? 1 : 0}`;
+      if (server === '2embed') {
+        return `https://anime.2embed.cc/embed/${cleanId}/${ep}`;
+      }
+
+      if (server === 'videasy') {
+        return `https://player.videasy.to/anime/${cleanId}/${ep}?autoplay=${autoplay ? 1 : 0}`;
+      }
+
+      // Default: Official FrameX Anime embed (Cloudflare-backed, multi-sub)
+      const q = new URLSearchParams();
+      q.set('autoplay', autoplay ? '1' : '0');
+      q.set('muted', muted ? '1' : '0');
+      if (title) q.set('title', title);
+      if (poster) q.set('poster', poster);
+      return `${CONFIG.EMBED_BASE_URL}/anime/${cleanId}/${ep}?${q.toString()}`;
     }
 
     let path = '';
@@ -651,10 +653,6 @@ export const api = {
     }
     if (title) query.set('title', title);
     if (poster) query.set('poster', poster);
-    if (params.start && params.start > 0) {
-      query.set('start', String(Math.floor(params.start)));
-      query.set('t', String(Math.floor(params.start)));
-    }
 
     return `${path}?${query.toString()}`;
   },

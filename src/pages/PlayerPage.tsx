@@ -37,7 +37,7 @@ export const PlayerPage: React.FC = () => {
   const [title, setTitle] = useState<Title | null>(null);
   const [providers, setProviders] = useState<Provider[]>([]);
   const [selectedServer, setSelectedServer] = useState<string>(() => {
-    return mediaType === 'anime' ? 'videasy' : 'auto';
+    return mediaType === 'anime' ? 'framex' : 'auto';
   });
   const [isIframeLoading, setIsIframeLoading] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
