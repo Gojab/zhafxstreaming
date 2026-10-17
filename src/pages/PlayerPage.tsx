@@ -44,7 +44,8 @@ export const PlayerPage: React.FC = () => {
   const [selectedServer, setSelectedServer] = useState<string>('auto');
   const [animeAudio, setAnimeAudio] = useState<'sub' | 'dub'>('sub');
 
-  // Direct streaming state for anime
+  // Direct streaming vs Embed player mode for anime
+  const [animePlayerMode, setAnimePlayerMode] = useState<'direct' | 'embed'>('direct');
   const [directStream, setDirectStream] = useState<StreamData | null>(null);
   const [isLoadingDirect, setIsLoadingDirect] = useState(false);
   const [directStreamError, setDirectStreamError] = useState<string | null>(null);
@@ -420,6 +421,27 @@ export const PlayerPage: React.FC = () => {
               </button>
             )}
 
+            {/* Anime Player Mode: Direct vs Embed */}
+            {mediaType === 'anime' && (
+              <button
+                onClick={() => {
+                  const nextMode = animePlayerMode === 'direct' ? 'embed' : 'direct';
+                  setAnimePlayerMode(nextMode);
+                  setIsIframeLoading(true);
+                  setDirectStreamError(null);
+                }}
+                className={`px-2.5 py-1 rounded-full text-[10px] sm:text-[11px] font-bold border transition-all cursor-pointer ios-spring flex items-center gap-1 ${
+                  animePlayerMode === 'direct'
+                    ? 'bg-amber-500/20 border-amber-500/50 text-[#FFB224]'
+                    : 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300'
+                }`}
+                title={animePlayerMode === 'direct' ? 'Beralih ke Pemutar Embed FrameX' : 'Beralih ke Pemutar Langsung HLS'}
+              >
+                <Play className="w-3 h-3" />
+                <span>{animePlayerMode === 'direct' ? 'Direct' : 'Embed'}</span>
+              </button>
+            )}
+
             {/* Server Selector Dropdown */}
             <div className="flex items-center gap-1 px-2 sm:px-2.5 py-1 rounded-full liquid-glass text-xs text-white">
               <Server className="w-3 h-3 text-[#FFB224] shrink-0" />
@@ -627,26 +649,41 @@ export const PlayerPage: React.FC = () => {
         )}
 
         {/* Error State for Anime Direct Stream */}
-        {mediaType === 'anime' && directStreamError && !isLoadingDirect && (
+        {mediaType === 'anime' && animePlayerMode === 'direct' && directStreamError && !isLoadingDirect && (
           <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-[#06070B] p-6 text-center space-y-3">
             <div className="w-12 h-12 rounded-full bg-rose-500/20 border border-rose-500/30 flex items-center justify-center text-rose-400">
               <AlertTriangle className="w-6 h-6" />
             </div>
-            <h3 className="text-base font-bold text-white">Gagal Memutar Stream</h3>
-            <p className="text-xs text-white/60 max-w-sm">{directStreamError}</p>
-            <div className="flex items-center gap-2 pt-2">
+            <h3 className="text-base font-bold text-white">Gagal Memutar Stream Langsung</h3>
+            <p className="text-xs text-white/60 max-w-sm">
+              Server stream langsung tidak merespons. Anda dapat beralih ke Pemutar Embed FrameX untuk memutar video tanpa gangguan.
+            </p>
+            <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
+              <button
+                onClick={() => {
+                  setAnimePlayerMode('embed');
+                  setDirectStreamError(null);
+                  setIsIframeLoading(true);
+                }}
+                className="px-5 py-2 rounded-full bg-[#FFB224] text-black text-xs font-bold hover:bg-[#FFA500] cursor-pointer shadow-lg"
+              >
+                Beralih ke Pemutar Embed (Rekomendasi)
+              </button>
               <button
                 onClick={handleReload}
-                className="px-4 py-2 rounded-full bg-[#FFB224] text-black text-xs font-bold hover:bg-[#FFA500] cursor-pointer"
+                className="px-4 py-2 rounded-full liquid-glass text-white text-xs font-semibold hover:bg-white/10 cursor-pointer"
               >
-                Coba Lagi
+                Coba Lagi (Direct Stream)
               </button>
             </div>
           </div>
         )}
 
-        {/* 1. ANIME: Native HLS HTML5 Video Player (Zero sandbox errors, with multi-subtitles) */}
-        {mediaType === 'anime' ? (
+        {/* Player Section:
+            If Anime + animePlayerMode === 'direct' AND directStream is available: Native HLS Player
+            Otherwise: Official Embed Player (FrameX Iframe for Anime, Movies, and TV)
+        */}
+        {mediaType === 'anime' && animePlayerMode === 'direct' && directStream?.sources?.[0]?.url ? (
           <div className="w-full h-full pt-14 sm:pt-16 flex items-center justify-center bg-black relative">
             <video
               ref={videoRef}
@@ -675,10 +712,10 @@ export const PlayerPage: React.FC = () => {
             </video>
           </div>
         ) : (
-          /* 2. MOVIE & TV: Official FrameX Embed Player */
+          /* Official FrameX Embed Player (For Movie, TV, and Anime in embed mode or fallback) */
           <iframe
             ref={iframeRef}
-            key={`${id}-${mediaType}-${seasonNum}-${episodeNum}-${selectedServer}-${iframeKey}`}
+            key={`${id}-${mediaType}-${seasonNum}-${episodeNum}-${selectedServer}-${animeAudio}-${iframeKey}`}
             src={embedUrl}
             title={title?.title || 'Zhafx Stream'}
             onLoad={() => setIsIframeLoading(false)}

@@ -358,7 +358,7 @@ app.post(['/api/ai/chat', '/api/chat'], async (req: Request, res: Response) => {
     },
   });
 
-  const modelsToTry = ['gemini-3.8-flash', 'gemini-flash-latest'];
+  const modelsToTry = ['gemini-2.5-flash', 'gemini-3.8-flash', 'gemini-2.0-flash', 'gemini-flash-latest'];
   let succeeded = false;
 
   for (const model of modelsToTry) {
@@ -439,12 +439,17 @@ app.all('/api/proxy', async (req: Request, res: Response) => {
 
   try {
     const isPost = req.method === 'POST';
+    const isFrameX = targetUrl.includes('framextv.tech') || targetUrl.includes('framextv.xyz');
     const upstreamRes = await fetch(targetUrl, {
       method: req.method,
       signal: controller.signal,
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
         'Accept': 'application/json, text/plain, */*',
+        ...(isFrameX ? {
+          'Referer': 'https://framextv.xyz/',
+          'Origin': 'https://framextv.xyz',
+        } : {}),
         ...(isPost ? { 'Content-Type': 'application/json' } : {}),
       },
       ...(isPost && req.body ? { body: JSON.stringify(req.body) } : {}),

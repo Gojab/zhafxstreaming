@@ -87,7 +87,7 @@ export async function sendChatMessageStream(
   }
 
   try {
-    const response = await fetch(CONFIG.ENDPOINTS.AI_CHAT, {
+    let response = await fetch(CONFIG.ENDPOINTS.AI_CHAT, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -104,6 +104,34 @@ export async function sendChatMessageStream(
       }),
       signal: abortSignal,
     });
+
+    // If /api/ai/chat returned 404, try alternative /api/chat endpoint
+    if (!response.ok && response.status === 404) {
+      try {
+        const altResponse = await fetch('/api/chat', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            message,
+            history,
+            contextTitle: contextTitle ? {
+              title: contextTitle.title,
+              year: contextTitle.year,
+              type: contextTitle.type,
+              overview: contextTitle.overview,
+            } : null,
+          }),
+          signal: abortSignal,
+        });
+        if (altResponse.ok) {
+          response = altResponse;
+        }
+      } catch {
+        // continue to fallback
+      }
+    }
 
     if (!response.ok) {
       if (response.status === 404) {

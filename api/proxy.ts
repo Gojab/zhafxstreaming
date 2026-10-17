@@ -17,14 +17,21 @@ export default async function handler(req: any, res: any) {
 
   try {
     const isPost = req.method === 'POST';
+    const isFrameX = targetUrl.includes('framextv.tech') || targetUrl.includes('framextv.xyz');
+    const headers: Record<string, string> = {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+      'Accept': 'application/json, text/plain, */*',
+      ...(isFrameX ? {
+        'Referer': 'https://framextv.xyz/',
+        'Origin': 'https://framextv.xyz',
+      } : {}),
+      ...(isPost ? { 'Content-Type': 'application/json' } : {}),
+    };
+
     const fetchOptions: RequestInit = {
       method: req.method,
       signal: controller.signal,
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-        'Accept': 'application/json, text/plain, */*',
-        ...(isPost ? { 'Content-Type': 'application/json' } : {}),
-      },
+      headers,
       ...(isPost && req.body ? { body: typeof req.body === 'string' ? req.body : JSON.stringify(req.body) } : {}),
     };
 

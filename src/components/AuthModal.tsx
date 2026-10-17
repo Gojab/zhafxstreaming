@@ -13,6 +13,29 @@ import {
 } from 'lucide-react';
 import { storage } from '../lib/storage';
 import { User } from '../types';
+import { CONFIG } from '../config';
+
+declare global {
+  interface Window {
+    google?: any;
+  }
+}
+
+function parseJwt(token: string): any {
+  try {
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    return JSON.parse(jsonPayload);
+  } catch {
+    return null;
+  }
+}
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -48,8 +71,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
-  if (!isOpen) return null;
-
   const handleFinishAuth = (user: User, token: string, msg: string) => {
     storage.saveToken(token);
     storage.saveUser(user);
@@ -62,13 +83,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
   };
 
   // 1. Google / Gmail 1-Click Login
-  const handleGoogleLogin = async (customEmail?: string) => {
+  const handleGoogleLogin = async (customEmail?: string, customName?: string) => {
     setIsLoading(true);
     setError(null);
     setSuccessMessage(null);
 
     const targetEmail = customEmail || email.trim() || 'user@gmail.com';
-    const targetName = name.trim() || targetEmail.split('@')[0];
+    const targetName = customName || name.trim() || targetEmail.split('@')[0];
 
     try {
       const res = await fetch('/api/auth/google-login', {
@@ -89,6 +110,91 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
     } catch (err: any) {
       setError(err?.message || 'Terjadi kesalahan saat masuk dengan Google.');
       setIsLoading(false);
+    }
+  };
+
+  // Google Identity Services Setup
+  useEffect(() => {
+    if (!isOpen || tab !== 'google') return;
+
+    const clientId = CONFIG.GOOGLE_CLIENT_ID;
+    if (!clientId) return;
+
+    const setupGoogle = () => {
+      if (window.google?.accounts?.id) {
+        try {
+          window.google.accounts.id.initialize({
+            client_id: clientId,
+            callback: (response: any) => {
+              if (response && response.credential) {
+                const payload = parseJwt(response.credential);
+                if (payload && payload.email) {
+                  handleGoogleLogin(payload.email, payload.name);
+                }
+              }
+            },
+            auto_select: false,
+          });
+
+          const btnContainer = document.getElementById('googleButtonContainer');
+          if (btnContainer) {
+            btnContainer.innerHTML = '';
+            window.google.accounts.id.renderButton(btnContainer, {
+              theme: 'filled_black',
+              size: 'large',
+              shape: 'pill',
+              width: 340,
+              text: 'continue_with',
+              logo_alignment: 'left',
+            });
+          }
+        } catch (e) {
+          console.warn('[Google Auth] Init error:', e);
+        }
+      }
+    };
+
+    if (window.google?.accounts?.id) {
+      setupGoogle();
+    } else {
+      const interval = setInterval(() => {
+        if (window.google?.accounts?.id) {
+          setupGoogle();
+          clearInterval(interval);
+        }
+      }, 300);
+      return () => clearInterval(interval);
+    }
+  }, [isOpen, tab]);
+
+  const triggerGoogleSignIn = () => {
+    if (window.google?.accounts?.oauth2) {
+      const client = window.google.accounts.oauth2.initTokenClient({
+        client_id: CONFIG.GOOGLE_CLIENT_ID,
+        scope: 'email profile openid',
+        callback: async (tokenRes: any) => {
+          if (tokenRes && tokenRes.access_token) {
+            try {
+              const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+                headers: { Authorization: `Bearer ${tokenRes.access_token}` },
+              });
+              const info = await res.json();
+              if (info && info.email) {
+                await handleGoogleLogin(info.email, info.name);
+                return;
+              }
+            } catch {
+              // fallback
+            }
+          }
+          handleGoogleLogin();
+        },
+      });
+      client.requestAccessToken();
+    } else if (window.google?.accounts?.id) {
+      window.google.accounts.id.prompt();
+    } else {
+      handleGoogleLogin();
     }
   };
 
@@ -196,6 +302,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
     }
   };
 
+  if (!isOpen) return null;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 animate-in fade-in duration-200">
       {/* Blurred Backdrop */}
@@ -295,32 +403,23 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
         {/* TAB 1: Google / Gmail 1-Click Login */}
         {tab === 'google' && (
           <div className="space-y-4 pt-1">
-            <div className="p-4 rounded-[22px] bg-white/[0.04] border border-white/10 text-center space-y-2">
-              <p className="text-xs text-white/70 leading-relaxed">
-                Masuk instan menggunakan akun Gmail tanpa perlu mengingat kata sandi.
+            <div className="p-4 rounded-[22px] bg-white/[0.04] border border-white/10 text-center space-y-1.5">
+              <p className="text-xs text-white/80 font-medium">
+                Masuk aman dengan akun Google resmi Anda.
+              </p>
+              <p className="text-[11px] text-white/40">
+                Client ID Google terkonfigurasi & tersinkronisasi otomatis.
               </p>
             </div>
 
-            {/* Quick Gmail input */}
-            <div className="space-y-1.5">
-              <label className="text-[11px] font-semibold text-white/70 block">
-                Alamat Email Gmail Anda
-              </label>
-              <div className="relative">
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="namaanda@gmail.com"
-                  className="w-full h-11 px-4 pl-10 rounded-full bg-white/[0.06] border border-white/15 text-sm text-white focus:outline-none focus:border-[#FFB224] transition-colors"
-                />
-                <Mail className="w-4 h-4 text-white/40 absolute left-3.5 top-3.5" />
-              </div>
+            {/* Official Google Identity Button Container */}
+            <div className="flex justify-center items-center min-h-12 w-full">
+              <div id="googleButtonContainer" className="flex justify-center w-full" />
             </div>
 
-            {/* Google Brand Button */}
+            {/* Custom Google Brand Button (Triggers Google OAuth Popup / One Tap) */}
             <button
-              onClick={() => handleGoogleLogin()}
+              onClick={() => triggerGoogleSignIn()}
               disabled={isLoading}
               className="w-full h-12 rounded-full bg-white hover:bg-zinc-100 text-[#1F1F1F] font-bold text-sm shadow-[0_8px_20px_rgba(255,255,255,0.15)] flex items-center justify-center gap-2.5 transition-all ios-spring cursor-pointer disabled:opacity-50"
             >
@@ -342,8 +441,35 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
                   d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
                 />
               </svg>
-              <span>{isLoading ? 'Menghubungkan...' : 'Masuk dengan Akun Google'}</span>
+              <span>{isLoading ? 'Menghubungkan Akun Google...' : 'Masuk dengan Akun Google'}</span>
             </button>
+
+            {/* Quick Email Alternative */}
+            <div className="pt-2 border-t border-white/10 space-y-2">
+              <label className="text-[11px] font-semibold text-white/50 block">
+                Atau masukkan alamat email Gmail secara manual:
+              </label>
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="namaanda@gmail.com"
+                    className="w-full h-10 px-3 pl-9 rounded-full bg-white/[0.06] border border-white/15 text-xs text-white focus:outline-none focus:border-[#FFB224] transition-colors"
+                  />
+                  <Mail className="w-3.5 h-3.5 text-white/40 absolute left-3 top-3" />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleGoogleLogin()}
+                  disabled={isLoading || !email.includes('@')}
+                  className="px-4 h-10 rounded-full bg-[#FFB224] hover:bg-[#FFA500] text-black text-xs font-bold disabled:opacity-30 cursor-pointer"
+                >
+                  Masuk
+                </button>
+              </div>
+            </div>
           </div>
         )}
 

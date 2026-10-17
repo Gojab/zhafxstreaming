@@ -172,8 +172,8 @@ export default async function handler(req: any, res: any) {
       },
     });
 
-    // Valid Gemini models
-    const modelsToTry = ['gemini-3.8-flash', 'gemini-flash-latest'];
+    // Valid Gemini models (compatible with all API key tiers)
+    const modelsToTry = ['gemini-2.5-flash', 'gemini-3.8-flash', 'gemini-2.0-flash', 'gemini-flash-latest'];
     const contents: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }> = [];
 
     if (Array.isArray(history)) {
