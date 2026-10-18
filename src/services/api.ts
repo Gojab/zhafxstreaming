@@ -954,59 +954,102 @@ export const api = {
 
     const queryStr = q.toString();
 
-    // 1. Try local serverless endpoint
+    // 1. Try local /api/anime/stream endpoint
     try {
       const streamUrl = `/api/anime/stream?${queryStr}`;
       const data = await fetchWithRetry<any>(streamUrl, { signal, ttlMs: 10 * 60 * 1000, useProxyFallback: false });
       if (data && data.success && Array.isArray(data.sources) && data.sources.length > 0) {
+        const directSources = data.sources.map((src: any) => {
+          let u = src.url || '';
+          if (u.startsWith('/')) {
+            u = `https://api.framextv.tech${u}`;
+          }
+          return {
+            ...src,
+            url: u,
+            rawUrl: src.rawUrl || u,
+          };
+        });
+
+        const directSubs = Array.isArray(data.subtitles)
+          ? data.subtitles.map((sub: any) => {
+              let u = sub.url || '';
+              if (u.startsWith('/')) {
+                u = `https://api.framextv.tech${u}`;
+              }
+              return {
+                ...sub,
+                url: u,
+              };
+            })
+          : [];
+
         return {
           success: true,
           provider: data.provider || 'grand_warden',
           server: data.server,
           audio: data.audio || 'sub',
-          sources: data.sources,
-          subtitles: data.subtitles || [],
+          sources: directSources,
+          subtitles: directSubs,
         };
       }
     } catch (e: any) {
       console.warn('[API] Local /api/anime/stream failed, attempting direct proxy fallback:', e?.message || e);
     }
 
-    // 2. Resilient failover via /api/proxy to FrameX backend
+    // 2. Resilient failover directly to FrameX upstream backends (works on Vercel serverless)
     const backends = ['https://api.framextv.tech', 'https://api.framextv.xyz'];
     for (const backend of backends) {
       try {
         const targetUrl = `${backend}/anime/api/stream?${queryStr}`;
-        const proxyUrl = `/api/proxy?url=${encodeURIComponent(targetUrl)}`;
-        const res = await fetch(proxyUrl, { signal });
-        if (res.ok) {
+        let res: Response | null = null;
+        try {
+          res = await fetch(targetUrl, { signal });
+        } catch {
+          const proxyUrl = `/api/proxy?url=${encodeURIComponent(targetUrl)}`;
+          res = await fetch(proxyUrl, { signal });
+        }
+
+        if (res && res.ok) {
           const data = await res.json();
           if (data && data.success && Array.isArray(data.sources) && data.sources.length > 0) {
-            const rewrittenSources = data.sources.map((src: any) => {
+            const resolvedSources = data.sources.map((src: any) => {
               let rawUrl = src.url || '';
-              const referer = src.headers?.Referer || src.headers?.referer || 'https://megaplay.buzz/';
               if (rawUrl.startsWith('/')) {
                 rawUrl = `${backend}${rawUrl}`;
               }
-              const proxied = `/api/anime/proxy?url=${encodeURIComponent(rawUrl)}&ref=${encodeURIComponent(referer)}`;
               return {
                 ...src,
-                url: proxied,
+                url: rawUrl,
                 rawUrl,
                 headers: {
-                  Referer: referer,
+                  Referer: src.headers?.Referer || src.headers?.referer || 'https://megaplay.buzz/',
                   Origin: 'https://megaplay.buzz',
                 },
               };
             });
+
+            const resolvedSubtitles = Array.isArray(data.subtitles)
+              ? data.subtitles.map((sub: any) => {
+                  let subUrl = sub.url || '';
+                  if (subUrl.startsWith('/')) {
+                    subUrl = `${backend}${subUrl}`;
+                  }
+                  return {
+                    ...sub,
+                    url: subUrl,
+                    rawUrl: subUrl,
+                  };
+                })
+              : [];
 
             return {
               success: true,
               provider: data.provider || 'grand_warden',
               server: data.server,
               audio: data.audio || audio || 'sub',
-              sources: rewrittenSources,
-              subtitles: data.subtitles || [],
+              sources: resolvedSources,
+              subtitles: resolvedSubtitles,
             };
           }
         }

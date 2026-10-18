@@ -124,6 +124,7 @@ export const PlayerPage: React.FC = () => {
       }
     };
     window.addEventListener('click', handleGlobalClick, true);
+    window.addEventListener('auxclick', handleGlobalClick, true);
 
     // Prevent frame-busting redirection of parent window
     let intentionalUnload = false;
@@ -138,6 +139,7 @@ export const PlayerPage: React.FC = () => {
       intentionalUnload = true;
       window.open = originalOpen;
       window.removeEventListener('click', handleGlobalClick, true);
+      window.removeEventListener('auxclick', handleGlobalClick, true);
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
   }, []);
@@ -1477,6 +1479,7 @@ export const PlayerPage: React.FC = () => {
             src={embedUrl}
             title={title?.title || 'Zhafx Stream'}
             onLoad={() => setIsIframeLoading(false)}
+            sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
             allow="autoplay; fullscreen; picture-in-picture; encrypted-media; gyroscope; accelerometer"
             allowFullScreen={true}
             referrerPolicy="origin"

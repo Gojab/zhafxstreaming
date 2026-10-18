@@ -25,6 +25,14 @@
       "destination": "/api/chat"
     },
     {
+      "source": "/api/anime/:action*",
+      "destination": "/api/anime/[action]?action=:action"
+    },
+    {
+      "source": "/api/auth/:action*",
+      "destination": "/api/auth/[action]?action=:action"
+    },
+    {
       "source": "/((?!api/|sitemap\\.xml|robots\\.txt|google[a-zA-Z0-9_-]+\\.html).*)",
       "destination": "/index.html"
     }

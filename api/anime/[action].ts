@@ -138,30 +138,24 @@ export default async function handler(req: any, res: any) {
       });
     }
 
+    // Provide direct high-speed CDN URLs (built-in Access-Control-Allow-Origin: *) with proxy fallback
     const rewrittenSources = finalData.sources.map((src: any) => {
       let rawUrl = src.url || '';
-      let referer = src.headers?.Referer || src.headers?.referer || 'https://megaplay.buzz/';
+      const referer = src.headers?.Referer || src.headers?.referer || 'https://megaplay.buzz/';
 
-      if (rawUrl.includes('/proxy?url=') || rawUrl.includes('url=')) {
-        try {
-          const parsedUrl = new URL(rawUrl.startsWith('http') ? rawUrl : `https://api.framextv.tech${rawUrl}`);
-          const realTarget = parsedUrl.searchParams.get('url');
-          const extractedRef = parsedUrl.searchParams.get('ref');
-          if (realTarget) rawUrl = realTarget;
-          if (extractedRef) referer = extractedRef;
-        } catch {
-          // ignore
-        }
-      } else if (rawUrl.startsWith('/')) {
-        rawUrl = `https://api.framextv.tech${rawUrl}`;
+      let directUrl = rawUrl;
+      if (directUrl.startsWith('/')) {
+        directUrl = `https://api.framextv.tech${directUrl}`;
       }
 
-      const proxiedUrl = `/api/anime/proxy?url=${encodeURIComponent(rawUrl)}&ref=${encodeURIComponent(referer)}`;
+      const proxiedUrl = `/api/anime/proxy?url=${encodeURIComponent(directUrl)}&ref=${encodeURIComponent(referer)}`;
 
       return {
         ...src,
-        url: proxiedUrl,
-        rawUrl,
+        url: directUrl,
+        directUrl,
+        proxiedUrl,
+        rawUrl: directUrl,
         headers: {
           Referer: referer,
           Origin: referer ? new URL(referer).origin : 'https://megaplay.buzz',
@@ -169,18 +163,11 @@ export default async function handler(req: any, res: any) {
       };
     });
 
+    // Resolve subtitles to direct CDN WebVTT with local fallback
     const rewrittenSubtitles = Array.isArray(finalData.subtitles)
       ? finalData.subtitles.map((sub: any) => {
           let subUrl = sub.url || '';
-          if (subUrl.includes('url=')) {
-            try {
-              const parsed = new URL(subUrl.startsWith('http') ? subUrl : `https://api.framextv.tech${subUrl}`);
-              const real = parsed.searchParams.get('url');
-              if (real) subUrl = real;
-            } catch {
-              // ignore
-            }
-          } else if (subUrl.startsWith('/')) {
+          if (subUrl.startsWith('/')) {
             subUrl = `https://api.framextv.tech${subUrl}`;
           }
 
@@ -188,7 +175,9 @@ export default async function handler(req: any, res: any) {
 
           return {
             ...sub,
-            url: proxiedSubUrl,
+            url: subUrl,
+            directUrl: subUrl,
+            proxiedUrl: proxiedSubUrl,
             rawUrl: subUrl,
           };
         })
