@@ -116,9 +116,20 @@ export const QuickFeaturesModal: React.FC<QuickFeaturesModalProps> = ({
         {user ? (
           <div className="p-3.5 rounded-[22px] bg-white/[0.06] border border-white/10 flex items-center justify-between gap-3">
             <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-9 h-9 rounded-full bg-white text-black font-bold text-sm flex items-center justify-center uppercase shadow-sm shrink-0">
-                {user.name?.charAt(0) || user.email?.charAt(0) || 'U'}
-              </div>
+              {user.avatar ? (
+                <img
+                  src={user.avatar}
+                  alt={user.name || 'User'}
+                  className="w-9 h-9 rounded-full object-cover border border-white/30 shrink-0"
+                  onError={(e) => {
+                    (e.currentTarget as HTMLElement).style.display = 'none';
+                  }}
+                />
+              ) : (
+                <div className="w-9 h-9 rounded-full bg-white text-black font-bold text-sm flex items-center justify-center uppercase shadow-sm shrink-0">
+                  {user.name?.charAt(0) || user.email?.charAt(0) || 'U'}
+                </div>
+              )}
               <div className="min-w-0">
                 <span className="text-xs font-bold text-white block truncate">{user.name}</span>
                 <span className="text-[10px] text-white/50 block truncate">{user.email}</span>

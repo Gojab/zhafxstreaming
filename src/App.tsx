@@ -11,7 +11,10 @@ import { LiquidBackground } from './components/LiquidBackground';
 import { QuickFeaturesModal } from './components/QuickFeaturesModal';
 import { AuthModal } from './components/AuthModal';
 import { ActiveMediaProvider } from './context/ActiveMediaContext';
-import { Analytics } from '@vercel/analytics/react';
+import { storage } from './lib/storage';
+
+// Stub for stripped @vercel/analytics
+const Analytics = () => null;
 
 import { HomePage } from './pages/HomePage';
 import { ExplorePage } from './pages/ExplorePage';
@@ -39,6 +42,28 @@ function AppLayout() {
       navigate(cleanPath, { replace: true });
     }
   }, [navigate]);
+
+  // Validate active session on mount
+  useEffect(() => {
+    const token = storage.getToken();
+    if (token) {
+      fetch('/api/auth/me', {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (data && data.success && data.user) {
+            storage.saveUser(data.user);
+          } else if (data && data.success === false) {
+            storage.removeToken();
+            storage.removeUser();
+          }
+        })
+        .catch(() => {
+          // Keep offline session
+        });
+    }
+  }, []);
 
   // Hide Navbar, BottomNav, and Footer in player mode for true cinematic fullscreen
   const isPlayerMode = location.pathname.startsWith('/watch');

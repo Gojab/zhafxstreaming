@@ -185,9 +185,11 @@ export default async function handler(req: any, res: any) {
 
   // 7. POST /api/auth/google-login
   if (action === 'google-login' || action === 'google_login' || action === 'google') {
-    const { email, name, credential, code, redirectUri } = body || {};
+    const { email, name, credential, code, redirectUri, avatar, googleId } = body || {};
     let verifiedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
     let verifiedName = typeof name === 'string' ? name.trim() : '';
+    let userAvatar = typeof avatar === 'string' ? avatar.trim() : undefined;
+    let userGoogleId = typeof googleId === 'string' ? googleId.trim() : undefined;
 
     const clientSecret = process.env.GOOGLE_CLIENT_SECRET || '';
     const clientId = process.env.VITE_GOOGLE_CLIENT_ID || '358715674309-hdh36g2l56bqv0rckcvcd4666kemh4sj.apps.googleusercontent.com';
@@ -217,6 +219,8 @@ export default async function handler(req: any, res: any) {
               if (userData.email) {
                 verifiedEmail = userData.email.toLowerCase();
                 verifiedName = userData.name || verifiedEmail.split('@')[0];
+                userAvatar = userData.picture || userAvatar;
+                userGoogleId = userData.sub || userGoogleId;
               }
             }
           }
@@ -226,7 +230,7 @@ export default async function handler(req: any, res: any) {
       }
     }
 
-    if (!verifiedEmail && credential && typeof credential === 'string') {
+    if (credential && typeof credential === 'string') {
       try {
         const verifyRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential)}`);
         if (verifyRes.ok) {
@@ -234,6 +238,8 @@ export default async function handler(req: any, res: any) {
           if (payload.email) {
             verifiedEmail = payload.email.toLowerCase();
             verifiedName = payload.name || verifiedEmail.split('@')[0];
+            userAvatar = payload.picture || userAvatar;
+            userGoogleId = payload.sub || userGoogleId;
           }
         }
       } catch {
@@ -250,6 +256,8 @@ export default async function handler(req: any, res: any) {
             if (parsed && parsed.email) {
               verifiedEmail = String(parsed.email).toLowerCase();
               verifiedName = parsed.name || verifiedEmail.split('@')[0];
+              userAvatar = parsed.picture || userAvatar;
+              userGoogleId = parsed.sub || userGoogleId;
             }
           }
         } catch {
@@ -259,12 +267,14 @@ export default async function handler(req: any, res: any) {
     }
 
     if (!verifiedEmail) {
-      return res.status(400).json({ success: false, error: 'Email Google atau kredensial tidak valid.' });
+      return res.status(400).json({ success: false, error: 'Email Google atau token kredensial tidak valid.' });
     }
 
     const result = await authenticateGoogleUser({
       email: verifiedEmail,
       name: verifiedName,
+      avatar: userAvatar,
+      googleId: userGoogleId,
     });
 
     return res.status(200).json({

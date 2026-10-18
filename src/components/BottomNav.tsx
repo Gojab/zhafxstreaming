@@ -79,9 +79,20 @@ export const BottomNav: React.FC<BottomNavProps> = ({ onOpenAI, onOpenFeatures, 
           className="flex flex-col items-center justify-center gap-0.5 px-2.5 py-1.5 rounded-full text-[10px] font-medium text-white/80 active:scale-90 transition-transform ios-spring cursor-pointer"
         >
           {user ? (
-            <div className="w-6 h-6 rounded-full bg-white text-black font-bold text-[10px] flex items-center justify-center uppercase shadow-sm">
-              {user.name?.charAt(0) || 'U'}
-            </div>
+            user.avatar ? (
+              <img
+                src={user.avatar}
+                alt={user.name || 'User'}
+                className="w-6 h-6 rounded-full object-cover border border-white/30 shadow-sm"
+                onError={(e) => {
+                  (e.currentTarget as HTMLElement).style.display = 'none';
+                }}
+              />
+            ) : (
+              <div className="w-6 h-6 rounded-full bg-white text-black font-bold text-[10px] flex items-center justify-center uppercase shadow-sm">
+                {user.name?.charAt(0) || 'U'}
+              </div>
+            )
           ) : (
             <div className="w-6 h-6 rounded-full bg-white/[0.12] border border-white/20 flex items-center justify-center shadow-inner text-white">
               <Sparkles className="w-3.5 h-3.5" />

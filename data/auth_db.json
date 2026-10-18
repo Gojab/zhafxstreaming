@@ -43,6 +43,22 @@
       "email": "tweetbyzhafran@gmail.com",
       "isEmailVerified": true,
       "joinedAt": 1792316187989
+    },
+    {
+      "id": "usr_1792319529753_0b3ec684",
+      "name": "Zhafran Faisal",
+      "username": "zhafranfaisal1",
+      "email": "zhafranfaisal1@gmail.com",
+      "isEmailVerified": true,
+      "joinedAt": 1792319529753
+    },
+    {
+      "id": "usr_1792319563273_c8de022d",
+      "name": "Other User",
+      "username": "otheruser",
+      "email": "otheruser@gmail.com",
+      "isEmailVerified": true,
+      "joinedAt": 1792319563273
     }
   ],
   "sessions": [
@@ -75,6 +91,24 @@
       "userId": "usr_1792316187989_9dc51c0d",
       "createdAt": 1792316187989,
       "expiresAt": 1794908187989
+    },
+    {
+      "token": "e5d385af30eb8054fef98917a12366d53105548513f8f9098bf48801d1a0d372",
+      "userId": "usr_1792319529753_0b3ec684",
+      "createdAt": 1792319529753,
+      "expiresAt": 1794911529753
+    },
+    {
+      "token": "6e937733e8ce940f191435c13d9bbdc0228589312cdb97807180f7244f65822f",
+      "userId": "usr_1792319529753_0b3ec684",
+      "createdAt": 1792319555612,
+      "expiresAt": 1794911555612
+    },
+    {
+      "token": "6532ef6d4ef888f0d38e97f2e8534ff0dc6f777d5663c44f28ce526c0a7ba869",
+      "userId": "usr_1792319563273_c8de022d",
+      "createdAt": 1792319563273,
+      "expiresAt": 1794911563273
     }
   ],
   "otps": []

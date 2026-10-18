@@ -171,9 +171,20 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAI, onOpenFeatures, onOpen
                 onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
                 className="flex items-center gap-1.5 pl-2 pr-2.5 sm:px-3 py-1 rounded-full liquid-glass hover:bg-white/[0.16] border border-white/20 text-white text-xs transition-all cursor-pointer h-9 ios-spring"
               >
-                <div className="w-6 h-6 rounded-full bg-white text-black font-bold text-[11px] flex items-center justify-center uppercase shadow-sm">
-                  {user.name?.charAt(0) || user.email?.charAt(0) || 'U'}
-                </div>
+                {user.avatar ? (
+                  <img
+                    src={user.avatar}
+                    alt={user.name || 'User'}
+                    className="w-6 h-6 rounded-full object-cover border border-white/30"
+                    onError={(e) => {
+                      (e.currentTarget as HTMLElement).style.display = 'none';
+                    }}
+                  />
+                ) : (
+                  <div className="w-6 h-6 rounded-full bg-white text-black font-bold text-[11px] flex items-center justify-center uppercase shadow-sm">
+                    {user.name?.charAt(0) || user.email?.charAt(0) || 'U'}
+                  </div>
+                )}
                 <span className="hidden md:inline font-semibold text-[12px] max-w-[90px] truncate">
                   {user.name?.split(' ')[0] || 'Akun'}
                 </span>

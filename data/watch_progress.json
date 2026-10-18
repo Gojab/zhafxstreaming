@@ -1,0 +1,16 @@
+[
+  {
+    "id": "usr_1792319529753_0b3ec684_123_s1_e1",
+    "userId": "usr_1792319529753_0b3ec684",
+    "contentId": "123",
+    "mediaType": "movie",
+    "title": "Interstellar",
+    "poster": "",
+    "year": "",
+    "currentTime": 500,
+    "duration": 1000,
+    "progressPercentage": 50,
+    "lastWatchedAt": 1792319555634,
+    "completed": false
+  }
+]

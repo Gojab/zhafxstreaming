@@ -784,15 +784,17 @@ app.post('/api/auth/logout', (req: Request, res: Response) => {
 // Google / Gmail Direct 1-Click Login
 app.post('/api/auth/google-login', async (req: Request, res: Response) => {
   try {
-    const { email, name, credential, code, redirectUri } = req.body || {};
+    const { email, name, credential, code, redirectUri, avatar, googleId } = req.body || {};
 
     let cleanEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
     let cleanName = typeof name === 'string' ? name.trim() : '';
+    let userAvatar = typeof avatar === 'string' ? avatar.trim() : undefined;
+    let userGoogleId = typeof googleId === 'string' ? googleId.trim() : undefined;
 
     const clientSecret = process.env.GOOGLE_CLIENT_SECRET || '';
     const clientId = process.env.VITE_GOOGLE_CLIENT_ID || '358715674309-hdh36g2l56bqv0rckcvcd4666kemh4sj.apps.googleusercontent.com';
 
-    // Verify code with client secret if present
+    // 1. Verify Google Authorization Code if provided
     if (code && clientSecret) {
       try {
         const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
@@ -817,16 +819,19 @@ app.post('/api/auth/google-login', async (req: Request, res: Response) => {
               if (userData.email) {
                 cleanEmail = userData.email.toLowerCase();
                 cleanName = userData.name || cleanEmail.split('@')[0];
+                userAvatar = userData.picture || userAvatar;
+                userGoogleId = userData.sub || userGoogleId;
               }
             }
           }
         }
-      } catch {
-        // silent
+      } catch (err: any) {
+        console.warn('[Google Auth Code Warning]:', err?.message || err);
       }
     }
 
-    if (!cleanEmail && credential && typeof credential === 'string') {
+    // 2. Verify Google Credential (JWT ID Token) if provided
+    if (credential && typeof credential === 'string') {
       try {
         const verifyRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential)}`);
         if (verifyRes.ok) {
@@ -834,10 +839,14 @@ app.post('/api/auth/google-login', async (req: Request, res: Response) => {
           if (payload.email) {
             cleanEmail = payload.email.toLowerCase();
             cleanName = payload.name || cleanEmail.split('@')[0];
+            userAvatar = payload.picture || userAvatar;
+            userGoogleId = payload.sub || userGoogleId;
           }
+        } else {
+          console.warn('[Google Auth] tokeninfo check returned non-200, attempting token payload extraction');
         }
-      } catch {
-        // silent
+      } catch (err: any) {
+        console.warn('[Google Auth] tokeninfo fetch error:', err?.message || err);
       }
 
       // Safe JWT payload fallback if tokeninfo network fails
@@ -850,6 +859,8 @@ app.post('/api/auth/google-login', async (req: Request, res: Response) => {
             if (parsed && parsed.email) {
               cleanEmail = String(parsed.email).toLowerCase();
               cleanName = parsed.name || cleanEmail.split('@')[0];
+              userAvatar = parsed.picture || userAvatar;
+              userGoogleId = parsed.sub || userGoogleId;
             }
           }
         } catch {
@@ -859,12 +870,14 @@ app.post('/api/auth/google-login', async (req: Request, res: Response) => {
     }
 
     if (!cleanEmail) {
-      return res.status(400).json({ success: false, error: 'Email Google wajib diisi.' });
+      return res.status(400).json({ success: false, error: 'Email Google atau token kredensial tidak valid.' });
     }
 
     const result = await authenticateGoogleUser({
       email: cleanEmail,
       name: cleanName,
+      avatar: userAvatar,
+      googleId: userGoogleId,
     });
 
     return res.status(200).json({
@@ -875,7 +888,7 @@ app.post('/api/auth/google-login', async (req: Request, res: Response) => {
     });
   } catch (err: any) {
     console.error('[Google Auth Error]:', err);
-    return res.status(500).json({ success: false, error: 'Gagal memproses autentikasi Google.' });
+    return res.status(500).json({ success: false, error: 'Gagal memproses autentikasi Google. Silakan coba kembali.' });
   }
 });
 

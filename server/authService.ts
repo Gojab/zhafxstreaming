@@ -720,6 +720,7 @@ export async function authenticateGoogleUser(params: {
   email: string;
   name?: string;
   googleId?: string;
+  avatar?: string;
 }): Promise<{
   success: boolean;
   token: string;
@@ -744,6 +745,7 @@ export async function authenticateGoogleUser(params: {
       name: cleanName,
       username: finalUsername,
       email: cleanEmail,
+      avatar: params.avatar,
       isEmailVerified: true,
       joinedAt: Date.now(),
       googleId: params.googleId,
@@ -751,8 +753,14 @@ export async function authenticateGoogleUser(params: {
     db.users.push(user);
   } else {
     user.isEmailVerified = true;
+    if (params.name && params.name.trim().length > 1) {
+      user.name = params.name.trim();
+    }
     if (params.googleId && !user.googleId) {
       user.googleId = params.googleId;
+    }
+    if (params.avatar) {
+      user.avatar = params.avatar;
     }
   }
 
@@ -774,6 +782,7 @@ export async function authenticateGoogleUser(params: {
       name: user.name,
       username: user.username,
       email: user.email,
+      avatar: user.avatar,
       isEmailVerified: user.isEmailVerified,
       joinedAt: user.joinedAt,
     },
@@ -795,6 +804,7 @@ export function getUserByToken(token: string): Omit<StoredUser, 'passwordHash'> 
     name: user.name,
     username: user.username,
     email: user.email,
+    avatar: user.avatar,
     isEmailVerified: user.isEmailVerified,
     joinedAt: user.joinedAt,
   };
