@@ -1155,6 +1155,38 @@ app.post('/api/progress/clear', (req: Request, res: Response) => {
   }
 });
 
+// Serve Sitemap for Google Search Console & Search Crawlers
+app.get('/sitemap.xml', (_req: Request, res: Response) => {
+  const publicSitemapPath = path.resolve(__dirname, 'public', 'sitemap.xml');
+  const distSitemapPath = path.resolve(__dirname, 'dist', 'sitemap.xml');
+  const targetPath = fs.existsSync(publicSitemapPath) ? publicSitemapPath : distSitemapPath;
+
+  res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+  if (fs.existsSync(targetPath)) {
+    return res.sendFile(targetPath);
+  }
+  return res.status(404).send('Sitemap not found');
+});
+
+// Serve Robots.txt
+app.get('/robots.txt', (_req: Request, res: Response) => {
+  const publicRobotsPath = path.resolve(__dirname, 'public', 'robots.txt');
+  const distRobotsPath = path.resolve(__dirname, 'dist', 'robots.txt');
+  const targetPath = fs.existsSync(publicRobotsPath) ? publicRobotsPath : distRobotsPath;
+
+  res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+  if (fs.existsSync(targetPath)) {
+    return res.sendFile(targetPath);
+  }
+  return res.send("User-agent: *\nAllow: /\nDisallow: /api/\n\nSitemap: https://zhafx.vercel.app/sitemap.xml\n");
+});
+
+// Serve Google Search Console Verification File
+app.get('/google4f8019285e68db73.html', (_req: Request, res: Response) => {
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  return res.send('google-site-verification: google4f8019285e68db73.html\n');
+});
+
 // Setup Vite middleware in dev or static files in prod
 async function startServer() {
   const isProd = process.env.NODE_ENV === 'production';

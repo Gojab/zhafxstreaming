@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+
+# Sitemap location for Google Search Console & search crawlers
+Sitemap: https://zhafx.vercel.app/sitemap.xml
