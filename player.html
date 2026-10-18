@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Zhafx Player</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+  iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+</style>
+</head>
+<body>
+<script>
+  // Pembungkus embed FrameX. Halaman ini dimuat di dalam iframe ber-sandbox
+  // (tanpa allow-popups), jadi iframe di bawah ini ikut mewarisi blokir popup.
+  (function () {
+    var ALLOWED_HOSTS = ['framextv.xyz'];
+    var raw = new URLSearchParams(location.search).get('u') || '';
+    var url;
+    try { url = new URL(raw); } catch (e) { return; }
+    var ok = url.protocol === 'https:' &&
+             ALLOWED_HOSTS.indexOf(url.hostname) !== -1 &&
+             url.pathname.indexOf('/embed/') === 0;
+    if (!ok) return;
+
+    var f = document.createElement('iframe');
+    f.src = url.href;
+    f.allow = 'autoplay; fullscreen; picture-in-picture; encrypted-media; gyroscope; accelerometer';
+    f.allowFullscreen = true;
+    f.referrerPolicy = 'origin';
+    document.body.appendChild(f);
+  })();
+</script>
+</body>
+</html>
