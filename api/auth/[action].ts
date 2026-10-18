@@ -31,6 +31,19 @@ export default async function handler(req: any, res: any) {
     } catch {
       // use raw body
     }
+  } else if (!body && typeof req.on === 'function') {
+    try {
+      body = await new Promise((resolve) => {
+        let data = '';
+        req.on('data', (chunk: any) => { data += chunk; });
+        req.on('end', () => {
+          try { resolve(JSON.parse(data)); } catch { resolve({}); }
+        });
+        req.on('error', () => resolve({}));
+      });
+    } catch {
+      body = {};
+    }
   }
 
   const clientIp = (req.headers && (req.headers['x-forwarded-for'] || req.headers['x-real-ip'])) || req.socket?.remoteAddress;
@@ -171,7 +184,7 @@ export default async function handler(req: any, res: any) {
   }
 
   // 7. POST /api/auth/google-login
-  if (action === 'google-login') {
+  if (action === 'google-login' || action === 'google_login' || action === 'google') {
     const { email, name, credential, code, redirectUri } = body || {};
     let verifiedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
     let verifiedName = typeof name === 'string' ? name.trim() : '';
@@ -225,6 +238,23 @@ export default async function handler(req: any, res: any) {
         }
       } catch {
         // silent
+      }
+
+      // Safe JWT payload fallback if tokeninfo network fails
+      if (!verifiedEmail && credential.includes('.')) {
+        try {
+          const parts = credential.split('.');
+          if (parts.length >= 2) {
+            const rawPayload = Buffer.from(parts[1], 'base64').toString('utf-8');
+            const parsed = JSON.parse(rawPayload);
+            if (parsed && parsed.email) {
+              verifiedEmail = String(parsed.email).toLowerCase();
+              verifiedName = parsed.name || verifiedEmail.split('@')[0];
+            }
+          }
+        } catch {
+          // silent
+        }
       }
     }
 

@@ -6,7 +6,8 @@
       "username": "budisantoso",
       "email": "budi@example.com",
       "passwordHash": "c2a02f35c4d28f9fe350723e56bcf1ea:1128fa71816afa8b2368e3dde3293becc8bddf07a6e77b52f2ffe012b4507f7072b69a8e7e1a1f7ad08979458472e080fc1d9b6f501d0a5346d0a6ed643a480c",
-      "joinedAt": 1791971970861
+      "joinedAt": 1791971970861,
+      "isEmailVerified": true
     },
     {
       "id": "usr_1791972316166_6bda0ee4",
@@ -14,7 +15,8 @@
       "username": "ahmadfauzi",
       "email": "ahmad@example.com",
       "passwordHash": "c5c273d127ecf3b54c0b221fdb41af92:5e57ee004854cf5ef9cc57726ebc2fe11a381fc056b515f9fa60725170eadb0c57e4edf8bbb0663b85ca30c1152577a736c4b71054f11c98b3fa079593e4991a",
-      "joinedAt": 1791972316264
+      "joinedAt": 1791972316264,
+      "isEmailVerified": true
     },
     {
       "id": "usr_1792234489285_3ec1e8ff",
@@ -22,7 +24,8 @@
       "username": "gojabmanagement01",
       "email": "gojabmanagement01@gmail.com",
       "passwordHash": "bcd39a585a8420046113aef571b3d574:7f6994f94baaabbeede5df0c8272f963092ce2a1a820ae9f0959932e1faf1cf903d008453810839206686b9b80c15af881d1194daa2a60fc040910d96b06ac64",
-      "joinedAt": 1792234489362
+      "joinedAt": 1792234489362,
+      "isEmailVerified": true
     },
     {
       "id": "usr_1792241466119_32fa53f7",
@@ -30,7 +33,16 @@
       "username": "test",
       "email": "test@gmail.com",
       "passwordHash": "a0d91e52f59d5e995010f76625521bc5:f7fc22657cc45f8074212efe1caf040459ed0e2ab627f2203401651f500c90bec8cf71bc22dbe8e5e0f1a0b986c83f7afc76e4bbf9e3a1dff10201765c1e4e8c",
-      "joinedAt": 1792241466202
+      "joinedAt": 1792241466202,
+      "isEmailVerified": true
+    },
+    {
+      "id": "usr_1792316187989_9dc51c0d",
+      "name": "Zhafran",
+      "username": "tweetbyzhafran",
+      "email": "tweetbyzhafran@gmail.com",
+      "isEmailVerified": true,
+      "joinedAt": 1792316187989
     }
   ],
   "sessions": [
@@ -57,6 +69,13 @@
       "userId": "usr_1792241466119_32fa53f7",
       "createdAt": 1792241466202,
       "expiresAt": 1794833466202
+    },
+    {
+      "token": "b2bcf4f7498e876bf10aebe0c360e0a7123feef5dc6a935a882b573e2f40d9f1",
+      "userId": "usr_1792316187989_9dc51c0d",
+      "createdAt": 1792316187989,
+      "expiresAt": 1794908187989
     }
-  ]
+  ],
+  "otps": []
 }

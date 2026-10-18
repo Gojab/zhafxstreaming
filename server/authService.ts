@@ -3,8 +3,14 @@ import fs from 'fs';
 import path from 'path';
 
 // Persistent Auth DB path
-const DATA_DIR = path.resolve(process.cwd(), 'data');
-const AUTH_DB_PATH = path.resolve(DATA_DIR, 'auth_db.json');
+let memoryAuthDb: AuthDb | null = null;
+
+function getDbPaths() {
+  const isVercel = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+  const dataDir = isVercel ? path.resolve('/tmp') : path.resolve(process.cwd(), 'data');
+  const dbPath = path.resolve(dataDir, 'auth_db.json');
+  return { dataDir, dbPath };
+}
 
 export interface StoredUser {
   id: string;
@@ -42,30 +48,37 @@ export interface AuthDb {
 }
 
 export function initAuthDb(): AuthDb {
-  if (!fs.existsSync(DATA_DIR)) {
+  if (memoryAuthDb) {
+    return memoryAuthDb;
+  }
+
+  const { dataDir, dbPath } = getDbPaths();
+
+  if (!fs.existsSync(dataDir)) {
     try {
-      fs.mkdirSync(DATA_DIR, { recursive: true });
+      fs.mkdirSync(dataDir, { recursive: true });
     } catch {
       // ignore
     }
   }
 
-  if (!fs.existsSync(AUTH_DB_PATH)) {
+  if (!fs.existsSync(dbPath)) {
     const initialDb: AuthDb = {
       users: [],
       sessions: [],
       otps: [],
     };
     try {
-      fs.writeFileSync(AUTH_DB_PATH, JSON.stringify(initialDb, null, 2), 'utf-8');
+      fs.writeFileSync(dbPath, JSON.stringify(initialDb, null, 2), 'utf-8');
     } catch {
       // ignore
     }
+    memoryAuthDb = initialDb;
     return initialDb;
   }
 
   try {
-    const raw = fs.readFileSync(AUTH_DB_PATH, 'utf-8');
+    const raw = fs.readFileSync(dbPath, 'utf-8');
     const parsed = JSON.parse(raw);
     const users: StoredUser[] = Array.isArray(parsed.users)
       ? parsed.users.map((u: any) => ({
@@ -79,16 +92,18 @@ export function initAuthDb(): AuthDb {
       : [];
     const otps: StoredOtp[] = Array.isArray(parsed.otps) ? parsed.otps : [];
 
-    return {
+    memoryAuthDb = {
       users,
       sessions,
       otps,
     };
+    return memoryAuthDb;
   } catch (e) {
     console.error('[Auth DB] Error reading database, recreating fallback state:', e);
     const fallbackDb: AuthDb = { users: [], sessions: [], otps: [] };
+    memoryAuthDb = fallbackDb;
     try {
-      fs.writeFileSync(AUTH_DB_PATH, JSON.stringify(fallbackDb, null, 2), 'utf-8');
+      fs.writeFileSync(dbPath, JSON.stringify(fallbackDb, null, 2), 'utf-8');
     } catch {
       // ignore
     }
@@ -101,15 +116,22 @@ export function readAuthDb(): AuthDb {
 }
 
 export function writeAuthDb(db: AuthDb): void {
+  memoryAuthDb = db;
+  const { dataDir, dbPath } = getDbPaths();
   try {
-    if (!fs.existsSync(DATA_DIR)) {
-      fs.mkdirSync(DATA_DIR, { recursive: true });
+    if (!fs.existsSync(dataDir)) {
+      fs.mkdirSync(dataDir, { recursive: true });
     }
-    const tempPath = `${AUTH_DB_PATH}.tmp`;
+    const tempPath = `${dbPath}.tmp`;
     fs.writeFileSync(tempPath, JSON.stringify(db, null, 2), 'utf-8');
-    fs.renameSync(tempPath, AUTH_DB_PATH);
+    fs.renameSync(tempPath, dbPath);
   } catch (e) {
-    console.error('[Auth DB] Failed to save database:', e);
+    try {
+      const fallbackPath = path.resolve('/tmp', 'auth_db.json');
+      fs.writeFileSync(fallbackPath, JSON.stringify(db, null, 2), 'utf-8');
+    } catch {
+      console.warn('[Auth DB] Kept state in memory cache.');
+    }
   }
 }
 

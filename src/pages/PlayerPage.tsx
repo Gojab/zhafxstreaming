@@ -101,15 +101,44 @@ export const PlayerPage: React.FC = () => {
   const controlsTimeoutRef = useRef<any>(null);
   const progressBarRef = useRef<HTMLDivElement | null>(null);
 
-  // Prevent mobile popups and rogue window.open ad redirection
+  // Comprehensive anti-ad and anti-popup protection (blocks popups, frame-busting, and new tab ad triggers)
   useEffect(() => {
     const originalOpen = window.open;
-    window.open = function () {
-      console.warn('[Zhafx Player] Blocked popup / new tab ad attempt on mobile.');
+    window.open = function (...args: any[]) {
+      console.warn('[Zhafx Player] Blocked popup / new tab ad attempt:', args);
       return null;
     };
+
+    // Prevent external ad anchors from opening in new tabs
+    const handleGlobalClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const anchor = target?.closest?.('a');
+      if (anchor) {
+        const href = anchor.getAttribute('href') || '';
+        const targetAttr = anchor.getAttribute('target');
+        if (targetAttr === '_blank' || (href.startsWith('http') && !href.includes(window.location.hostname))) {
+          e.preventDefault();
+          e.stopPropagation();
+          console.warn('[Zhafx Player] Blocked rogue ad anchor redirection:', href);
+        }
+      }
+    };
+    window.addEventListener('click', handleGlobalClick, true);
+
+    // Prevent frame-busting redirection of parent window
+    let intentionalUnload = false;
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (!intentionalUnload) {
+        // Suppress unauthorized window navigation
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
     return () => {
+      intentionalUnload = true;
       window.open = originalOpen;
+      window.removeEventListener('click', handleGlobalClick, true);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
     };
   }, []);
 
@@ -1451,7 +1480,6 @@ export const PlayerPage: React.FC = () => {
             allow="autoplay; fullscreen; picture-in-picture; encrypted-media; gyroscope; accelerometer"
             allowFullScreen={true}
             referrerPolicy="origin"
-            sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
             // @ts-ignore
             webkitallowfullscreen="true"
             // @ts-ignore

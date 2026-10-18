@@ -11,6 +11,7 @@ import { LiquidBackground } from './components/LiquidBackground';
 import { QuickFeaturesModal } from './components/QuickFeaturesModal';
 import { AuthModal } from './components/AuthModal';
 import { ActiveMediaProvider } from './context/ActiveMediaContext';
+import { Analytics } from '@vercel/analytics/react';
 
 import { HomePage } from './pages/HomePage';
 import { ExplorePage } from './pages/ExplorePage';
@@ -114,6 +115,9 @@ function AppLayout() {
         isOpen={isAuthOpen}
         onClose={() => setIsAuthOpen(false)}
       />
+
+      {/* Vercel Web Analytics */}
+      <Analytics />
     </div>
   );
 }

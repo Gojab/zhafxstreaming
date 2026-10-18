@@ -1125,6 +1125,7 @@ export const api = {
       q.set('sub_type', audio || 'sub');
       q.set('autoplay', autoplay ? '1' : '0');
       q.set('muted', muted ? '1' : '0');
+      q.set('sandbox', '0');
       if (server && server !== 'auto' && server !== 'direct_stream' && server !== 'framex') {
         q.set('provider', server);
       }

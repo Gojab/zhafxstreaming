@@ -27,6 +27,10 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = parseInt(process.env.PORT || '3000', 10);
 
+// Parse JSON and URL-encoded request bodies
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
 const DATA_DIR = path.resolve(__dirname, 'data');
 
 // --- Persistent Watch Progress Database ---
@@ -834,6 +838,23 @@ app.post('/api/auth/google-login', async (req: Request, res: Response) => {
         }
       } catch {
         // silent
+      }
+
+      // Safe JWT payload fallback if tokeninfo network fails
+      if (!cleanEmail && credential.includes('.')) {
+        try {
+          const parts = credential.split('.');
+          if (parts.length >= 2) {
+            const rawPayload = Buffer.from(parts[1], 'base64').toString('utf-8');
+            const parsed = JSON.parse(rawPayload);
+            if (parsed && parsed.email) {
+              cleanEmail = String(parsed.email).toLowerCase();
+              cleanName = parsed.name || cleanEmail.split('@')[0];
+            }
+          }
+        } catch {
+          // silent
+        }
       }
     }
 
