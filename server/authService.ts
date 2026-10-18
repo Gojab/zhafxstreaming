@@ -1,13 +1,9 @@
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 // Persistent Auth DB path
-const DATA_DIR = path.resolve(__dirname, '../../data');
+const DATA_DIR = path.resolve(process.cwd(), 'data');
 const AUTH_DB_PATH = path.resolve(DATA_DIR, 'auth_db.json');
 
 export interface StoredUser {
@@ -142,9 +138,6 @@ export function hashOtp(email: string, otp: string): string {
     .digest('hex');
 }
 
-/**
- * Masks an email for display: zhafranfaisal103@gmail.com -> zhaf***@gmail.com
- */
 export function maskEmail(email: string): string {
   const [local, domain] = email.trim().toLowerCase().split('@');
   if (!domain) return email;
@@ -154,10 +147,6 @@ export function maskEmail(email: string): string {
   return `${local.slice(0, 4)}***@${domain}`;
 }
 
-/**
- * Sends a real transactional verification email with 6-digit OTP code via Resend.
- * Fails with an informative message if RESEND_API_KEY is not configured.
- */
 export async function sendTransactionalOtpEmail(params: {
   toEmail: string;
   name?: string;
@@ -344,10 +333,6 @@ export async function sendTransactionalOtpEmail(params: {
   }
 }
 
-/**
- * Creates or updates an OTP request for an email, with 60s cooldown,
- * max 5 attempts, rate limiting, and 5-min validity.
- */
 export async function createAndSendOtp(params: {
   email: string;
   name?: string;
@@ -367,7 +352,6 @@ export async function createAndSendOtp(params: {
   const db = readAuthDb();
   const now = Date.now();
 
-  // Rate Limiting 1: Cooldown 60s
   const existingOtp = db.otps.find((o) => o.email === cleanEmail && !o.used);
   if (existingOtp && now - existingOtp.createdAt < 60 * 1000) {
     const remainingSeconds = Math.ceil((60 * 1000 - (now - existingOtp.createdAt)) / 1000);
@@ -379,7 +363,6 @@ export async function createAndSendOtp(params: {
     };
   }
 
-  // Rate Limiting 2: Max 5 OTP requests per hour per email
   const oneHourAgo = now - 60 * 60 * 1000;
   const recentCount = db.otps.filter((o) => o.email === cleanEmail && o.createdAt > oneHourAgo).length;
   if (recentCount >= 6) {
@@ -389,12 +372,10 @@ export async function createAndSendOtp(params: {
     };
   }
 
-  // Generate cryptographically secure 6-digit OTP
   const otpCode = crypto.randomInt(100000, 1000000).toString();
   const otpHash = hashOtp(cleanEmail, otpCode);
-  const expiresAt = now + 5 * 60 * 1000; // 5 minutes
+  const expiresAt = now + 5 * 60 * 1000;
 
-  // Send real email via Resend
   const emailResult = await sendTransactionalOtpEmail({
     toEmail: cleanEmail,
     name: params.name,
@@ -408,10 +389,8 @@ export async function createAndSendOtp(params: {
     };
   }
 
-  // Invalidate any older OTPs for this email
   db.otps = db.otps.filter((o) => o.email !== cleanEmail);
 
-  // Store hashed OTP
   db.otps.push({
     email: cleanEmail,
     otpHash,
@@ -431,10 +410,6 @@ export async function createAndSendOtp(params: {
   };
 }
 
-/**
- * Verifies an OTP code, enforcing expiry, max 5 attempts, and one-time use.
- * Returns or creates the user and a 30-day session token.
- */
 export async function verifyOtpAndAuthenticate(params: {
   email: string;
   code: string;
@@ -496,10 +471,8 @@ export async function verifyOtpAndAuthenticate(params: {
     };
   }
 
-  // OTP is valid! Mark as consumed
   otpRecord.used = true;
 
-  // Find or create user
   let user = db.users.find((u) => u.email.toLowerCase() === cleanEmail);
   const displayName = params.name?.trim() || cleanEmail.split('@')[0];
 
@@ -520,14 +493,12 @@ export async function verifyOtpAndAuthenticate(params: {
     };
     db.users.push(user);
   } else {
-    // Mark email as verified
     user.isEmailVerified = true;
     if (params.name && params.name.trim().length > 1) {
       user.name = params.name.trim();
     }
   }
 
-  // Generate 30-day session token
   const token = crypto.randomBytes(32).toString('hex');
   const session: StoredSession = {
     token,
@@ -554,9 +525,6 @@ export async function verifyOtpAndAuthenticate(params: {
   };
 }
 
-/**
- * Registers user with email & password, requiring email OTP verification before activation.
- */
 export async function registerWithPassword(params: {
   name?: string;
   email: string;
@@ -612,14 +580,12 @@ export async function registerWithPassword(params: {
     };
     db.users.push(user);
   } else {
-    // Update unverified user's credentials
     user.name = cleanName;
     user.passwordHash = passwordHash;
   }
 
   writeAuthDb(db);
 
-  // Send verification OTP to email
   const otpResult = await createAndSendOtp({
     email: cleanEmail,
     name: cleanName,
@@ -641,9 +607,6 @@ export async function registerWithPassword(params: {
   };
 }
 
-/**
- * Logs in with email/username and password. If unverified, instructs to verify email first.
- */
 export async function loginWithPassword(params: {
   login: string;
   password: string;
@@ -689,9 +652,7 @@ export async function loginWithPassword(params: {
     };
   }
 
-  // Check email verification status
   if (!user.isEmailVerified) {
-    // Send fresh OTP
     await createAndSendOtp({
       email: user.email,
       name: user.name,
@@ -707,7 +668,6 @@ export async function loginWithPassword(params: {
     };
   }
 
-  // Create session
   const durationMs = params.rememberMe ? 30 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
   const token = crypto.randomBytes(32).toString('hex');
   const session: StoredSession = {
@@ -734,9 +694,6 @@ export async function loginWithPassword(params: {
   };
 }
 
-/**
- * Handles Google Login with account linking
- */
 export async function authenticateGoogleUser(params: {
   email: string;
   name?: string;
@@ -771,7 +728,6 @@ export async function authenticateGoogleUser(params: {
     };
     db.users.push(user);
   } else {
-    // Existing user logs in via Google: mark verified & link googleId
     user.isEmailVerified = true;
     if (params.googleId && !user.googleId) {
       user.googleId = params.googleId;
@@ -803,9 +759,6 @@ export async function authenticateGoogleUser(params: {
   };
 }
 
-/**
- * Gets user by auth token
- */
 export function getUserByToken(token: string): Omit<StoredUser, 'passwordHash'> | null {
   if (!token) return null;
   const db = readAuthDb();

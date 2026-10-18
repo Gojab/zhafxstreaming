@@ -43,16 +43,12 @@ export const AI_MODELS: ModelProvider[] = [
   { id: 'openrouter_deepseek', name: 'OpenRouter DeepSeek Free', type: 'openrouter', modelId: 'deepseek/deepseek-r1:free' },
 ];
 
-/**
- * Extracts titles from freeform AI markdown to create interactive picks if model forgot <picks>
- */
 export function extractFallbackPicks(text: string, contextTitle?: any): Array<{ title: string; type: string; year: string }> {
   const picks: Array<{ title: string; type: string; year: string }> = [];
   const boldMatches = text.match(/\*\*([^*]+)\*\*/g) || [];
 
   for (const b of boldMatches) {
     const raw = b.replace(/\*\*/g, '').trim();
-    // Exclude common headings
     if (
       raw.length > 2 &&
       raw.length < 40 &&
@@ -80,9 +76,6 @@ export function extractFallbackPicks(text: string, contextTitle?: any): Array<{ 
   return picks;
 }
 
-/**
- * Dynamic Query-Aware Generator when completely offline or all 16 remote APIs fail
- */
 export function generateDynamicContextualAI(message: string, contextTitle?: any): { text: string; picks: Array<{ title: string; type: string; year: string }> } {
   const lower = (message || '').toLowerCase();
   let text = '';
@@ -177,10 +170,6 @@ Berikut beberapa karya masterpiece yang sedang populer dan sangat direkomendasik
   return { text, picks };
 }
 
-/**
- * Cascading Multi-Provider AI Generator.
- * Tries each of the 16 models in sequence with strict timeouts.
- */
 export async function executeMultiModelChat(
   params: {
     message: string;
@@ -197,7 +186,6 @@ export async function executeMultiModelChat(
     userPrompt = `[Konteks Tayangan saat ini: ${contextTitle.title} (${contextTitle.year || 'N/A'}, Tipe: ${contextTitle.type || 'Media'}, Sinopsis: ${contextTitle.overview || 'Tidak ada'})]\n\nPertanyaan pengguna: ${message}`;
   }
 
-  // Format messages
   const chatMessages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
     { role: 'system', content: SYSTEM_INSTRUCTION },
   ];
@@ -272,7 +260,6 @@ export async function executeMultiModelChat(
           }
 
           if (hasOutput) {
-            // Check if <picks> tag was included
             if (!fullText.includes('<picks>')) {
               const picks = extractFallbackPicks(fullText, contextTitle);
               if (picks.length > 0) {
@@ -290,7 +277,7 @@ export async function executeMultiModelChat(
     }
   }
 
-  // 2. Try Free Public Cloud LLM Endpoints (Pollinations AI Multi-Model Suite)
+  // 2. Try Free Public Cloud LLM Endpoints
   const freeModels = ['openai', 'deepseek', 'mistral', 'llama', 'qwen', 'gemini', 'searchgpt'];
 
   for (const fModel of freeModels) {
@@ -318,7 +305,6 @@ export async function executeMultiModelChat(
       if (response.ok) {
         const text = await response.text();
         if (text && text.trim().length > 10) {
-          // Stream in small natural words chunks to client
           const words = text.split(' ');
           for (let i = 0; i < words.length; i += 3) {
             const slice = words.slice(i, i + 3).join(' ') + ' ';
@@ -386,7 +372,7 @@ export async function executeMultiModelChat(
     }
   }
 
-  // 4. Ultimate Resilient Dynamic Engine (Always succeeds)
+  // 4. Dynamic Contextual Generator
   const dynamic = generateDynamicContextualAI(message, contextTitle);
   const words = dynamic.text.split(' ');
   for (let i = 0; i < words.length; i += 3) {

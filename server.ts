@@ -16,8 +16,8 @@ import {
   StoredUser,
   StoredSession,
   AuthDb,
-} from './api/auth/service';
-import { executeMultiModelChat } from './api/ai/pipeline';
+} from './server/authService';
+import { executeMultiModelChat } from './server/aiPipeline';
 
 dotenv.config();
 
