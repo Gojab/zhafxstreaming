@@ -656,8 +656,8 @@ app.post('/api/auth/register', async (req: Request, res: Response) => {
 
     return res.status(201).json({
       success: true,
-      requiresVerification: true,
-      maskedEmail: result.maskedEmail,
+      token: result.token,
+      user: result.user,
       message: result.message,
     });
   } catch (err: any) {
@@ -684,15 +684,6 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
     });
 
     if (!result.success) {
-      if (result.requiresVerification) {
-        return res.status(403).json({
-          success: false,
-          requiresVerification: true,
-          email: result.email,
-          maskedEmail: result.maskedEmail,
-          error: result.error,
-        });
-      }
       return res.status(401).json({
         success: false,
         error: result.error,

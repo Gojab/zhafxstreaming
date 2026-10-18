@@ -1479,7 +1479,6 @@ export const PlayerPage: React.FC = () => {
             src={embedUrl}
             title={title?.title || 'Zhafx Stream'}
             onLoad={() => setIsIframeLoading(false)}
-            sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
             allow="autoplay; fullscreen; picture-in-picture; encrypted-media; gyroscope; accelerometer"
             allowFullScreen={true}
             referrerPolicy="origin"

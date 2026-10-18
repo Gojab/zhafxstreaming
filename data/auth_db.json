@@ -59,6 +59,33 @@
       "email": "otheruser@gmail.com",
       "isEmailVerified": true,
       "joinedAt": 1792319563273
+    },
+    {
+      "id": "usr_1792330640162_87a0bc5c",
+      "name": "zhafran",
+      "username": "zhafranfaisal103",
+      "email": "zhafranfaisal103@gmail.com",
+      "passwordHash": "b42262ce3e209206c5c42da457940e1c:cf821337b91e244f8430d9e7c405f36c59ab70e0cb70d5c66c725a54ac6920fdeef1593fe26275b82202e23c75e9344dee58a3a3818724f3ea00e96aaea1d936",
+      "isEmailVerified": false,
+      "joinedAt": 1792330640162
+    },
+    {
+      "id": "usr_1792331787312_47a249d6",
+      "name": "User Test",
+      "username": "testuser99",
+      "email": "testuser99@gmail.com",
+      "passwordHash": "fb12347bc7f1e215266f046289c39d49:036ce86cf5aca71e52ede49bcdd55a2c4b6f1dff7358b4dcb789b0a1d450e1164ba6afb3925959736b82190570faffda7436f79f5c0a371da2bc62f91480c1a4",
+      "isEmailVerified": true,
+      "joinedAt": 1792331787312
+    },
+    {
+      "id": "usr_1792331814914_aa71d16d",
+      "name": "Aisyah Putri",
+      "username": "aisyahputri12",
+      "email": "aisyahputri12@gmail.com",
+      "passwordHash": "8b39140eb6009bac9d59b3e8f75ba8ab:d20ad2d74bd2208254181cdcfb00a56d0e2f7d15ea219f4d3f826fa476a26da7fa78ea0631cb6568d8f8ec0bd1852c4dbd70096f008ee691627eb77c37ea6a21",
+      "isEmailVerified": true,
+      "joinedAt": 1792331814914
     }
   ],
   "sessions": [
@@ -109,6 +136,18 @@
       "userId": "usr_1792319563273_c8de022d",
       "createdAt": 1792319563273,
       "expiresAt": 1794911563273
+    },
+    {
+      "token": "41d738e292c8df62ccd17b0fb4ca25aa5ad8cb82d1b15208d489b217917a33f3",
+      "userId": "usr_1792331787312_47a249d6",
+      "createdAt": 1792331806511,
+      "expiresAt": 1792418206511
+    },
+    {
+      "token": "ce159a363758e4c252f3f5705752696901d4adf7e4936e9a26ff1e90d4644191",
+      "userId": "usr_1792331814914_aa71d16d",
+      "createdAt": 1792331814914,
+      "expiresAt": 1794923814914
     }
   ],
   "otps": []

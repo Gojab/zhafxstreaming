@@ -555,8 +555,8 @@ export async function registerWithPassword(params: {
 }): Promise<{
   success: boolean;
   error?: string;
-  requiresVerification?: boolean;
-  maskedEmail?: string;
+  token?: string;
+  user?: Omit<StoredUser, 'passwordHash'>;
   message?: string;
 }> {
   const cleanEmail = params.email.trim().toLowerCase();
@@ -573,59 +573,57 @@ export async function registerWithPassword(params: {
   }
 
   const db = readAuthDb();
-  let user = db.users.find((u) => u.email.toLowerCase() === cleanEmail);
+  const existingUser = db.users.find((u) => u.email.toLowerCase() === cleanEmail);
 
-  if (user && user.isEmailVerified) {
+  if (existingUser) {
     return {
       success: false,
-      error: 'Email ini sudah terdaftar dan terverifikasi. Silakan masuk menggunakan kata sandi Anda.',
+      error: 'Email ini sudah terdaftar. Silakan langsung masuk menggunakan kata sandi Anda.',
     };
   }
 
   const passwordHash = hashPassword(cleanPassword);
-
-  if (!user) {
-    const baseUsername = cleanEmail.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '');
-    let finalUsername = baseUsername || `user_${Date.now().toString(36)}`;
-    if (db.users.some((u) => u.username.toLowerCase() === finalUsername.toLowerCase())) {
-      finalUsername = `${finalUsername}_${Math.floor(Math.random() * 900 + 100)}`;
-    }
-
-    user = {
-      id: `usr_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
-      name: cleanName,
-      username: finalUsername,
-      email: cleanEmail,
-      passwordHash,
-      isEmailVerified: false,
-      joinedAt: Date.now(),
-    };
-    db.users.push(user);
-  } else {
-    user.name = cleanName;
-    user.passwordHash = passwordHash;
+  const baseUsername = cleanEmail.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '');
+  let finalUsername = baseUsername || `user_${Date.now().toString(36)}`;
+  if (db.users.some((u) => u.username.toLowerCase() === finalUsername.toLowerCase())) {
+    finalUsername = `${finalUsername}_${Math.floor(Math.random() * 900 + 100)}`;
   }
+
+  const newUser: StoredUser = {
+    id: `usr_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
+    name: cleanName,
+    username: finalUsername,
+    email: cleanEmail,
+    passwordHash,
+    isEmailVerified: true,
+    joinedAt: Date.now(),
+  };
+  db.users.push(newUser);
+
+  // Generate instant session token
+  const token = crypto.randomBytes(32).toString('hex');
+  const session: StoredSession = {
+    token,
+    userId: newUser.id,
+    createdAt: Date.now(),
+    expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000,
+  };
+  db.sessions.push(session);
 
   writeAuthDb(db);
 
-  const otpResult = await createAndSendOtp({
-    email: cleanEmail,
-    name: cleanName,
-    ip: params.ip,
-  });
-
-  if (!otpResult.success) {
-    return {
-      success: false,
-      error: otpResult.error,
-    };
-  }
-
   return {
     success: true,
-    requiresVerification: true,
-    maskedEmail: maskEmail(cleanEmail),
-    message: 'Verifikasi email diperlukan. Kami telah mengirimkan kode verifikasi ke alamat email Anda.',
+    token,
+    user: {
+      id: newUser.id,
+      name: newUser.name,
+      username: newUser.username,
+      email: newUser.email,
+      isEmailVerified: true,
+      joinedAt: newUser.joinedAt,
+    },
+    message: `Pendaftaran berhasil! Selamat datang di Zhafx, ${newUser.name}.`,
   };
 }
 
@@ -639,9 +637,6 @@ export async function loginWithPassword(params: {
   error?: string;
   token?: string;
   user?: Omit<StoredUser, 'passwordHash'>;
-  requiresVerification?: boolean;
-  email?: string;
-  maskedEmail?: string;
   message?: string;
 }> {
   const rawLogin = (params.login || '').trim().toLowerCase();
@@ -674,21 +669,7 @@ export async function loginWithPassword(params: {
     };
   }
 
-  if (!user.isEmailVerified) {
-    await createAndSendOtp({
-      email: user.email,
-      name: user.name,
-      ip: params.ip,
-    });
-
-    return {
-      success: false,
-      requiresVerification: true,
-      email: user.email,
-      maskedEmail: maskEmail(user.email),
-      error: 'Akun Anda belum terverifikasi. Kami telah mengirimkan kode verifikasi ke email Anda.',
-    };
-  }
+  user.isEmailVerified = true;
 
   const durationMs = params.rememberMe ? 30 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
   const token = crypto.randomBytes(32).toString('hex');
@@ -709,10 +690,10 @@ export async function loginWithPassword(params: {
       name: user.name,
       username: user.username,
       email: user.email,
-      isEmailVerified: user.isEmailVerified,
+      isEmailVerified: true,
       joinedAt: user.joinedAt,
     },
-    message: `Berhasil masuk ke akun ZhafxStreaming! Selamat datang, ${user.name}.`,
+    message: `Berhasil masuk! Selamat datang kembali, ${user.name}.`,
   };
 }
 

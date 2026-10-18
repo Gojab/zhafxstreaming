@@ -7,10 +7,8 @@ import {
   CheckCircle2,
   AlertCircle,
   ArrowRight,
-  KeyRound,
   ShieldCheck,
   RotateCw,
-  Edit2,
   Sparkles,
 } from 'lucide-react';
 import { storage } from '../lib/storage';
@@ -71,13 +69,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [verificationCode, setVerificationCode] = useState('');
-  const [otpSent, setOtpSent] = useState(false);
-  const [maskedEmail, setMaskedEmail] = useState('');
-
-  // Countdown timer for resend
-  const [countdown, setCountdown] = useState(0);
-  const countdownIntervalRef = useRef<any>(null);
 
   // Status
   const [isLoading, setIsLoading] = useState(false);
@@ -97,18 +88,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
-
-  // Countdown timer management
-  useEffect(() => {
-    if (countdown > 0) {
-      countdownIntervalRef.current = setTimeout(() => {
-        setCountdown((c) => c - 1);
-      }, 1000);
-    }
-    return () => {
-      if (countdownIntervalRef.current) clearTimeout(countdownIntervalRef.current);
-    };
-  }, [countdown]);
 
   const handleFinishAuth = (user: User, token: string, msg: string) => {
     storage.saveToken(token);
@@ -296,97 +275,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
     await handleGoogleAuthBackend({ email: cleanEmail, name: cleanName });
   };
 
-  // Request Email OTP Verification Code for standard Email tab
-  const handleSendOtp = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    const cleanEmail = email.trim().toLowerCase();
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-    if (!cleanEmail || !emailRegex.test(cleanEmail)) {
-      setError('Masukkan alamat email yang valid (contoh: namaanda@gmail.com).');
-      return;
-    }
-
-    setIsLoading(true);
-    setError(null);
-    setSuccessMessage(null);
-
-    try {
-      const res = await fetch('/api/auth/send-verification-code', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: cleanEmail,
-          name: name.trim() || undefined,
-        }),
-      });
-      const data = await safeJsonParse(res);
-
-      if (res.ok && data?.success) {
-        setOtpSent(true);
-        setMaskedEmail(data.maskedEmail || maskEmailClient(cleanEmail));
-        setCountdown(data.cooldownSeconds || 60);
-        setSuccessMessage(
-          'Verifikasi email diperlukan. Kami telah mengirimkan kode verifikasi ke alamat email kamu. Silakan periksa kotak masuk Gmail, termasuk folder Spam atau Promosi, kemudian masukkan kode untuk melanjutkan pendaftaran.'
-        );
-        setIsLoading(false);
-      } else {
-        setError(
-          data?.error ||
-            'Gagal mengirim kode verifikasi ke email Anda. Harap periksa kembali alamat email atau pastikan konfigurasi email di server sudah benar.'
-        );
-        setIsLoading(false);
-      }
-    } catch (err: any) {
-      setError(err?.message || 'Terjadi gangguan jaringan saat meminta kode verifikasi.');
-      setIsLoading(false);
-    }
-  };
-
-  // Verify OTP Code and Log In (Email Tab)
-  const handleVerifyOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const cleanCode = verificationCode.trim();
-
-    if (!cleanCode || cleanCode.length !== 6) {
-      setError('Masukkan kode verifikasi 6-digit lengkap yang Anda terima di email.');
-      return;
-    }
-
-    setIsLoading(true);
-    setError(null);
-    setSuccessMessage(null);
-
-    try {
-      const res = await fetch('/api/auth/verify-code', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: email.trim().toLowerCase(),
-          code: cleanCode,
-          name: name.trim() || undefined,
-        }),
-      });
-      const data = await safeJsonParse(res);
-
-      if (res.ok && data?.success && data.user) {
-        handleFinishAuth(
-          data.user,
-          data.token,
-          data.message || `Verifikasi email berhasil! Selamat datang, ${data.user.name}.`
-        );
-        return;
-      }
-
-      setError(data?.error || 'Kode verifikasi tidak sesuai atau telah kedaluwarsa.');
-      setIsLoading(false);
-    } catch (err: any) {
-      setError(err?.message || 'Gagal memverifikasi kode.');
-      setIsLoading(false);
-    }
-  };
-
-  // Standard Password Login / Register
+  // Direct Password Login / Register (Instant, no OTP email code needed)
   const handlePasswordAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -410,20 +299,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
         handleFinishAuth(
           data.user,
           data.token,
-          isRegister ? 'Pendaftaran berhasil! Selamat datang di ZhafxStreaming.' : 'Berhasil masuk akun!'
+          isRegister
+            ? `Pendaftaran berhasil! Selamat datang, ${data.user.name}.`
+            : `Berhasil masuk! Selamat datang kembali, ${data.user.name}.`
         );
-        return;
-      }
-
-      if (data && (data.requiresVerification || res.status === 403)) {
-        setOtpSent(true);
-        setMaskedEmail(data.maskedEmail || maskEmailClient(email));
-        setCountdown(60);
-        setSuccessMessage(
-          data.message ||
-            'Verifikasi email diperlukan. Kami telah mengirimkan kode verifikasi ke alamat email kamu. Silakan periksa kotak masuk Gmail, termasuk folder Spam atau Promosi, kemudian masukkan kode untuk melanjutkan.'
-        );
-        setIsLoading(false);
         return;
       }
 
@@ -645,177 +524,94 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
         {/* TAB 2: Email & Kata Sandi */}
         {tab === 'email' && (
           <div className="space-y-4 pt-1">
-            {otpSent ? (
-              <form onSubmit={handleVerifyOtp} className="space-y-3.5">
-                <div className="p-3.5 rounded-[20px] bg-white/[0.06] border border-white/15 text-xs space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <span className="text-white/60 text-[11px]">Email Tujuan:</span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setOtpSent(false);
-                        setVerificationCode('');
-                        setError(null);
-                        setSuccessMessage(null);
-                      }}
-                      className="text-[11px] text-white/80 hover:text-white flex items-center gap-1 cursor-pointer underline"
-                    >
-                      <Edit2 className="w-3 h-3" />
-                      <span>Ganti Alamat Email</span>
-                    </button>
-                  </div>
-                  <p className="text-sm font-mono font-bold text-white tracking-wide">
-                    {maskedEmail || maskEmailClient(email)}
-                  </p>
-                  <p className="text-[10px] text-white/45">
-                    Kode verifikasi 6-digit telah dikirim ke kotak masuk Anda. Berlaku selama 5 menit. Periksa folder <strong>Spam</strong> atau <strong>Promosi</strong> jika tidak ada di kotak masuk utama.
-                  </p>
-                </div>
-
+            <form onSubmit={handlePasswordAuth} className="space-y-3.5">
+              {isRegister && (
                 <div className="space-y-1.5">
-                  <label className="text-[11px] font-semibold text-white/70 block">
-                    Masukkan Kode OTP 6-Digit
-                  </label>
+                  <label className="text-[11px] font-semibold text-white/70 block">Nama Lengkap</label>
                   <div className="relative">
                     <input
                       type="text"
-                      maxLength={6}
                       required
-                      autoFocus
-                      value={verificationCode}
-                      onChange={(e) => setVerificationCode(e.target.value.replace(/[^0-9]/g, ''))}
-                      placeholder="123456"
-                      className="w-full h-12 px-4 pl-10 rounded-full bg-white/[0.06] border border-white/20 text-center font-mono text-lg tracking-[8px] text-white focus:outline-none focus:border-white transition-colors"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="Nama Lengkap Anda"
+                      className="w-full h-11 px-4 pl-10 rounded-full bg-white/[0.06] border border-white/15 text-sm text-white focus:outline-none focus:border-white transition-colors placeholder:text-white/30"
                     />
-                    <KeyRound className="w-4 h-4 text-white/40 absolute left-3.5 top-4" />
+                    <UserIcon className="w-4 h-4 text-white/40 absolute left-3.5 top-3.5" />
                   </div>
                 </div>
+              )}
 
-                <button
-                  type="submit"
-                  disabled={isLoading || verificationCode.length < 6}
-                  className="w-full h-11 rounded-full bg-white hover:bg-zinc-200 text-black font-bold text-sm shadow-md flex items-center justify-center gap-2 transition-all ios-spring cursor-pointer disabled:opacity-40"
-                >
-                  {isLoading ? (
-                    <>
-                      <RotateCw className="w-4 h-4 animate-spin text-black" />
-                      <span>Memverifikasi...</span>
-                    </>
-                  ) : (
-                    <>
-                      <span>Verifikasi Email & Masuk</span>
-                      <CheckCircle2 className="w-4 h-4 text-black" />
-                    </>
-                  )}
-                </button>
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-semibold text-white/70 block">
+                  {isRegister ? 'Alamat Email' : 'Email atau Nama Pengguna'}
+                </label>
+                <div className="relative">
+                  <input
+                    type={isRegister ? 'email' : 'text'}
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder={isRegister ? 'namaanda@gmail.com' : 'user@gmail.com'}
+                    className="w-full h-11 px-4 pl-10 rounded-full bg-white/[0.06] border border-white/15 text-sm text-white focus:outline-none focus:border-white transition-colors placeholder:text-white/30"
+                  />
+                  <Mail className="w-4 h-4 text-white/40 absolute left-3.5 top-3.5" />
+                </div>
+              </div>
 
-                <div className="pt-2 flex flex-col items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleSendOtp()}
-                    disabled={countdown > 0 || isLoading}
-                    className="text-xs text-white/70 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center gap-1.5"
-                  >
-                    <RotateCw className={`w-3.5 h-3.5 ${countdown > 0 ? 'opacity-40' : ''}`} />
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-semibold text-white/70 block">Kata Sandi</label>
+                <div className="relative">
+                  <input
+                    type="password"
+                    required
+                    minLength={6}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Minimal 6 karakter"
+                    className="w-full h-11 px-4 pl-10 rounded-full bg-white/[0.06] border border-white/15 text-sm text-white focus:outline-none focus:border-white transition-colors placeholder:text-white/30"
+                  />
+                  <Lock className="w-4 h-4 text-white/40 absolute left-3.5 top-3.5" />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full h-11 rounded-full bg-white hover:bg-zinc-200 text-black font-bold text-sm shadow-md flex items-center justify-center gap-2 transition-all ios-spring cursor-pointer disabled:opacity-50"
+              >
+                {isLoading ? (
+                  <>
+                    <RotateCw className="w-4 h-4 animate-spin text-black" />
+                    <span>Memproses...</span>
+                  </>
+                ) : (
+                  <>
                     <span>
-                      {countdown > 0
-                        ? `Kirim Ulang Kode (${countdown}s)`
-                        : 'Kirim Ulang Kode Verifikasi'}
+                      {isRegister
+                        ? 'Daftar Akun Sekarang'
+                        : 'Masuk Akun'}
                     </span>
-                  </button>
-                </div>
-              </form>
-            ) : (
-              <form onSubmit={handlePasswordAuth} className="space-y-3.5">
-                {isRegister && (
-                  <div className="space-y-1.5">
-                    <label className="text-[11px] font-semibold text-white/70 block">Nama Lengkap</label>
-                    <div className="relative">
-                      <input
-                        type="text"
-                        required
-                        value={name}
-                        onChange={(e) => setName(e.target.value)}
-                        placeholder="Nama Lengkap Anda"
-                        className="w-full h-11 px-4 pl-10 rounded-full bg-white/[0.06] border border-white/15 text-sm text-white focus:outline-none focus:border-white transition-colors placeholder:text-white/30"
-                      />
-                      <UserIcon className="w-4 h-4 text-white/40 absolute left-3.5 top-3.5" />
-                    </div>
-                  </div>
+                    <ArrowRight className="w-4 h-4 text-black" />
+                  </>
                 )}
+              </button>
 
-                <div className="space-y-1.5">
-                  <label className="text-[11px] font-semibold text-white/70 block">
-                    {isRegister ? 'Alamat Email' : 'Email atau Nama Pengguna'}
-                  </label>
-                  <div className="relative">
-                    <input
-                      type={isRegister ? 'email' : 'text'}
-                      required
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder={isRegister ? 'namaanda@gmail.com' : 'user@gmail.com'}
-                      className="w-full h-11 px-4 pl-10 rounded-full bg-white/[0.06] border border-white/15 text-sm text-white focus:outline-none focus:border-white transition-colors placeholder:text-white/30"
-                    />
-                    <Mail className="w-4 h-4 text-white/40 absolute left-3.5 top-3.5" />
-                  </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-[11px] font-semibold text-white/70 block">Kata Sandi</label>
-                  <div className="relative">
-                    <input
-                      type="password"
-                      required
-                      minLength={6}
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="Minimal 6 karakter"
-                      className="w-full h-11 px-4 pl-10 rounded-full bg-white/[0.06] border border-white/15 text-sm text-white focus:outline-none focus:border-white transition-colors placeholder:text-white/30"
-                    />
-                    <Lock className="w-4 h-4 text-white/40 absolute left-3.5 top-3.5" />
-                  </div>
-                </div>
-
+              <div className="pt-1 text-center">
                 <button
-                  type="submit"
-                  disabled={isLoading}
-                  className="w-full h-11 rounded-full bg-white hover:bg-zinc-200 text-black font-bold text-sm shadow-md flex items-center justify-center gap-2 transition-all ios-spring cursor-pointer disabled:opacity-50"
+                  type="button"
+                  onClick={() => {
+                    setIsRegister(!isRegister);
+                    setError(null);
+                  }}
+                  className="text-xs text-white/80 hover:text-white underline cursor-pointer"
                 >
-                  {isLoading ? (
-                    <>
-                      <RotateCw className="w-4 h-4 animate-spin text-black" />
-                      <span>{isRegister ? 'Mengirim Kode Verifikasi...' : 'Memproses...'}</span>
-                    </>
-                  ) : (
-                    <>
-                      <span>
-                        {isRegister
-                          ? 'Daftar & Kirim Kode Verifikasi'
-                          : 'Masuk Akun'}
-                      </span>
-                      <ArrowRight className="w-4 h-4 text-black" />
-                    </>
-                  )}
+                  {isRegister
+                    ? 'Sudah punya akun? Masuk di sini'
+                    : 'Belum punya akun? Daftar gratis'}
                 </button>
-
-                <div className="pt-1 text-center">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsRegister(!isRegister);
-                      setError(null);
-                      setOtpSent(false);
-                    }}
-                    className="text-xs text-white/80 hover:text-white underline cursor-pointer"
-                  >
-                    {isRegister
-                      ? 'Sudah punya akun? Masuk di sini'
-                      : 'Belum punya akun? Daftar gratis'}
-                  </button>
-                </div>
-              </form>
-            )}
+              </div>
+            </form>
           </div>
         )}
 
