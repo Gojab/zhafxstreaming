@@ -67,6 +67,14 @@ export const PlayerPage: React.FC = () => {
   const [animeStream, setAnimeStream] = useState<StreamData | null>(null);
   const [isLoadingAnime, setIsLoadingAnime] = useState(false);
   const [animeError, setAnimeError] = useState<string | null>(null);
+  const [failoverNotice, setFailoverNotice] = useState<string | null>(null);
+  const attemptedServersRef = useRef<Set<string>>(new Set());
+
+  // Reset attempted servers on episode or id or audio change
+  useEffect(() => {
+    attemptedServersRef.current.clear();
+    setFailoverNotice(null);
+  }, [id, episodeNum, animeAudio]);
 
   // Video playback controls state
   const [isPlaying, setIsPlaying] = useState(false);
@@ -286,6 +294,7 @@ export const PlayerPage: React.FC = () => {
       mediaType === 'anime'
         ? api.getAnimeStream({
             id,
+            title: title?.title || searchParams.get('title') || undefined,
             episode: episodeNum,
             provider: providerToRequest,
             audio: animeAudio,
@@ -300,11 +309,60 @@ export const PlayerPage: React.FC = () => {
             signal: controller.signal,
           });
 
+    const handleAutoFailover = (customErrMsg?: string) => {
+      if (mediaType === 'anime') {
+        const currentId = selectedServer === 'auto' ? 'grand_warden' : selectedServer;
+        attemptedServersRef.current.add(currentId);
+
+        // Candidate list from providers or default high-speed entities
+        const allCandidateIds =
+          providers.length > 0
+            ? providers.filter((p) => p.id !== 'auto' && p.id !== 'direct_stream').map((p) => p.id)
+            : (animeAudio === 'dub'
+                ? ['grand_warden_dub', 'wizard_dub', 'valkyrie_dub', 'goblin_dub', 'dragon_dub', 'archer_dub']
+                : ['grand_warden', 'wizard', 'super_pekka', 'giant', 'valkyrie', 'goblin', 'dragon', 'archer']);
+
+        const unattempted = allCandidateIds.filter((pid) => !attemptedServersRef.current.has(pid));
+
+        if (unattempted.length > 0) {
+          const nextPid = unattempted[0];
+          attemptedServersRef.current.add(nextPid);
+          const foundProv = providers.find((p) => p.id === nextPid);
+          const nextName = foundProv ? foundProv.name : nextPid;
+          setFailoverNotice(`Server utama kosong, otomatis beralih ke ${nextName}...`);
+          setSelectedServer(nextPid);
+          return;
+        }
+
+        // All servers exhausted
+        setAnimeError(
+          customErrMsg ||
+            'Semua server HLS telah dicoba untuk episode ini. Silakan coba audio lain (SUB/DUB) atau muat ulang.'
+        );
+        setFailoverNotice(null);
+      } else {
+        // Seamless auto-failover to official FrameX Embed mode for non-anime
+        setPlayerMode('embed');
+        setAnimeError(null);
+      }
+    };
+
     streamPromise
       .then((data) => {
         if (data && data.sources && data.sources.length > 0) {
           setAnimeStream(data);
           setAnimeError(null);
+
+          // If backend applied fallback or auto-routed to another working provider
+          if (data.fallbackApplied && data.provider) {
+            const foundProv = providers.find((p) => p.id === data.provider);
+            const serverName = foundProv ? foundProv.name : data.provider;
+            setFailoverNotice(`Server utama kosong, otomatis beralih ke ${serverName}`);
+            setSelectedServer(data.provider);
+            setTimeout(() => setFailoverNotice(null), 4000);
+          } else {
+            setFailoverNotice(null);
+          }
 
           // Subtitles processing
           if (Array.isArray(data.subtitles) && data.subtitles.length > 0) {
@@ -321,24 +379,12 @@ export const PlayerPage: React.FC = () => {
             setActiveSubtitleUrl(null);
           }
         } else {
-          if (mediaType === 'anime') {
-            setAnimeError('Stream anime tidak ditemukan di server ini. Silakan coba pilih server lain atau server otomatis.');
-          } else {
-            // Seamless auto-failover to official FrameX Embed mode for non-anime
-            setPlayerMode('embed');
-            setAnimeError(null);
-          }
+          handleAutoFailover();
         }
       })
       .catch((err) => {
         if (!controller.signal.aborted) {
-          if (mediaType === 'anime') {
-            setAnimeError(err?.message || 'Gagal memuat stream anime. Silakan ganti server atau coba lagi.');
-          } else {
-            // Seamless auto-failover to official FrameX Embed mode for non-anime
-            setPlayerMode('embed');
-            setAnimeError(null);
-          }
+          handleAutoFailover(err?.message);
         }
       })
       .finally(() => {
@@ -346,7 +392,7 @@ export const PlayerPage: React.FC = () => {
       });
 
     return () => controller.abort();
-  }, [id, mediaType, seasonNum, episodeNum, selectedServer, animeAudio, playerMode, iframeKey]);
+  }, [id, mediaType, seasonNum, episodeNum, selectedServer, animeAudio, playerMode, iframeKey, title]);
 
   // Setup HLS.js or Native Video on Stream Loaded
   useEffect(() => {
@@ -426,7 +472,25 @@ export const PlayerPage: React.FC = () => {
                 hls.startLoad();
               } else {
                 hls.destroy();
-                setAnimeError('Terjadi gangguan jaringan pemutar anime. Coba pilih server lain di atas.');
+                if (mediaType === 'anime') {
+                  const currentId = selectedServer === 'auto' ? (animeStream?.provider || 'grand_warden') : selectedServer;
+                  attemptedServersRef.current.add(currentId);
+                  const allCandidateIds = providers.length > 0
+                    ? providers.filter((p) => p.id !== 'auto' && p.id !== 'direct_stream').map((p) => p.id)
+                    : (animeAudio === 'dub'
+                        ? ['grand_warden_dub', 'wizard_dub', 'valkyrie_dub', 'goblin_dub', 'dragon_dub', 'archer_dub']
+                        : ['grand_warden', 'wizard', 'super_pekka', 'giant', 'valkyrie', 'goblin', 'dragon', 'archer']);
+                  const unattempted = allCandidateIds.filter((pid) => !attemptedServersRef.current.has(pid));
+                  if (unattempted.length > 0) {
+                    const nextPid = unattempted[0];
+                    attemptedServersRef.current.add(nextPid);
+                    const foundProv = providers.find((p) => p.id === nextPid);
+                    setFailoverNotice(`Gangguan koneksi stream, otomatis beralih ke ${foundProv ? foundProv.name : nextPid}...`);
+                    setSelectedServer(nextPid);
+                    return;
+                  }
+                }
+                setAnimeError('Terjadi gangguan jaringan pemutar anime. Semua server telah diuji.');
               }
               break;
           }
@@ -1112,6 +1176,14 @@ export const PlayerPage: React.FC = () => {
 
       {/* Main Viewport Container */}
       <div className="relative flex-1 w-full h-screen bg-black flex items-center justify-center overflow-hidden">
+        {/* Failover Toast Notice */}
+        {failoverNotice && (
+          <div className="absolute top-16 left-1/2 -translate-x-1/2 z-40 px-4 py-2 rounded-full liquid-glass border border-amber-500/40 text-amber-300 text-[11px] sm:text-xs font-semibold flex items-center gap-2 shadow-2xl backdrop-blur-md animate-fade-in pointer-events-none">
+            <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+            <span>{failoverNotice}</span>
+          </div>
+        )}
+
         {/* Loading Overlay */}
         {(isLoadingAnime || (playerMode === 'embed' && isIframeLoading)) && (
           <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-[#06070B] space-y-3 pointer-events-none px-4 text-center">
@@ -1139,6 +1211,7 @@ export const PlayerPage: React.FC = () => {
                 <>
                   <button
                     onClick={() => {
+                      attemptedServersRef.current.clear();
                       const available = providers.filter((p) => p.id !== 'auto' && p.id !== selectedServer);
                       if (available.length > 0) {
                         const nextProv = available[Math.floor(Math.random() * available.length)];
@@ -1155,6 +1228,19 @@ export const PlayerPage: React.FC = () => {
                   </button>
                   <button
                     onClick={() => {
+                      attemptedServersRef.current.clear();
+                      setAnimeAudio(animeAudio === 'sub' ? 'dub' : 'sub');
+                      setSelectedServer('auto');
+                      setIframeKey((k) => k + 1);
+                    }}
+                    className="px-4 py-2.5 rounded-full liquid-glass text-white text-xs font-semibold hover:bg-white/10 cursor-pointer ios-spring flex items-center gap-1.5"
+                  >
+                    <Volume2 className="w-3.5 h-3.5 text-white/80" />
+                    <span>Ganti ke {animeAudio === 'sub' ? 'DUB (Inggris)' : 'SUB (Jepang)'}</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      attemptedServersRef.current.clear();
                       setSelectedServer('auto');
                       setIframeKey((k) => k + 1);
                     }}
@@ -1163,7 +1249,10 @@ export const PlayerPage: React.FC = () => {
                     Server Otomatis
                   </button>
                   <button
-                    onClick={() => setIframeKey((k) => k + 1)}
+                    onClick={() => {
+                      attemptedServersRef.current.clear();
+                      setIframeKey((k) => k + 1);
+                    }}
                     className="px-4 py-2.5 rounded-full liquid-glass text-white text-xs font-semibold hover:bg-white/10 cursor-pointer ios-spring"
                   >
                     Coba Lagi

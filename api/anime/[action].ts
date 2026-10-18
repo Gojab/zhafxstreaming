@@ -53,15 +53,120 @@ export default async function handler(req: any, res: any) {
         { id: 'grand_warden_dub', name: 'ZHAFX ENTITY 002', tagline: 'Multi-Source Cloud Dub', audio: 'dub', category: 'anime' },
         { id: 'wizard', name: 'ZHAFX ENTITY 003', tagline: 'Dual Audio & Softsub', audio: 'sub', category: 'anime' },
         { id: 'wizard_dub', name: 'ZHAFX ENTITY 004', tagline: 'Dual Audio English Dub', audio: 'dub', category: 'anime' },
-        { id: 'valkyrie', name: 'ZHAFX ENTITY 005', tagline: 'FlixCloud HD', audio: 'sub', category: 'anime' },
-        { id: 'valkyrie_dub', name: 'ZHAFX ENTITY 006', tagline: 'FlixCloud HD Dub', audio: 'dub', category: 'anime' },
-        { id: 'super_pekka', name: 'ZHAFX ENTITY 007', tagline: 'Direct Fast CDN', audio: 'sub', category: 'anime' },
-        { id: 'dragon', name: 'ZHAFX ENTITY 008', tagline: 'VidNest Multi-Source', audio: 'sub', category: 'anime' },
-        { id: 'archer', name: 'ZHAFX ENTITY 009', tagline: 'Multi-Audio', audio: 'sub', category: 'anime' },
-        { id: 'giant', name: 'ZHAFX ENTITY 010', tagline: 'High Bitrate HD Stream', audio: 'sub', category: 'anime' },
+        { id: 'super_pekka', name: 'ZHAFX ENTITY 005', tagline: '1080p Ultra High Bitrate CDN', audio: 'sub', category: 'anime' },
+        { id: 'giant', name: 'ZHAFX ENTITY 006', tagline: 'High Bitrate HD Cloud Stream', audio: 'sub', category: 'anime' },
+        { id: 'valkyrie', name: 'ZHAFX ENTITY 007', tagline: 'FlixCloud HD Fast Stream', audio: 'sub', category: 'anime' },
+        { id: 'valkyrie_dub', name: 'ZHAFX ENTITY 008', tagline: 'FlixCloud HD Dub', audio: 'dub', category: 'anime' },
+        { id: 'goblin', name: 'ZHAFX ENTITY 009', tagline: 'Direct Fast Auto Stream', audio: 'sub', category: 'anime' },
+        { id: 'dragon', name: 'ZHAFX ENTITY 010', tagline: 'VidNest Multi-Source', audio: 'sub', category: 'anime' },
+        { id: 'archer', name: 'ZHAFX ENTITY 011', tagline: 'Multi-Audio Stream', audio: 'sub', category: 'anime' },
       ],
     });
   }
+
+  // Helper: Query AniList GraphQL to resolve anime title or external ID to AniList ID
+  const resolveAnimeId = async (targetId: string, searchTitle?: string): Promise<string | null> => {
+    const searchKey = searchTitle || (isNaN(Number(targetId)) ? targetId : null);
+    if (!searchKey) return null;
+    try {
+      const query = `query ($search: String) {
+        Media(search: $search, type: ANIME) { id }
+      }`;
+      const r = await fetch('https://graphql.anilist.co', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({ query, variables: { search: searchKey } }),
+        signal: AbortSignal.timeout(3500),
+      });
+      if (r.ok) {
+        const d = await r.json();
+        const resolved = d?.data?.Media?.id;
+        if (resolved) return String(resolved);
+      }
+    } catch {}
+    return null;
+  };
+
+  // Helper: Probe single upstream provider
+  const probeSingleProvider = async (
+    backend: string,
+    targetId: string,
+    episode: string,
+    prov: string,
+    audio: string,
+    timeoutMs = 3500
+  ): Promise<any> => {
+    const q = new URLSearchParams();
+    q.set('id', targetId);
+    q.set('episode', episode);
+    q.set('provider', prov);
+    q.set('audio', audio);
+
+    const targetUrl = `${backend}/anime/api/stream?${q.toString()}`;
+    const res = await fetch(targetUrl, {
+      signal: AbortSignal.timeout(timeoutMs),
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Referer': 'https://framextv.xyz/',
+        'Origin': 'https://framextv.xyz',
+        'Accept': 'application/json, text/plain, */*',
+      },
+    });
+
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    if (data && data.success && Array.isArray(data.sources) && data.sources.length > 0) {
+      return { ...data, provider: data.provider || prov };
+    }
+    throw new Error('No sources found');
+  };
+
+  // Helper: Cascading fast parallel probe across priority servers
+  const probeMultiProviders = async (
+    targetId: string,
+    episode: string,
+    audio: string,
+    preferredProvider?: string
+  ): Promise<any> => {
+    const backends = ['https://api.framextv.tech', 'https://api.framextv.xyz'];
+    const priorityList = audio === 'dub'
+      ? ['grand_warden_dub', 'wizard_dub', 'valkyrie_dub', 'goblin_dub', 'dragon_dub', 'archer_dub']
+      : ['grand_warden', 'wizard', 'super_pekka', 'giant', 'valkyrie', 'goblin', 'dragon', 'archer'];
+
+    // 1. Try specifically selected provider first
+    if (preferredProvider && preferredProvider !== 'auto' && preferredProvider !== 'direct_stream') {
+      for (const b of backends) {
+        try {
+          const directData = await probeSingleProvider(b, targetId, episode, preferredProvider, audio, 3800);
+          if (directData) return directData;
+        } catch {}
+      }
+    }
+
+    // 2. Cascading Fast Parallel Probe across candidate servers in chunks of 2
+    const candidateList = priorityList.filter(p => p !== preferredProvider);
+    for (let i = 0; i < candidateList.length; i += 2) {
+      const chunk = candidateList.slice(i, i + 2);
+      try {
+        const winner = await Promise.any(
+          chunk.map(p => probeSingleProvider(backends[0], targetId, episode, p, audio, 3500))
+        );
+        if (winner) return winner;
+      } catch {
+        // Chunk failed, continue to next pair
+      }
+    }
+
+    // 3. Fallback to secondary backend
+    for (const p of candidateList.slice(0, 3)) {
+      try {
+        const winner = await probeSingleProvider(backends[1], targetId, episode, p, audio, 3500);
+        if (winner) return winner;
+      } catch {}
+    }
+
+    return null;
+  };
 
   // 2. GET /api/anime/stream
   if (action === 'stream') {
@@ -69,74 +174,32 @@ export default async function handler(req: any, res: any) {
     const episode = req.query?.episode ? String(req.query.episode) : '1';
     const provider = (req.query?.provider as string) || '';
     const audio = (req.query?.audio as string) || 'sub';
+    const title = (req.query?.title as string) || '';
 
     if (!id) {
       return res.status(400).json({ success: false, error: 'ID anime wajib diisi.' });
     }
 
-    const priorityList =
-      audio === 'dub'
-        ? ['grand_warden_dub', 'wizard_dub', 'valkyrie_dub', 'archer_dub', 'dragon_dub']
-        : ['grand_warden', 'wizard', 'valkyrie', 'super_pekka', 'dragon', 'archer', 'giant'];
+    // Phase 1: Probe with requested ID
+    let finalData = await probeMultiProviders(id, episode, audio, provider);
 
-    const providersToAttempt: string[] = [];
-    if (provider && provider !== 'auto' && provider !== 'direct_stream') {
-      providersToAttempt.push(provider);
-    }
-    for (const p of priorityList) {
-      if (!providersToAttempt.includes(p)) {
-        providersToAttempt.push(p);
+    // Phase 2: If no sources found with raw ID, attempt AniList ID resolution via title or non-numeric ID
+    if (!finalData) {
+      const resolvedId = await resolveAnimeId(id, title);
+      if (resolvedId && resolvedId !== id) {
+        finalData = await probeMultiProviders(resolvedId, episode, audio, provider);
       }
-    }
-
-    const backends = ['https://api.framextv.tech', 'https://api.framextv.xyz'];
-    let finalData: any = null;
-    let lastError: string = '';
-
-    for (const p of providersToAttempt) {
-      for (const backend of backends) {
-        try {
-          const q = new URLSearchParams();
-          q.set('id', id);
-          q.set('episode', episode);
-          q.set('provider', p);
-          q.set('audio', audio);
-
-          const targetUrl = `${backend}/anime/api/stream?${q.toString()}`;
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 7000);
-
-          const upstreamRes = await fetch(targetUrl, {
-            signal: controller.signal,
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-              'Referer': 'https://framextv.xyz/',
-              'Origin': 'https://framextv.xyz',
-              'Accept': 'application/json, text/plain, */*',
-            },
-          });
-          clearTimeout(timeoutId);
-
-          if (!upstreamRes.ok) continue;
-
-          const data = await upstreamRes.json();
-          if (data && data.success && Array.isArray(data.sources) && data.sources.length > 0) {
-            finalData = data;
-            break;
-          }
-        } catch (err: any) {
-          lastError = err?.message || 'Error fetching provider';
-        }
-      }
-      if (finalData) break;
     }
 
     if (!finalData) {
       return res.status(404).json({
         success: false,
-        error: `Stream anime tidak tersedia untuk episode ${episode}. ${lastError}`.trim(),
+        error: `Stream anime tidak tersedia untuk episode ${episode}. Semua server HLS telah dicoba.`.trim(),
       });
     }
+
+    const actualProvider = finalData.provider || provider || 'grand_warden';
+    const fallbackApplied = provider && provider !== 'auto' && provider !== actualProvider;
 
     // Provide local proxied HLS stream (direct from FrameX API to our web app) with direct CDN fallback
     const rewrittenSources = finalData.sources.map((src: any) => {

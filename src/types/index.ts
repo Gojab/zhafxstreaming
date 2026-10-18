@@ -61,6 +61,8 @@ export interface SubtitleTrack {
 export interface StreamData {
   success: boolean;
   provider: string;
+  attemptedProvider?: string;
+  fallbackApplied?: boolean;
   server?: string;
   audio?: 'sub' | 'dub';
   sources: StreamSource[];

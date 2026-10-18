@@ -939,9 +939,10 @@ export const api = {
     episode?: number;
     provider?: string;
     audio?: 'sub' | 'dub';
+    title?: string;
     signal?: AbortSignal;
   }): Promise<StreamData | null> {
-    const { id, episode = 1, provider, audio, signal } = params;
+    const { id, episode = 1, provider, audio, title, signal } = params;
     const q = new URLSearchParams();
     q.set('id', String(id));
     q.set('episode', String(episode));
@@ -950,6 +951,9 @@ export const api = {
     }
     if (audio) {
       q.set('audio', audio);
+    }
+    if (title) {
+      q.set('title', title);
     }
 
     const queryStr = q.toString();
@@ -991,6 +995,8 @@ export const api = {
         return {
           success: true,
           provider: data.provider || 'grand_warden',
+          attemptedProvider: data.attemptedProvider,
+          fallbackApplied: data.fallbackApplied,
           server: data.server,
           audio: data.audio || 'sub',
           sources: directSources,

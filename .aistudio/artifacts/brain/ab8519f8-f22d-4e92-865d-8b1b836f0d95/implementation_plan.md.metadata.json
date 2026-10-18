@@ -1,0 +1,6 @@
+{
+  "summary": "Rencana komprehensif untuk memperbaiki pemutaran anime HLS dengan cascading failover multi-server otomatis, resolusi pencarian judul/ID silang (AniList & TMDB), dan penanganan pemutar tanpa sandbox.",
+  "updatedAt": "2026-10-18T14:29:23.469864767Z",
+  "requestFeedback": true,
+  "userFacing": true
+}
