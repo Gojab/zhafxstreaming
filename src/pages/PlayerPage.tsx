@@ -52,8 +52,11 @@ export const PlayerPage: React.FC = () => {
   const [providers, setProviders] = useState<Provider[]>([]);
   const [selectedServer, setSelectedServer] = useState<string>('auto');
   const [animeAudio, setAnimeAudio] = useState<'sub' | 'dub'>('sub');
+  const [playerMode, setPlayerMode] = useState<'hls' | 'embed'>(() => {
+    return mediaType === 'anime' ? 'hls' : 'embed';
+  });
 
-  // Anime Native Stream State (NO EMBED)
+  // Anime / Stream Native State
   const [animeStream, setAnimeStream] = useState<StreamData | null>(null);
   const [isLoadingAnime, setIsLoadingAnime] = useState(false);
   const [animeError, setAnimeError] = useState<string | null>(null);
@@ -214,9 +217,12 @@ export const PlayerPage: React.FC = () => {
     return () => controller.abort();
   }, [id, mediaType, seasonNum, episodeNum, recordHistory, searchParams]);
 
-  // ANIME NATIVE STREAM: Load stream data directly from FrameX API
+  // STREAM: Load stream data directly from FrameX API when playerMode === 'hls'
   useEffect(() => {
-    if (mediaType !== 'anime' || !id) return;
+    if (playerMode !== 'hls' || !id) {
+      setIsLoadingAnime(false);
+      return;
+    }
 
     setIsLoadingAnime(true);
     setAnimeError(null);
@@ -226,13 +232,25 @@ export const PlayerPage: React.FC = () => {
 
     const providerToRequest = selectedServer === 'auto' ? undefined : selectedServer;
 
-    api.getAnimeStream({
-      id,
-      episode: episodeNum,
-      provider: providerToRequest,
-      audio: animeAudio,
-      signal: controller.signal,
-    })
+    const streamPromise =
+      mediaType === 'anime'
+        ? api.getAnimeStream({
+            id,
+            episode: episodeNum,
+            provider: providerToRequest,
+            audio: animeAudio,
+            signal: controller.signal,
+          })
+        : api.getStream({
+            id,
+            type: mediaType,
+            season: seasonNum,
+            episode: episodeNum,
+            provider: providerToRequest,
+            signal: controller.signal,
+          });
+
+    streamPromise
       .then((data) => {
         if (data && data.sources && data.sources.length > 0) {
           setAnimeStream(data);
@@ -241,7 +259,6 @@ export const PlayerPage: React.FC = () => {
           // Subtitles processing
           if (Array.isArray(data.subtitles) && data.subtitles.length > 0) {
             setSubtitles(data.subtitles);
-            // Default select Indonesian subtitle if available, otherwise first sub
             const indo = data.subtitles.find(
               (s) =>
                 s.lang === 'in' ||
@@ -254,12 +271,12 @@ export const PlayerPage: React.FC = () => {
             setActiveSubtitleUrl(null);
           }
         } else {
-          setAnimeError('Stream anime tidak ditemukan untuk server ini. Coba pilih server lain.');
+          setAnimeError('Stream HLS tidak tersedia untuk server ini. Silakan klik tombol di bawah untuk memutar via FrameX Embed.');
         }
       })
       .catch((err) => {
         if (!controller.signal.aborted) {
-          setAnimeError(err?.message || 'Gagal memuat stream anime dari API FrameX.');
+          setAnimeError(err?.message || 'Gagal memuat stream HLS dari API FrameX.');
         }
       })
       .finally(() => {
@@ -267,11 +284,11 @@ export const PlayerPage: React.FC = () => {
       });
 
     return () => controller.abort();
-  }, [id, mediaType, episodeNum, selectedServer, animeAudio, iframeKey]);
+  }, [id, mediaType, seasonNum, episodeNum, selectedServer, animeAudio, playerMode, iframeKey]);
 
   // Setup HLS.js or Native Video on Stream Loaded
   useEffect(() => {
-    if (mediaType !== 'anime' || !animeStream?.sources?.[0]?.url || !videoRef.current) {
+    if (playerMode !== 'hls' || !animeStream?.sources?.[0]?.url || !videoRef.current) {
       return;
     }
 
@@ -425,14 +442,14 @@ export const PlayerPage: React.FC = () => {
 
   // Periodic watch progress saver
   useEffect(() => {
-    if (mediaType !== 'anime' || !isPlaying) return;
+    if (playerMode !== 'hls' || !isPlaying) return;
     const interval = setInterval(() => {
       if (videoRef.current && videoRef.current.duration > 0) {
         saveProgress(videoRef.current.currentTime, videoRef.current.duration);
       }
     }, 5000);
     return () => clearInterval(interval);
-  }, [mediaType, isPlaying, saveProgress]);
+  }, [playerMode, isPlaying, saveProgress]);
 
   // Video playback handlers
   const togglePlay = () => {
@@ -799,6 +816,32 @@ export const PlayerPage: React.FC = () => {
               </button>
             )}
 
+            {/* Player Mode Switcher: HLS Stream vs FrameX Embed */}
+            <button
+              onClick={() => {
+                const nextMode = playerMode === 'hls' ? 'embed' : 'hls';
+                setPlayerMode(nextMode);
+                setAnimeError(null);
+                setIframeKey((k) => k + 1);
+              }}
+              className="px-2 sm:px-2.5 py-1 rounded-full text-[10px] sm:text-[11px] font-bold border transition-all cursor-pointer ios-spring flex items-center gap-1.5 bg-white/10 hover:bg-white/20 border-white/20 text-white shrink-0"
+              title="Ganti Mode Pemutar: HLS Stream vs FrameX Embed"
+            >
+              {playerMode === 'hls' ? (
+                <>
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  <span className="hidden sm:inline">HLS Stream</span>
+                  <span className="sm:hidden">HLS</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-3 h-3 text-[#FFB224]" />
+                  <span className="hidden sm:inline">FrameX Embed</span>
+                  <span className="sm:hidden">Embed</span>
+                </>
+              )}
+            </button>
+
             {/* Server Selector Dropdown */}
             <div className="flex items-center gap-1 px-2 sm:px-2.5 py-1 rounded-full liquid-glass text-xs text-white">
               <Server className="w-3 h-3 text-[#FFB224] shrink-0" />
@@ -991,34 +1034,46 @@ export const PlayerPage: React.FC = () => {
       {/* Main Viewport Container */}
       <div className="relative flex-1 w-full h-screen bg-black flex items-center justify-center overflow-hidden">
         {/* Loading Overlay */}
-        {(isLoadingAnime || (mediaType !== 'anime' && isIframeLoading)) && (
+        {(isLoadingAnime || (playerMode === 'embed' && isIframeLoading)) && (
           <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-[#06070B] space-y-3 pointer-events-none px-4 text-center">
             <div className="w-11 h-11 border-3 border-white/20 border-t-[#FFB224] rounded-full animate-spin" />
             <span className="text-xs font-mono text-white/60 tracking-wider uppercase">
-              {mediaType === 'anime' ? 'Menyiapkan Stream Anime dari API FrameX...' : 'Memuat Pemutar Zhafx...'}
+              {playerMode === 'hls' ? 'Menyiapkan Stream HLS dari API FrameX...' : 'Memuat Pemutar Embed FrameX...'}
             </span>
           </div>
         )}
 
-        {/* Error State for Anime Stream with Quick Failover */}
-        {mediaType === 'anime' && animeError && !isLoadingAnime && (
+        {/* Error State for HLS Stream with 1-Click Failover to FrameX Embed */}
+        {playerMode === 'hls' && animeError && !isLoadingAnime && (
           <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-[#06070B] p-6 text-center space-y-3">
-            <div className="w-14 h-14 rounded-full bg-rose-500/20 border border-rose-500/30 flex items-center justify-center text-rose-400">
+            <div className="w-14 h-14 rounded-full bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400">
               <AlertTriangle className="w-7 h-7" />
             </div>
-            <h3 className="text-lg font-bold text-white">Stream Anime Gagal Dimuat</h3>
+            <h3 className="text-lg font-bold text-white">Stream HLS Memerlukan Mode Embed</h3>
             <p className="text-xs text-white/60 max-w-md">
               {animeError}
             </p>
             <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
               <button
                 onClick={() => {
+                  setPlayerMode('embed');
+                  setAnimeError(null);
+                  setIsIframeLoading(true);
+                  setIframeKey((k) => k + 1);
+                }}
+                className="px-5 py-2.5 rounded-full bg-[#FFB224] text-black text-xs font-bold hover:bg-[#FFA500] cursor-pointer shadow-lg ios-spring flex items-center gap-1.5"
+              >
+                <Sparkles className="w-4 h-4" />
+                <span>Putar via Embed FrameX (Rekomendasi)</span>
+              </button>
+              <button
+                onClick={() => {
                   setSelectedServer('auto');
                   setIframeKey((k) => k + 1);
                 }}
-                className="px-5 py-2.5 rounded-full bg-[#FFB224] text-black text-xs font-bold hover:bg-[#FFA500] cursor-pointer shadow-lg ios-spring"
+                className="px-4 py-2.5 rounded-full liquid-glass text-white text-xs font-semibold hover:bg-white/10 cursor-pointer ios-spring"
               >
-                Ganti ke Server Otomatis (Rekomendasi)
+                Ganti ke Server Otomatis
               </button>
               <button
                 onClick={() => setIframeKey((k) => k + 1)}
@@ -1060,9 +1115,9 @@ export const PlayerPage: React.FC = () => {
         )}
 
         {/* -------------------------------------------------------------
-            ANIME NATIVE PLAYER (NO EMBED IFRAME — 100% FRAMEX API STREAM)
+            PLAYER RENDERING: HLS NATIVE OR OFFICIAL FRAMEX EMBED
             ------------------------------------------------------------- */}
-        {mediaType === 'anime' ? (
+        {playerMode === 'hls' && animeStream?.sources?.[0]?.url ? (
           <div className="relative w-full h-full flex items-center justify-center bg-black group">
             {/* Video Element */}
             <video
@@ -1370,21 +1425,22 @@ export const PlayerPage: React.FC = () => {
           </div>
         ) : (
           /* -------------------------------------------------------------
-             MOVIE & TV SERIES PLAYER (OFFICIAL FRAMEX EMBED)
+             OFFICIAL FRAMEX EMBED IFRAME (MOVIE, TV SERIES, ANIME)
              ------------------------------------------------------------- */
           <iframe
-            key={`${id}-${mediaType}-${seasonNum}-${episodeNum}-${selectedServer}-${iframeKey}`}
+            key={`${id}-${mediaType}-${seasonNum}-${episodeNum}-${selectedServer}-${iframeKey}-${playerMode}`}
             src={embedUrl}
             title={title?.title || 'Zhafx Stream'}
             onLoad={() => setIsIframeLoading(false)}
             allow="autoplay; fullscreen; picture-in-picture; encrypted-media; gyroscope; accelerometer"
             allowFullScreen={true}
+            referrerPolicy="origin"
             // @ts-ignore
             webkitallowfullscreen="true"
             // @ts-ignore
             mozallowfullscreen="true"
             loading="eager"
-            className="w-full h-full border-0 absolute inset-0 pt-14 sm:pt-16"
+            className="w-full h-full border-0 absolute inset-0"
           />
         )}
       </div>

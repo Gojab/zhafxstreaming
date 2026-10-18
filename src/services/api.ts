@@ -952,8 +952,11 @@ export const api = {
       q.set('audio', audio);
     }
 
-    const streamUrl = `/api/anime/stream?${q.toString()}`;
+    const queryStr = q.toString();
+
+    // 1. Try local serverless endpoint
     try {
+      const streamUrl = `/api/anime/stream?${queryStr}`;
       const data = await fetchWithRetry<any>(streamUrl, { signal, ttlMs: 10 * 60 * 1000, useProxyFallback: false });
       if (data && data.success && Array.isArray(data.sources) && data.sources.length > 0) {
         return {
@@ -962,14 +965,122 @@ export const api = {
           server: data.server,
           audio: data.audio || 'sub',
           sources: data.sources,
-          subtitles: data.subtitles,
+          subtitles: data.subtitles || [],
         };
       }
-      return null;
     } catch (e: any) {
-      console.warn('[API] getAnimeStream failed:', e?.message || e);
-      return null;
+      console.warn('[API] Local /api/anime/stream failed, attempting direct proxy fallback:', e?.message || e);
     }
+
+    // 2. Resilient failover via /api/proxy to FrameX backend
+    const backends = ['https://api.framextv.tech', 'https://api.framextv.xyz'];
+    for (const backend of backends) {
+      try {
+        const targetUrl = `${backend}/anime/api/stream?${queryStr}`;
+        const proxyUrl = `/api/proxy?url=${encodeURIComponent(targetUrl)}`;
+        const res = await fetch(proxyUrl, { signal });
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.success && Array.isArray(data.sources) && data.sources.length > 0) {
+            const rewrittenSources = data.sources.map((src: any) => {
+              let rawUrl = src.url || '';
+              const referer = src.headers?.Referer || src.headers?.referer || 'https://megaplay.buzz/';
+              if (rawUrl.startsWith('/')) {
+                rawUrl = `${backend}${rawUrl}`;
+              }
+              const proxied = `/api/anime/proxy?url=${encodeURIComponent(rawUrl)}&ref=${encodeURIComponent(referer)}`;
+              return {
+                ...src,
+                url: proxied,
+                rawUrl,
+                headers: {
+                  Referer: referer,
+                  Origin: 'https://megaplay.buzz',
+                },
+              };
+            });
+
+            return {
+              success: true,
+              provider: data.provider || 'grand_warden',
+              server: data.server,
+              audio: data.audio || audio || 'sub',
+              sources: rewrittenSources,
+              subtitles: data.subtitles || [],
+            };
+          }
+        }
+      } catch {
+        // try next
+      }
+    }
+
+    return null;
+  },
+
+  /**
+   * Fetches direct stream for Movies & TV series from FrameX API
+   */
+  async getStream(params: {
+    id: string;
+    type?: MediaType;
+    season?: number;
+    episode?: number;
+    provider?: string;
+    signal?: AbortSignal;
+  }): Promise<StreamData | null> {
+    const { id, type = 'movie', season, episode, provider, signal } = params;
+    const q = new URLSearchParams();
+    q.set('id', String(id));
+    q.set('type', type);
+    if (season) q.set('season', String(season));
+    if (episode) q.set('episode', String(episode));
+    if (provider && provider !== 'auto') q.set('provider', provider);
+
+    const queryStr = q.toString();
+
+    // 1. Try local serverless endpoint
+    try {
+      const streamUrl = `/api/stream?${queryStr}`;
+      const data = await fetchWithRetry<any>(streamUrl, { signal, ttlMs: 10 * 60 * 1000, useProxyFallback: false });
+      if (data && data.success && Array.isArray(data.sources) && data.sources.length > 0) {
+        return {
+          success: true,
+          provider: data.provider,
+          server: data.server,
+          sources: data.sources,
+          subtitles: data.subtitles || [],
+        };
+      }
+    } catch {
+      // fallback
+    }
+
+    // 2. Direct proxy fallback
+    const backends = ['https://api.framextv.tech', 'https://api.framextv.xyz'];
+    for (const backend of backends) {
+      try {
+        const targetUrl = `${backend}/api/stream?${queryStr}`;
+        const proxyUrl = `/api/proxy?url=${encodeURIComponent(targetUrl)}`;
+        const res = await fetch(proxyUrl, { signal });
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.success && Array.isArray(data.sources) && data.sources.length > 0) {
+            return {
+              success: true,
+              provider: data.provider,
+              server: data.server,
+              sources: data.sources,
+              subtitles: data.subtitles || [],
+            };
+          }
+        }
+      } catch {
+        // try next
+      }
+    }
+
+    return null;
   },
 
   /**
@@ -1000,13 +1111,12 @@ export const api = {
       audio = 'sub',
     } = params;
 
-    // Official FrameX Anime embed player (https://framextv.xyz only)
+    // Official FrameX Anime embed player (https://framextv.xyz/embed/anime)
     if (type === 'anime') {
       const ep = episode || 1;
       const cleanId = encodeURIComponent(id);
 
       const q = new URLSearchParams();
-      // CRITICAL: backend=prod forces FrameX to target https://api.framextv.tech/anime
       q.set('backend', 'prod');
       q.set('id', String(id));
       q.set('episode', String(ep));
@@ -1021,7 +1131,7 @@ export const api = {
       if (title) q.set('title', title);
       if (poster) q.set('poster', poster);
 
-      // Dedicated FrameX Embed URL for anime: https://framextv.xyz/embed/anime/:id/:episode?...
+      // Official FrameX Anime Embed URL format: https://framextv.xyz/embed/anime/:id/:episode
       return `${CONFIG.EMBED_BASE_URL}/anime/${cleanId}/${ep}?${q.toString()}`;
     }
 
@@ -1029,7 +1139,7 @@ export const api = {
     if (type === 'tv') {
       path = `${CONFIG.EMBED_BASE_URL}/tv/${encodeURIComponent(id)}/${season}/${episode}`;
     } else {
-      path = `${CONFIG.EMBED_BASE_URL}/${encodeURIComponent(id)}`;
+      path = `${CONFIG.EMBED_BASE_URL}/movie/${encodeURIComponent(id)}`;
     }
 
     const query = new URLSearchParams();
