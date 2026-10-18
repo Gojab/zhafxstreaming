@@ -282,6 +282,7 @@ app.get('/api/anime/stream', async (req: Request, res: Response) => {
 
       const targetUrl = `https://api.framextv.tech/anime/api/stream?${q.toString()}`;
       const upstreamRes = await fetch(targetUrl, {
+        signal: AbortSignal.timeout(6000),
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
           'Referer': 'https://framextv.xyz/',
@@ -309,7 +310,7 @@ app.get('/api/anime/stream', async (req: Request, res: Response) => {
     });
   }
 
-  // Provide direct high-speed CDN URLs (built-in Access-Control-Allow-Origin: *) with proxy fallback
+  // Provide local proxied HLS stream (direct from FrameX API to our web app) with direct CDN fallback
   const rewrittenSources = finalData.sources.map((src: any) => {
     let rawUrl = src.url || '';
     const referer = src.headers?.Referer || src.headers?.referer || 'https://megaplay.buzz/';
@@ -323,7 +324,7 @@ app.get('/api/anime/stream', async (req: Request, res: Response) => {
 
     return {
       ...src,
-      url: directUrl,
+      url: proxiedUrl, // Primary stream URL goes directly through our web app proxy
       directUrl,
       proxiedUrl,
       rawUrl: directUrl,
@@ -334,7 +335,7 @@ app.get('/api/anime/stream', async (req: Request, res: Response) => {
     };
   });
 
-  // Resolve subtitles to direct CDN WebVTT with local fallback
+  // Resolve subtitles to local converted WebVTT with direct CDN fallback
   const rewrittenSubtitles = Array.isArray(finalData.subtitles)
     ? finalData.subtitles.map((sub: any) => {
         let subUrl = sub.url || '';
@@ -346,7 +347,7 @@ app.get('/api/anime/stream', async (req: Request, res: Response) => {
 
         return {
           ...sub,
-          url: subUrl,
+          url: proxiedSubUrl, // Primary subtitle URL converted to WebVTT
           directUrl: subUrl,
           proxiedUrl: proxiedSubUrl,
           rawUrl: subUrl,

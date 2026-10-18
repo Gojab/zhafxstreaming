@@ -38,12 +38,21 @@ export interface VideoTrailer {
 
 export interface StreamSource {
   url: string;
+  directUrl?: string;
+  proxiedUrl?: string;
+  rawUrl?: string;
   quality?: string;
   type?: string;
+  server?: string;
+  audio?: string;
+  headers?: Record<string, string>;
 }
 
 export interface SubtitleTrack {
   url: string;
+  directUrl?: string;
+  proxiedUrl?: string;
+  rawUrl?: string;
   lang?: string;
   language?: string;
   label?: string;

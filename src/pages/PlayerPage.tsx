@@ -56,6 +56,13 @@ export const PlayerPage: React.FC = () => {
     return mediaType === 'anime' ? 'hls' : 'embed';
   });
 
+  // Ensure anime is strictly locked to native HLS mode (no embed/sandbox)
+  useEffect(() => {
+    if (mediaType === 'anime') {
+      setPlayerMode('hls');
+    }
+  }, [mediaType]);
+
   // Anime / Stream Native State
   const [animeStream, setAnimeStream] = useState<StreamData | null>(null);
   const [isLoadingAnime, setIsLoadingAnime] = useState(false);
@@ -314,16 +321,24 @@ export const PlayerPage: React.FC = () => {
             setActiveSubtitleUrl(null);
           }
         } else {
-          // Seamless auto-failover to official FrameX Embed mode
-          setPlayerMode('embed');
-          setAnimeError(null);
+          if (mediaType === 'anime') {
+            setAnimeError('Stream anime tidak ditemukan di server ini. Silakan coba pilih server lain atau server otomatis.');
+          } else {
+            // Seamless auto-failover to official FrameX Embed mode for non-anime
+            setPlayerMode('embed');
+            setAnimeError(null);
+          }
         }
       })
-      .catch(() => {
+      .catch((err) => {
         if (!controller.signal.aborted) {
-          // Seamless auto-failover to official FrameX Embed mode
-          setPlayerMode('embed');
-          setAnimeError(null);
+          if (mediaType === 'anime') {
+            setAnimeError(err?.message || 'Gagal memuat stream anime. Silakan ganti server atau coba lagi.');
+          } else {
+            // Seamless auto-failover to official FrameX Embed mode for non-anime
+            setPlayerMode('embed');
+            setAnimeError(null);
+          }
         }
       })
       .finally(() => {
@@ -405,8 +420,14 @@ export const PlayerPage: React.FC = () => {
               break;
             default:
               console.error('[HLS] Fatal error:', data);
-              hls.destroy();
-              setAnimeError('Terjadi gangguan jaringan pemutar. Coba ganti server.');
+              if (animeStream?.sources?.[0]?.directUrl && streamSource !== animeStream.sources[0].directUrl) {
+                console.log('[HLS] Attempting fallback to direct CDN URL...');
+                hls.loadSource(animeStream.sources[0].directUrl);
+                hls.startLoad();
+              } else {
+                hls.destroy();
+                setAnimeError('Terjadi gangguan jaringan pemutar anime. Coba pilih server lain di atas.');
+              }
               break;
           }
         }
@@ -863,31 +884,42 @@ export const PlayerPage: React.FC = () => {
               </button>
             )}
 
-            {/* Player Mode Switcher: HLS Stream vs FrameX Embed */}
-            <button
-              onClick={() => {
-                const nextMode = playerMode === 'hls' ? 'embed' : 'hls';
-                setPlayerMode(nextMode);
-                setAnimeError(null);
-                setIframeKey((k) => k + 1);
-              }}
-              className="px-2 sm:px-2.5 py-1 rounded-full text-[10px] sm:text-[11px] font-bold border transition-all cursor-pointer ios-spring flex items-center gap-1.5 bg-white/10 hover:bg-white/20 border-white/20 text-white shrink-0"
-              title="Ganti Mode Pemutar: HLS Stream vs FrameX Embed"
-            >
-              {playerMode === 'hls' ? (
-                <>
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  <span className="hidden sm:inline">HLS Stream</span>
-                  <span className="sm:hidden">HLS</span>
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-3 h-3 text-white" />
-                  <span className="hidden sm:inline">Modif Embed</span>
-                  <span className="sm:hidden">Embed</span>
-                </>
-              )}
-            </button>
+            {/* Player Mode Switcher: HLS Stream vs FrameX Embed (Anime is STRICTLY HLS Native) */}
+            {mediaType === 'anime' ? (
+              <div
+                className="px-2.5 py-1 rounded-full text-[10px] sm:text-[11px] font-bold border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 flex items-center gap-1.5 shrink-0 shadow-sm"
+                title="Khusus anime menggunakan pemutar HLS Native FrameX langsung di web"
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="hidden sm:inline">HLS Native Player</span>
+                <span className="sm:hidden">HLS</span>
+              </div>
+            ) : (
+              <button
+                onClick={() => {
+                  const nextMode = playerMode === 'hls' ? 'embed' : 'hls';
+                  setPlayerMode(nextMode);
+                  setAnimeError(null);
+                  setIframeKey((k) => k + 1);
+                }}
+                className="px-2 sm:px-2.5 py-1 rounded-full text-[10px] sm:text-[11px] font-bold border transition-all cursor-pointer ios-spring flex items-center gap-1.5 bg-white/10 hover:bg-white/20 border-white/20 text-white shrink-0"
+                title="Ganti Mode Pemutar: HLS Stream vs FrameX Embed"
+              >
+                {playerMode === 'hls' ? (
+                  <>
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    <span className="hidden sm:inline">HLS Stream</span>
+                    <span className="sm:hidden">HLS</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-3 h-3 text-white" />
+                    <span className="hidden sm:inline">Modif Embed</span>
+                    <span className="sm:hidden">Embed</span>
+                  </>
+                )}
+              </button>
+            )}
 
             {/* Server Selector Dropdown */}
             <div className="flex items-center gap-1 px-2 sm:px-2.5 py-1 rounded-full liquid-glass text-xs text-white">
@@ -1085,49 +1117,89 @@ export const PlayerPage: React.FC = () => {
           <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-[#06070B] space-y-3 pointer-events-none px-4 text-center">
             <div className="w-11 h-11 border-3 border-white/20 border-t-[#FFB224] rounded-full animate-spin" />
             <span className="text-xs font-mono text-white/60 tracking-wider uppercase">
-              {playerMode === 'hls' ? 'Menyiapkan Stream HLS dari API FrameX...' : 'Memuat Pemutar Embed FrameX...'}
+              {mediaType === 'anime' ? 'Menyiapkan Stream HLS Native Anime dari API FrameX...' : (playerMode === 'hls' ? 'Menyiapkan Stream HLS...' : 'Memuat Pemutar Embed FrameX...')}
             </span>
           </div>
         )}
 
-        {/* Error State for HLS Stream with 1-Click Failover to FrameX Embed */}
+        {/* Error State for HLS Stream */}
         {playerMode === 'hls' && animeError && !isLoadingAnime && (
           <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-[#06070B] p-6 text-center space-y-3">
             <div className="w-14 h-14 rounded-full bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400">
               <AlertTriangle className="w-7 h-7" />
             </div>
-            <h3 className="text-lg font-bold text-white">Stream HLS Memerlukan Mode Embed</h3>
+            <h3 className="text-lg font-bold text-white">
+              {mediaType === 'anime' ? 'Stream Anime Belum Siap di Server Ini' : 'Stream HLS Memerlukan Mode Embed'}
+            </h3>
             <p className="text-xs text-white/60 max-w-md">
               {animeError}
             </p>
             <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
-              <button
-                onClick={() => {
-                  setPlayerMode('embed');
-                  setAnimeError(null);
-                  setIsIframeLoading(true);
-                  setIframeKey((k) => k + 1);
-                }}
-                className="px-5 py-2.5 rounded-full bg-[#FFB224] text-black text-xs font-bold hover:bg-[#FFA500] cursor-pointer shadow-lg ios-spring flex items-center gap-1.5"
-              >
-                <Sparkles className="w-4 h-4" />
-                <span>Putar via Embed FrameX (Rekomendasi)</span>
-              </button>
-              <button
-                onClick={() => {
-                  setSelectedServer('auto');
-                  setIframeKey((k) => k + 1);
-                }}
-                className="px-4 py-2.5 rounded-full liquid-glass text-white text-xs font-semibold hover:bg-white/10 cursor-pointer ios-spring"
-              >
-                Ganti ke Server Otomatis
-              </button>
-              <button
-                onClick={() => setIframeKey((k) => k + 1)}
-                className="px-4 py-2.5 rounded-full liquid-glass text-white text-xs font-semibold hover:bg-white/10 cursor-pointer ios-spring"
-              >
-                Coba Lagi
-              </button>
+              {mediaType === 'anime' ? (
+                <>
+                  <button
+                    onClick={() => {
+                      const available = providers.filter((p) => p.id !== 'auto' && p.id !== selectedServer);
+                      if (available.length > 0) {
+                        const nextProv = available[Math.floor(Math.random() * available.length)];
+                        setSelectedServer(nextProv.id);
+                      } else {
+                        setSelectedServer('auto');
+                      }
+                      setIframeKey((k) => k + 1);
+                    }}
+                    className="px-5 py-2.5 rounded-full bg-[#FFB224] text-black text-xs font-bold hover:bg-[#FFA500] cursor-pointer shadow-lg ios-spring flex items-center gap-1.5"
+                  >
+                    <Server className="w-4 h-4" />
+                    <span>Coba Server Anime Lain</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setSelectedServer('auto');
+                      setIframeKey((k) => k + 1);
+                    }}
+                    className="px-4 py-2.5 rounded-full liquid-glass text-white text-xs font-semibold hover:bg-white/10 cursor-pointer ios-spring"
+                  >
+                    Server Otomatis
+                  </button>
+                  <button
+                    onClick={() => setIframeKey((k) => k + 1)}
+                    className="px-4 py-2.5 rounded-full liquid-glass text-white text-xs font-semibold hover:bg-white/10 cursor-pointer ios-spring"
+                  >
+                    Coba Lagi
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={() => {
+                      setPlayerMode('embed');
+                      setAnimeError(null);
+                      setIsIframeLoading(true);
+                      setIframeKey((k) => k + 1);
+                    }}
+                    className="px-5 py-2.5 rounded-full bg-[#FFB224] text-black text-xs font-bold hover:bg-[#FFA500] cursor-pointer shadow-lg ios-spring flex items-center gap-1.5"
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    <span>Putar via Embed FrameX (Rekomendasi)</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setSelectedServer('auto');
+                      setIframeKey((k) => k + 1);
+                    }}
+                    className="px-4 py-2.5 rounded-full liquid-glass text-white text-xs font-semibold hover:bg-white/10 cursor-pointer ios-spring"
+                  >
+                    Ganti ke Server Otomatis
+                  </button>
+                  <button
+                    onClick={() => setIframeKey((k) => k + 1)}
+                    className="px-4 py-2.5 rounded-full liquid-glass text-white text-xs font-semibold hover:bg-white/10 cursor-pointer ios-spring"
+                  >
+                    Coba Lagi
+                  </button>
+                </>
+              )}
             </div>
           </div>
         )}
@@ -1470,9 +1542,9 @@ export const PlayerPage: React.FC = () => {
               </div>
             </div>
           </div>
-        ) : (
+        ) : mediaType !== 'anime' ? (
           /* -------------------------------------------------------------
-             OFFICIAL FRAMEX EMBED IFRAME (MOVIE, TV SERIES, ANIME)
+             OFFICIAL FRAMEX EMBED IFRAME (MOVIE & TV SERIES ONLY)
              ------------------------------------------------------------- */
           <iframe
             key={`${id}-${mediaType}-${seasonNum}-${episodeNum}-${selectedServer}-${iframeKey}-${playerMode}`}
@@ -1489,7 +1561,7 @@ export const PlayerPage: React.FC = () => {
             loading="eager"
             className="w-full h-full border-0 absolute inset-0"
           />
-        )}
+        ) : null}
       </div>
     </div>
   );

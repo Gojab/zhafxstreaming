@@ -138,7 +138,7 @@ export default async function handler(req: any, res: any) {
       });
     }
 
-    // Provide direct high-speed CDN URLs (built-in Access-Control-Allow-Origin: *) with proxy fallback
+    // Provide local proxied HLS stream (direct from FrameX API to our web app) with direct CDN fallback
     const rewrittenSources = finalData.sources.map((src: any) => {
       let rawUrl = src.url || '';
       const referer = src.headers?.Referer || src.headers?.referer || 'https://megaplay.buzz/';
@@ -152,7 +152,7 @@ export default async function handler(req: any, res: any) {
 
       return {
         ...src,
-        url: directUrl,
+        url: proxiedUrl, // Primary stream URL goes directly through our web app proxy
         directUrl,
         proxiedUrl,
         rawUrl: directUrl,
@@ -163,7 +163,7 @@ export default async function handler(req: any, res: any) {
       };
     });
 
-    // Resolve subtitles to direct CDN WebVTT with local fallback
+    // Resolve subtitles to local converted WebVTT with direct CDN fallback
     const rewrittenSubtitles = Array.isArray(finalData.subtitles)
       ? finalData.subtitles.map((sub: any) => {
           let subUrl = sub.url || '';
@@ -175,7 +175,7 @@ export default async function handler(req: any, res: any) {
 
           return {
             ...sub,
-            url: subUrl,
+            url: proxiedSubUrl, // Primary subtitle URL converted to WebVTT
             directUrl: subUrl,
             proxiedUrl: proxiedSubUrl,
             rawUrl: subUrl,

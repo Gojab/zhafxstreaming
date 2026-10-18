@@ -960,26 +960,30 @@ export const api = {
       const data = await fetchWithRetry<any>(streamUrl, { signal, ttlMs: 10 * 60 * 1000, useProxyFallback: false });
       if (data && data.success && Array.isArray(data.sources) && data.sources.length > 0) {
         const directSources = data.sources.map((src: any) => {
-          let u = src.url || '';
-          if (u.startsWith('/')) {
+          let u = src.url || src.proxiedUrl || '';
+          if (u.startsWith('/') && !u.startsWith('/api')) {
             u = `https://api.framextv.tech${u}`;
           }
           return {
             ...src,
             url: u,
+            directUrl: src.directUrl || u,
+            proxiedUrl: src.proxiedUrl || u,
             rawUrl: src.rawUrl || u,
           };
         });
 
         const directSubs = Array.isArray(data.subtitles)
           ? data.subtitles.map((sub: any) => {
-              let u = sub.url || '';
-              if (u.startsWith('/')) {
+              let u = sub.url || sub.proxiedUrl || '';
+              if (u.startsWith('/') && !u.startsWith('/api')) {
                 u = `https://api.framextv.tech${u}`;
               }
               return {
                 ...sub,
                 url: u,
+                directUrl: sub.directUrl || u,
+                proxiedUrl: sub.proxiedUrl || u,
               };
             })
           : [];
@@ -997,7 +1001,7 @@ export const api = {
       console.warn('[API] Local /api/anime/stream failed, attempting direct proxy fallback:', e?.message || e);
     }
 
-    // 2. Resilient failover directly to FrameX upstream backends (works on Vercel serverless)
+    // 2. Resilient failover directly to FrameX upstream backends (routed through web app /api/anime/proxy)
     const backends = ['https://api.framextv.tech', 'https://api.framextv.xyz'];
     for (const backend of backends) {
       try {
@@ -1018,12 +1022,16 @@ export const api = {
               if (rawUrl.startsWith('/')) {
                 rawUrl = `${backend}${rawUrl}`;
               }
+              const referer = src.headers?.Referer || src.headers?.referer || 'https://megaplay.buzz/';
+              const proxiedUrl = `/api/anime/proxy?url=${encodeURIComponent(rawUrl)}&ref=${encodeURIComponent(referer)}`;
               return {
                 ...src,
-                url: rawUrl,
+                url: proxiedUrl,
+                directUrl: rawUrl,
+                proxiedUrl,
                 rawUrl,
                 headers: {
-                  Referer: src.headers?.Referer || src.headers?.referer || 'https://megaplay.buzz/',
+                  Referer: referer,
                   Origin: 'https://megaplay.buzz',
                 },
               };
@@ -1035,9 +1043,12 @@ export const api = {
                   if (subUrl.startsWith('/')) {
                     subUrl = `${backend}${subUrl}`;
                   }
+                  const proxiedSubUrl = `/api/anime/subtitles?url=${encodeURIComponent(subUrl)}&lang=${encodeURIComponent(sub.lang || '')}&label=${encodeURIComponent(sub.label || '')}`;
                   return {
                     ...sub,
-                    url: subUrl,
+                    url: proxiedSubUrl,
+                    directUrl: subUrl,
+                    proxiedUrl: proxiedSubUrl,
                     rawUrl: subUrl,
                   };
                 })
