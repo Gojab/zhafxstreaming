@@ -136,7 +136,7 @@ export const HeroBillboard: React.FC<HeroBillboardProps> = ({ items }) => {
               {typeLabel}
             </span>
             {current.rating && parseFloat(current.rating) > 0 && (
-              <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full liquid-glass text-amber-300 text-[11px] font-bold shadow-sm">
+              <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full liquid-glass text-white text-[11px] font-bold shadow-sm">
                 <Star className="w-3 h-3 fill-current" />
                 <span>{current.rating}</span>
               </span>
@@ -194,12 +194,12 @@ export const HeroBillboard: React.FC<HeroBillboardProps> = ({ items }) => {
             <button
               onClick={handleToggleMyList}
               className={`inline-flex items-center justify-center gap-2 px-5 py-3 rounded-full liquid-glass liquid-specular text-sm font-semibold transition-all cursor-pointer min-h-[46px] ios-spring ${
-                saved ? 'text-[#FFB224] bg-white/[0.16]' : 'text-white hover:bg-white/[0.14]'
+                saved ? 'text-white bg-white/[0.22] font-bold shadow-md' : 'text-white hover:bg-white/[0.14]'
               }`}
             >
               {saved ? (
                 <>
-                  <BookmarkCheck className="w-4 h-4 text-[#FFB224]" />
+                  <BookmarkCheck className="w-4 h-4 text-white" />
                   <span>Tersimpan</span>
                 </>
               ) : (

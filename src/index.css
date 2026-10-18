@@ -11,7 +11,7 @@
     --text-primary: #FFFFFF;
     --text-secondary: rgba(255, 255, 255, 0.65);
     --text-muted: rgba(255, 255, 255, 0.42);
-    --accent: #FFB224;
+    --accent: #FFFFFF;
     
     /* Apple SF Pro font hierarchy */
     --font-ios: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "SF Pro", "Inter", system-ui, sans-serif;

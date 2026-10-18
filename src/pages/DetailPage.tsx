@@ -291,7 +291,7 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
 
           {/* Hover Play Button Overlay */}
           <div className="absolute inset-0 bg-black/45 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2">
-            <div className="w-12 h-12 rounded-full bg-[#FFB224] text-[#06070B] flex items-center justify-center shadow-xl transform group-hover:scale-110 transition-transform ios-spring">
+            <div className="w-12 h-12 rounded-full bg-white text-[#06070B] flex items-center justify-center shadow-xl transform group-hover:scale-110 transition-transform ios-spring">
               <Play className="w-5 h-5 fill-current ml-0.5" />
             </div>
             <span className="text-xs font-bold text-white bg-black/75 px-3 py-1 rounded-full backdrop-blur-sm border border-white/10">
@@ -308,7 +308,7 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
               {typeLabel}
             </span>
             {title.rating && parseFloat(title.rating) > 0 && (
-              <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full liquid-glass text-amber-300 text-xs font-bold">
+              <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full liquid-glass text-white text-xs font-bold">
                 <Star className="w-3.5 h-3.5 fill-current" />
                 <span>{title.rating}</span>
               </span>
@@ -371,7 +371,7 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
             {title.overview && title.overview.length > 180 && (
               <button
                 onClick={() => setIsOverviewExpanded(!isOverviewExpanded)}
-                className="text-xs text-[#FFB224] hover:underline font-semibold cursor-pointer pt-0.5 ios-spring"
+                className="text-xs text-white hover:underline font-semibold cursor-pointer pt-0.5 ios-spring"
               >
                 {isOverviewExpanded ? 'Sembunyikan' : 'Baca selengkapnya'}
               </button>
@@ -397,7 +397,7 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
               return (
                 <button
                   onClick={() => navigate(playTargetUrl)}
-                  className="inline-flex items-center justify-center gap-2 px-6 sm:px-7 py-3 rounded-full bg-white text-[#06070B] font-bold text-xs sm:text-sm shadow-[0_8px_25px_rgba(255,255,255,0.25)] hover:bg-[#FFB224] hover:text-[#06070B] transition-all ios-spring cursor-pointer min-h-[44px]"
+                  className="inline-flex items-center justify-center gap-2 px-6 sm:px-7 py-3 rounded-full bg-white text-[#06070B] font-bold text-xs sm:text-sm shadow-[0_8px_25px_rgba(255,255,255,0.25)] hover:bg-zinc-200 hover:text-[#06070B] transition-all ios-spring cursor-pointer min-h-[44px]"
                 >
                   <Play className="w-4 h-4 fill-current ml-0.5" />
                   <span>
@@ -416,7 +416,7 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
                 className="inline-flex items-center justify-center gap-2 px-4 sm:px-5 py-3 rounded-full liquid-glass liquid-specular text-xs sm:text-sm font-semibold text-white hover:bg-white/[0.16] transition-all cursor-pointer min-h-[44px] ios-spring"
                 title="Tonton Cuplikan Trailer"
               >
-                <Video className="w-4 h-4 text-[#FFB224]" />
+                <Video className="w-4 h-4 text-white" />
                 <span>Trailer</span>
               </button>
             )}
@@ -435,12 +435,12 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
                 });
               }}
               className={`inline-flex items-center justify-center gap-2 px-4 sm:px-5 py-3 rounded-full liquid-glass liquid-specular text-xs sm:text-sm font-semibold transition-all cursor-pointer min-h-[44px] ios-spring ${
-                inWatchlist ? 'text-[#FFB224] bg-white/[0.16]' : 'text-white hover:bg-white/[0.14]'
+                inWatchlist ? 'text-white bg-white/[0.22] font-bold shadow-md' : 'text-white hover:bg-white/[0.14]'
               }`}
             >
               {inWatchlist ? (
                 <>
-                  <BookmarkCheck className="w-4 h-4 text-[#FFB224]" />
+                  <BookmarkCheck className="w-4 h-4 text-white" />
                   <span>Tersimpan</span>
                 </>
               ) : (
@@ -466,7 +466,7 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
               onClick={() => onOpenAIWithContext(title)}
               className="inline-flex items-center justify-center gap-2 px-3.5 sm:px-4 py-3 rounded-full liquid-glass liquid-specular text-white/80 hover:text-white text-xs sm:text-sm font-medium transition-all cursor-pointer min-h-[44px] ios-spring"
             >
-              <Sparkles className="w-4 h-4 text-[#FFB224]" />
+              <Sparkles className="w-4 h-4 text-white" />
               <span className="hidden sm:inline">Tanya AI</span>
             </button>
           </div>
@@ -478,7 +478,7 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
         <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8 space-y-4 pt-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
-              <div className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center text-[#FFB224]">
+              <div className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center text-white">
                 <Users className="w-4 h-4" />
               </div>
               <div>
@@ -522,7 +522,7 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
                     {c.name}
                   </h4>
                   {c.character && (
-                    <p className="text-[11px] text-[#FFB224] line-clamp-1 font-medium mt-0.5">
+                    <p className="text-[11px] text-white/80 line-clamp-1 font-medium mt-0.5">
                       {c.character}
                     </p>
                   )}
@@ -608,7 +608,7 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
                       </div>
                       {/* Play Hover Overlay */}
                       <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                        <div className="w-8 h-8 rounded-full bg-[#FFB224] text-black flex items-center justify-center shadow-lg">
+                        <div className="w-8 h-8 rounded-full bg-white text-black flex items-center justify-center shadow-lg">
                           <Play className="w-4 h-4 fill-current ml-0.5" />
                         </div>
                       </div>
@@ -617,7 +617,7 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
                     {/* Episode Info */}
                     <div className="flex-1 min-w-0 w-full">
                       <div className="flex items-center justify-between gap-1.5">
-                        <h4 className="text-xs sm:text-sm font-bold text-white group-hover:text-[#FFB224] transition-colors line-clamp-1">
+                        <h4 className="text-xs sm:text-sm font-bold text-white group-hover:text-white/80 transition-colors line-clamp-1">
                           {ep.name || `Episode ${ep.number}`}
                         </h4>
                         {watched && (
@@ -651,7 +651,7 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
               <p>Memuat daftar episode langsung di pemutar...</p>
               <button
                 onClick={() => navigate(`/watch/tv/${title.id}/${selectedSeason}/1`)}
-                className="px-5 py-2 rounded-full bg-white text-black font-bold text-xs inline-block hover:bg-[#FFB224] cursor-pointer"
+                className="px-5 py-2 rounded-full bg-white text-black font-bold text-xs inline-block hover:bg-zinc-200 cursor-pointer"
               >
                 Putar Musim {selectedSeason} Episode 1
               </button>
@@ -714,7 +714,7 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
                     </div>
                     {/* Play Hover Overlay */}
                     <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                      <div className="w-8 h-8 rounded-full bg-[#FFB224] text-black flex items-center justify-center shadow-lg">
+                      <div className="w-8 h-8 rounded-full bg-white text-black flex items-center justify-center shadow-lg">
                         <Play className="w-4 h-4 fill-current ml-0.5" />
                       </div>
                     </div>
@@ -725,7 +725,7 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
                     )}
                   </div>
                   <div className="min-w-0">
-                    <h4 className="text-xs font-bold text-white group-hover:text-[#FFB224] transition-colors truncate">
+                    <h4 className="text-xs font-bold text-white group-hover:text-white/80 transition-colors truncate">
                       {ep.name || `Episode ${ep.number}`}
                     </h4>
                     <p className="text-[10px] text-white/50 mt-0.5">

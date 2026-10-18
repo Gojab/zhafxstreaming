@@ -1,4 +1,4 @@
-import crypto from 'crypto';
+import { authenticateGoogleUser } from './service';
 
 export default async function handler(req: any, res: any) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -85,23 +85,15 @@ export default async function handler(req: any, res: any) {
     return res.status(400).json({ success: false, error: 'Email Google atau kredensial tidak valid.' });
   }
 
-  const baseUsername = verifiedEmail.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '');
-  const username = baseUsername || `g_${Date.now().toString(36)}`;
-
-  const user = {
-    id: `usr_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
-    name: verifiedName || baseUsername,
-    username,
+  const result = await authenticateGoogleUser({
     email: verifiedEmail,
-    joinedAt: Date.now(),
-  };
-
-  const token = crypto.randomBytes(32).toString('hex');
+    name: verifiedName,
+  });
 
   return res.status(200).json({
     success: true,
-    token,
-    user,
-    message: `Berhasil masuk dengan akun Google: ${user.email}`,
+    token: result.token,
+    user: result.user,
+    message: result.message,
   });
 }

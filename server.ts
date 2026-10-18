@@ -4,6 +4,19 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import crypto from 'crypto';
 import fs from 'fs';
+import {
+  createAndSendOtp,
+  verifyOtpAndAuthenticate,
+  registerWithPassword,
+  loginWithPassword,
+  authenticateGoogleUser,
+  getUserByToken,
+  readAuthDb,
+  writeAuthDb,
+  StoredUser,
+  StoredSession,
+  AuthDb,
+} from './api/auth/service';
 import { executeMultiModelChat } from './api/ai/pipeline';
 
 dotenv.config();
@@ -14,120 +27,7 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = parseInt(process.env.PORT || '3000', 10);
 
-app.use(express.json({ limit: '1mb' }));
-
-// --- Persistent Auth Database ---
 const DATA_DIR = path.resolve(__dirname, 'data');
-const AUTH_DB_PATH = path.resolve(DATA_DIR, 'auth_db.json');
-
-interface StoredUser {
-  id: string;
-  name: string;
-  username: string;
-  email: string;
-  passwordHash: string;
-  joinedAt: number;
-}
-
-interface StoredSession {
-  token: string;
-  userId: string;
-  createdAt: number;
-  expiresAt: number;
-}
-
-interface AuthDb {
-  users: StoredUser[];
-  sessions: StoredSession[];
-}
-
-function hashPassword(password: string): string {
-  const salt = crypto.randomBytes(16).toString('hex');
-  const hash = crypto.scryptSync(password, salt, 64).toString('hex');
-  return `${salt}:${hash}`;
-}
-
-function verifyPassword(password: string, stored: string): boolean {
-  try {
-    const [salt, key] = stored.split(':');
-    if (!salt || !key) return false;
-    const keyBuffer = Buffer.from(key, 'hex');
-    const derivedKey = crypto.scryptSync(password, salt, 64);
-    return crypto.timingSafeEqual(keyBuffer, derivedKey);
-  } catch {
-    return false;
-  }
-}
-
-function initAuthDb(): AuthDb {
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-  }
-
-  if (!fs.existsSync(AUTH_DB_PATH)) {
-    const initialDb: AuthDb = {
-      users: [],
-      sessions: [],
-    };
-
-    fs.writeFileSync(AUTH_DB_PATH, JSON.stringify(initialDb, null, 2), 'utf-8');
-    return initialDb;
-  }
-
-  try {
-    const raw = fs.readFileSync(AUTH_DB_PATH, 'utf-8');
-    const parsed = JSON.parse(raw);
-    const users: StoredUser[] = Array.isArray(parsed.users)
-      ? parsed.users
-      : [];
-    const validUserIds = new Set(users.map((u) => u.id));
-    const sessions: StoredSession[] = Array.isArray(parsed.sessions)
-      ? parsed.sessions.filter((s: StoredSession) => validUserIds.has(s.userId))
-      : [];
-
-    return {
-      users,
-      sessions,
-    };
-  } catch (e) {
-    console.error('[Auth DB] Error reading database, recreating clean state:', e);
-    const fallbackDb: AuthDb = { users: [], sessions: [] };
-    fs.writeFileSync(AUTH_DB_PATH, JSON.stringify(fallbackDb, null, 2), 'utf-8');
-    return fallbackDb;
-  }
-}
-
-function readAuthDb(): AuthDb {
-  return initAuthDb();
-}
-
-function writeAuthDb(db: AuthDb): void {
-  try {
-    if (!fs.existsSync(DATA_DIR)) {
-      fs.mkdirSync(DATA_DIR, { recursive: true });
-    }
-    const tempPath = `${AUTH_DB_PATH}.tmp`;
-    fs.writeFileSync(tempPath, JSON.stringify(db, null, 2), 'utf-8');
-    fs.renameSync(tempPath, AUTH_DB_PATH);
-  } catch (e) {
-    console.error('[Auth DB] Failed to save database:', e);
-  }
-}
-
-// Clean up expired sessions periodically
-setInterval(() => {
-  try {
-    const db = readAuthDb();
-    const now = Date.now();
-    const activeSessions = db.sessions.filter((s) => s.expiresAt > now);
-    if (activeSessions.length !== db.sessions.length) {
-      db.sessions = activeSessions;
-      writeAuthDb(db);
-    }
-  } catch {
-    // silent
-  }
-}, 10 * 60 * 1000);
 
 // --- Persistent Watch Progress Database ---
 const PROGRESS_DB_PATH = path.resolve(DATA_DIR, 'watch_progress.json');
@@ -550,10 +450,10 @@ app.all('/api/anime/proxy', async (req: Request, res: Response) => {
     if (upstreamRes.headers.get('content-range')) {
       res.setHeader('Content-Range', upstreamRes.headers.get('content-range')!);
     }
-    if (upstreamRes.headers.get('accept-ranges')) {
-      res.setHeader('Accept-Ranges', upstreamRes.headers.get('accept-ranges')!);
-    }
-    res.setHeader('Content-Type', contentType || 'video/MP2T');
+    const finalContentType = (contentType && (contentType.includes('mp4') || contentType.includes('webm')))
+      ? contentType
+      : 'video/MP2T';
+    res.setHeader('Content-Type', finalContentType);
     res.status(upstreamRes.status);
 
     if (upstreamRes.body) {
@@ -673,96 +573,101 @@ app.get('/api/stream', async (req: Request, res: Response) => {
 // Authentication Endpoints (Server-Side)
 // ==========================================
 
-// Register Account
-app.post('/api/auth/register', (req: Request, res: Response) => {
+// Request Email OTP Verification Code
+app.post('/api/auth/send-verification-code', async (req: Request, res: Response) => {
   try {
-    const { name, email, username, password } = req.body || {};
-
-    const cleanName = typeof name === 'string' ? name.trim() : '';
-    const cleanEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
-    const cleanPassword = typeof password === 'string' ? password : '';
-    let cleanUsername = typeof username === 'string' ? username.trim().toLowerCase() : '';
-
-    if (!cleanName) {
-      return res.status(400).json({ success: false, error: 'Nama lengkap wajib diisi.' });
+    const { email, name } = req.body || {};
+    if (!email || typeof email !== 'string') {
+      return res.status(400).json({ success: false, error: 'Alamat email wajib diisi.' });
     }
 
-    if (cleanName.length < 2) {
-      return res.status(400).json({ success: false, error: 'Nama lengkap minimal 2 karakter.' });
-    }
+    const clientIp = (req.headers['x-forwarded-for'] || req.headers['x-real-ip']) || req.socket?.remoteAddress;
+    const result = await createAndSendOtp({
+      email,
+      name,
+      ip: String(clientIp || ''),
+    });
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!cleanEmail || !emailRegex.test(cleanEmail)) {
-      return res.status(400).json({ success: false, error: 'Format alamat email tidak valid.' });
-    }
-
-    if (!cleanPassword || cleanPassword.length < 6) {
-      return res.status(400).json({ success: false, error: 'Kata sandi minimal 6 karakter.' });
-    }
-
-    // Default username from email prefix if not supplied
-    if (!cleanUsername) {
-      cleanUsername = cleanEmail.split('@')[0].replace(/[^a-z0-9_]/g, '');
-    }
-
-    if (cleanUsername.length < 3) {
-      cleanUsername = `user_${Math.random().toString(36).substring(2, 7)}`;
-    }
-
-    const db = readAuthDb();
-
-    // Check email uniqueness
-    const emailExists = db.users.some((u) => u.email.toLowerCase() === cleanEmail);
-    if (emailExists) {
-      return res.status(409).json({
+    if (!result.success) {
+      return res.status(400).json({
         success: false,
-        error: 'Email ini sudah terdaftar. Silakan gunakan email lain atau masuk ke akun Anda.',
+        error: result.error,
+        cooldownSeconds: result.cooldownSeconds,
+        maskedEmail: result.maskedEmail,
       });
     }
 
-    // Check username uniqueness
-    const usernameExists = db.users.some((u) => u.username.toLowerCase() === cleanUsername);
-    if (usernameExists) {
-      return res.status(409).json({
+    // CRITICAL: NEVER leak OTP code in response or console!
+    return res.status(200).json({
+      success: true,
+      message: 'Verifikasi email diperlukan. Kami telah mengirimkan kode verifikasi ke alamat email kamu. Silakan periksa kotak masuk Gmail, termasuk folder Spam atau Promosi, kemudian masukkan kode untuk melanjutkan pendaftaran.',
+      maskedEmail: result.maskedEmail,
+      cooldownSeconds: result.cooldownSeconds || 60,
+    });
+  } catch (err: any) {
+    console.error('[Send Code Error]:', err);
+    return res.status(500).json({ success: false, error: 'Gagal mengirim kode verifikasi email.' });
+  }
+});
+
+// Verify Code & Complete Registration / Login
+app.post('/api/auth/verify-code', async (req: Request, res: Response) => {
+  try {
+    const { email, code, name } = req.body || {};
+    if (!email || !code) {
+      return res.status(400).json({ success: false, error: 'Email dan kode verifikasi 6-digit wajib diisi.' });
+    }
+
+    const result = await verifyOtpAndAuthenticate({
+      email,
+      code,
+      name,
+    });
+
+    if (!result.success) {
+      return res.status(400).json({
         success: false,
-        error: 'Nama pengguna sudah digunakan. Silakan pilih nama pengguna lain.',
+        error: result.error,
       });
     }
 
-    // Create user with salted scrypt hash
-    const newUser: StoredUser = {
-      id: `usr_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
-      name: cleanName,
-      username: cleanUsername,
-      email: cleanEmail,
-      passwordHash: hashPassword(cleanPassword),
-      joinedAt: Date.now(),
-    };
+    return res.status(200).json({
+      success: true,
+      token: result.token,
+      user: result.user,
+      message: result.message,
+    });
+  } catch (err: any) {
+    console.error('[Verify Code Error]:', err);
+    return res.status(500).json({ success: false, error: 'Gagal memverifikasi kode.' });
+  }
+});
 
-    // Create session (valid for 30 days)
-    const token = crypto.randomBytes(32).toString('hex');
-    const session: StoredSession = {
-      token,
-      userId: newUser.id,
-      createdAt: Date.now(),
-      expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000,
-    };
+// Register Account with Email & Password
+app.post('/api/auth/register', async (req: Request, res: Response) => {
+  try {
+    const { name, email, password } = req.body || {};
+    const clientIp = (req.headers['x-forwarded-for'] || req.headers['x-real-ip']) || req.socket?.remoteAddress;
 
-    db.users.push(newUser);
-    db.sessions.push(session);
-    writeAuthDb(db);
+    const result = await registerWithPassword({
+      name,
+      email,
+      password,
+      ip: String(clientIp || ''),
+    });
+
+    if (!result.success) {
+      return res.status(400).json({
+        success: false,
+        error: result.error,
+      });
+    }
 
     return res.status(201).json({
       success: true,
-      token,
-      user: {
-        id: newUser.id,
-        name: newUser.name,
-        username: newUser.username,
-        email: newUser.email,
-        joinedAt: newUser.joinedAt,
-      },
-      message: 'Pendaftaran berhasil! Selamat datang di ZHAFX.',
+      requiresVerification: true,
+      maskedEmail: result.maskedEmail,
+      message: result.message,
     });
   } catch (err: any) {
     console.error('[Auth Register Error]:', err);
@@ -773,82 +678,41 @@ app.post('/api/auth/register', (req: Request, res: Response) => {
   }
 });
 
-// Login
-app.post('/api/auth/login', (req: Request, res: Response) => {
+// Login with Email/Username & Password
+app.post('/api/auth/login', async (req: Request, res: Response) => {
   try {
     const { login, email, username, password, rememberMe } = req.body || {};
+    const rawLogin = (login || email || username || '').trim();
+    const clientIp = (req.headers['x-forwarded-for'] || req.headers['x-real-ip']) || req.socket?.remoteAddress;
 
-    const rawLogin = login || email || username;
-    const cleanLogin = typeof rawLogin === 'string' ? rawLogin.trim().toLowerCase() : '';
-    const cleanPassword = typeof password === 'string' ? password : '';
+    const result = await loginWithPassword({
+      login: rawLogin,
+      password: password || '',
+      rememberMe: Boolean(rememberMe),
+      ip: String(clientIp || ''),
+    });
 
-    if (!cleanLogin && !cleanPassword) {
-      return res.status(400).json({
-        success: false,
-        error: 'Email atau nama pengguna dan kata sandi wajib diisi.',
-      });
-    }
-
-    if (!cleanLogin) {
-      return res.status(400).json({
-        success: false,
-        error: 'Silakan masukkan alamat email atau nama pengguna Anda.',
-      });
-    }
-
-    if (!cleanPassword) {
-      return res.status(400).json({
-        success: false,
-        error: 'Silakan masukkan kata sandi Anda.',
-      });
-    }
-
-    const db = readAuthDb();
-
-    // Find by email OR username (case-insensitive)
-    const user = db.users.find(
-      (u) => u.email.toLowerCase() === cleanLogin || u.username.toLowerCase() === cleanLogin
-    );
-
-    if (!user) {
+    if (!result.success) {
+      if (result.requiresVerification) {
+        return res.status(403).json({
+          success: false,
+          requiresVerification: true,
+          email: result.email,
+          maskedEmail: result.maskedEmail,
+          error: result.error,
+        });
+      }
       return res.status(401).json({
         success: false,
-        error: 'Akun dengan email atau nama pengguna tersebut tidak ditemukan.',
+        error: result.error,
       });
     }
-
-    const isPasswordValid = verifyPassword(cleanPassword, user.passwordHash);
-    if (!isPasswordValid) {
-      return res.status(401).json({
-        success: false,
-        error: 'Kata sandi yang Anda masukkan salah. Silakan coba lagi.',
-      });
-    }
-
-    // Session duration: 30 days if rememberMe, 24 hours otherwise
-    const durationMs = rememberMe ? 30 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
-    const token = crypto.randomBytes(32).toString('hex');
-    const session: StoredSession = {
-      token,
-      userId: user.id,
-      createdAt: Date.now(),
-      expiresAt: Date.now() + durationMs,
-    };
-
-    db.sessions.push(session);
-    writeAuthDb(db);
 
     return res.status(200).json({
       success: true,
-      token,
-      user: {
-        id: user.id,
-        name: user.name,
-        username: user.username,
-        email: user.email,
-        joinedAt: user.joinedAt,
-      },
-      message: 'Berhasil masuk ke akun ZHAFX!',
+      token: result.token,
+      user: result.user,
+      message: result.message,
     });
   } catch (err: any) {
     console.error('[Auth Login Error]:', err);
@@ -871,49 +735,18 @@ app.get('/api/auth/me', (req: Request, res: Response) => {
     }
 
     const token = authHeader.substring(7).trim();
-    if (!token) {
-      return res.status(401).json({
-        success: false,
-        error: 'Token autentikasi tidak valid.',
-      });
-    }
+    const user = getUserByToken(token);
 
-    const db = readAuthDb();
-    const session = db.sessions.find((s) => s.token === token);
-
-    if (!session) {
+    if (!user) {
       return res.status(401).json({
         success: false,
         error: 'Sesi tidak valid atau telah berakhir.',
       });
     }
 
-    if (session.expiresAt < Date.now()) {
-      db.sessions = db.sessions.filter((s) => s.token !== token);
-      writeAuthDb(db);
-      return res.status(401).json({
-        success: false,
-        error: 'Sesi Anda telah kedaluwarsa. Silakan masuk kembali.',
-      });
-    }
-
-    const user = db.users.find((u) => u.id === session.userId);
-    if (!user) {
-      return res.status(401).json({
-        success: false,
-        error: 'Pengguna akun tidak ditemukan.',
-      });
-    }
-
     return res.status(200).json({
       success: true,
-      user: {
-        id: user.id,
-        name: user.name,
-        username: user.username,
-        email: user.email,
-        joinedAt: user.joinedAt,
-      },
+      user,
     });
   } catch (err: any) {
     console.error('[Auth Me Error]:', err);
@@ -941,135 +774,6 @@ app.post('/api/auth/logout', (req: Request, res: Response) => {
   } catch (err: any) {
     console.error('[Auth Logout Error]:', err);
     return res.status(200).json({ success: true });
-  }
-});
-
-// In-memory verification code store (valid for 15 minutes)
-const emailVerificationStore = new Map<string, { code: string; expiresAt: number; name?: string }>();
-
-// Send Verification Code (Gmail / Email)
-app.post('/api/auth/send-verification-code', (req: Request, res: Response) => {
-  try {
-    const { email, name } = req.body || {};
-    if (!email || typeof email !== 'string') {
-      return res.status(400).json({ success: false, error: 'Alamat email wajib diisi.' });
-    }
-
-    const cleanEmail = email.trim().toLowerCase();
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(cleanEmail)) {
-      return res.status(400).json({ success: false, error: 'Format email tidak valid.' });
-    }
-
-    // Generate secure 6-digit random code
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = Date.now() + 15 * 60 * 1000; // 15 mins
-
-    emailVerificationStore.set(cleanEmail, { code, expiresAt, name });
-
-    console.log(`[Verification Code] Sent to ${cleanEmail}: ${code}`);
-
-    return res.status(200).json({
-      success: true,
-      message: `Kode verifikasi 6-digit berhasil dikirim ke ${cleanEmail}`,
-      code, // returned so client can show in realistic toast notification
-      expiresAt,
-    });
-  } catch (err: any) {
-    console.error('[Send Code Error]:', err);
-    return res.status(500).json({ success: false, error: 'Gagal mengirim kode verifikasi.' });
-  }
-});
-
-// Verify Code & Login / Register
-app.post('/api/auth/verify-code', (req: Request, res: Response) => {
-  try {
-    const { email, code, name } = req.body || {};
-    if (!email || !code) {
-      return res.status(400).json({ success: false, error: 'Email dan kode verifikasi 6-digit wajib diisi.' });
-    }
-
-    const cleanEmail = String(email).trim().toLowerCase();
-    const cleanCode = String(code).trim();
-
-    const stored = emailVerificationStore.get(cleanEmail);
-    if (!stored) {
-      return res.status(400).json({
-        success: false,
-        error: 'Kode verifikasi tidak ditemukan atau telah kedaluwarsa. Silakan minta kode baru.',
-      });
-    }
-
-    if (stored.expiresAt < Date.now()) {
-      emailVerificationStore.delete(cleanEmail);
-      return res.status(400).json({
-        success: false,
-        error: 'Kode verifikasi telah kedaluwarsa (lebih dari 15 menit). Silakan minta kode baru.',
-      });
-    }
-
-    if (stored.code !== cleanCode) {
-      return res.status(400).json({
-        success: false,
-        error: 'Kode verifikasi salah. Silakan periksa kembali angka yang Anda masukkan.',
-      });
-    }
-
-    // Code is valid! Consume it
-    emailVerificationStore.delete(cleanEmail);
-
-    const db = readAuthDb();
-    let user = db.users.find((u) => u.email.toLowerCase() === cleanEmail);
-
-    if (!user) {
-      // Auto-register user from email
-      const defaultName = name?.trim() || stored.name?.trim() || cleanEmail.split('@')[0];
-      const baseUsername = cleanEmail.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '');
-      let finalUsername = baseUsername || `user_${Date.now().toString(36)}`;
-
-      if (db.users.some((u) => u.username.toLowerCase() === finalUsername.toLowerCase())) {
-        finalUsername = `${finalUsername}_${Math.floor(Math.random() * 900 + 100)}`;
-      }
-
-      user = {
-        id: `usr_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
-        name: defaultName,
-        username: finalUsername,
-        email: cleanEmail,
-        passwordHash: hashPassword(crypto.randomBytes(16).toString('hex')), // random salt
-        joinedAt: Date.now(),
-      };
-
-      db.users.push(user);
-    }
-
-    // Create session (30 days)
-    const token = crypto.randomBytes(32).toString('hex');
-    const session: StoredSession = {
-      token,
-      userId: user.id,
-      createdAt: Date.now(),
-      expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000,
-    };
-
-    db.sessions.push(session);
-    writeAuthDb(db);
-
-    return res.status(200).json({
-      success: true,
-      token,
-      user: {
-        id: user.id,
-        name: user.name,
-        username: user.username,
-        email: user.email,
-        joinedAt: user.joinedAt,
-      },
-      message: `Berhasil memverifikasi email dan masuk sebagai ${user.name}!`,
-    });
-  } catch (err: any) {
-    console.error('[Verify Code Error]:', err);
-    return res.status(500).json({ success: false, error: 'Gagal memverifikasi kode.' });
   }
 });
 
@@ -1137,52 +841,16 @@ app.post('/api/auth/google-login', async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, error: 'Email Google wajib diisi.' });
     }
 
-    if (!cleanName) {
-      cleanName = cleanEmail.split('@')[0];
-    }
-
-    const db = readAuthDb();
-    let user = db.users.find((u) => u.email.toLowerCase() === cleanEmail);
-
-    if (!user) {
-      const baseUsername = cleanEmail.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '');
-      let finalUsername = baseUsername || `g_${Date.now().toString(36)}`;
-      if (db.users.some((u) => u.username.toLowerCase() === finalUsername.toLowerCase())) {
-        finalUsername = `${finalUsername}_${Math.floor(Math.random() * 900 + 100)}`;
-      }
-
-      user = {
-        id: `usr_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
-        name: cleanName,
-        username: finalUsername,
-        email: cleanEmail,
-        passwordHash: hashPassword(crypto.randomBytes(16).toString('hex')),
-        joinedAt: Date.now(),
-      };
-      db.users.push(user);
-    }
-
-    const token = crypto.randomBytes(32).toString('hex');
-    const session: StoredSession = {
-      token,
-      userId: user.id,
-      createdAt: Date.now(),
-      expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000,
-    };
-    db.sessions.push(session);
-    writeAuthDb(db);
+    const result = await authenticateGoogleUser({
+      email: cleanEmail,
+      name: cleanName,
+    });
 
     return res.status(200).json({
       success: true,
-      token,
-      user: {
-        id: user.id,
-        name: user.name,
-        username: user.username,
-        email: user.email,
-        joinedAt: user.joinedAt,
-      },
-      message: `Berhasil masuk dengan akun Google: ${user.email}`,
+      token: result.token,
+      user: result.user,
+      message: result.message,
     });
   } catch (err: any) {
     console.error('[Google Auth Error]:', err);

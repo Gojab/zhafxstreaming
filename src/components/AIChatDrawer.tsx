@@ -252,7 +252,7 @@ export const AIChatDrawer: React.FC<AIChatDrawerProps> = ({
         >
           {messages.length === 0 ? (
             <div className="h-full flex flex-col justify-center items-center text-center px-4 space-y-4 my-auto py-8">
-              <div className="w-14 h-14 rounded-full liquid-glass liquid-specular flex items-center justify-center text-[#FFB224] shadow-xl">
+              <div className="w-14 h-14 rounded-full liquid-glass liquid-specular flex items-center justify-center text-white shadow-xl">
                 <Sparkles className="w-7 h-7" />
               </div>
               <div className="space-y-1">
@@ -301,7 +301,7 @@ export const AIChatDrawer: React.FC<AIChatDrawerProps> = ({
                   {/* Message role indicator & copy button */}
                   {msg.role === 'model' && (
                     <div className="flex items-center justify-between mb-1.5 border-b border-white/[0.08] pb-1 text-[11px] text-white/60 font-medium">
-                      <span className="flex items-center gap-1.5 text-[#FFB224]">
+                      <span className="flex items-center gap-1.5 text-white">
                         <Sparkles className="w-3 h-3 fill-current" />
                         Zhafx AI
                       </span>
@@ -369,7 +369,7 @@ export const AIChatDrawer: React.FC<AIChatDrawerProps> = ({
                 {msg.picks && msg.picks.length > 0 && (
                   <div className="w-full mt-2.5 space-y-1.5">
                     <span className="text-[11px] font-medium text-white/50 flex items-center gap-1">
-                      <Film className="w-3.5 h-3.5 text-[#FFB224]" />
+                      <Film className="w-3.5 h-3.5 text-white" />
                       Rekomendasi Tayangan di Zhafx:
                     </span>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -397,7 +397,7 @@ export const AIChatDrawer: React.FC<AIChatDrawerProps> = ({
                                 <div className="flex items-center gap-1.5 text-[10px] text-white/50 mt-0.5">
                                   <span>{resolved.year}</span>
                                   <span>•</span>
-                                  <span className="text-[#FFB224] capitalize font-medium">{resolved.type}</span>
+                                  <span className="text-white/80 capitalize font-medium">{resolved.type}</span>
                                 </div>
                               </div>
                             </button>

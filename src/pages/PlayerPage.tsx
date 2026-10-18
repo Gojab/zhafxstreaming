@@ -101,6 +101,18 @@ export const PlayerPage: React.FC = () => {
   const controlsTimeoutRef = useRef<any>(null);
   const progressBarRef = useRef<HTMLDivElement | null>(null);
 
+  // Prevent mobile popups and rogue window.open ad redirection
+  useEffect(() => {
+    const originalOpen = window.open;
+    window.open = function () {
+      console.warn('[Zhafx Player] Blocked popup / new tab ad attempt on mobile.');
+      return null;
+    };
+    return () => {
+      window.open = originalOpen;
+    };
+  }, []);
+
   // Save history
   const recordHistory = useCallback(
     (t: Title) => {
@@ -271,12 +283,16 @@ export const PlayerPage: React.FC = () => {
             setActiveSubtitleUrl(null);
           }
         } else {
-          setAnimeError('Stream HLS tidak tersedia untuk server ini. Silakan klik tombol di bawah untuk memutar via FrameX Embed.');
+          // Seamless auto-failover to official FrameX Embed mode
+          setPlayerMode('embed');
+          setAnimeError(null);
         }
       })
-      .catch((err) => {
+      .catch(() => {
         if (!controller.signal.aborted) {
-          setAnimeError(err?.message || 'Gagal memuat stream HLS dari API FrameX.');
+          // Seamless auto-failover to official FrameX Embed mode
+          setPlayerMode('embed');
+          setAnimeError(null);
         }
       })
       .finally(() => {
@@ -752,7 +768,7 @@ export const PlayerPage: React.FC = () => {
                 {title?.title || 'Memuat Pemutar...'}
               </h1>
               {(mediaType === 'tv' || mediaType === 'anime') && (
-                <div className="flex items-center gap-1.5 text-[10px] sm:text-[11px] text-[#FFB224] font-medium truncate">
+                <div className="flex items-center gap-1.5 text-[10px] sm:text-[11px] text-white/80 font-medium truncate">
                   <span>{mediaType === 'anime' ? 'FrameX Native Stream' : `Musim ${seasonNum}`}</span>
                   <span>•</span>
                   <span>Episode {episodeNum}</span>
@@ -778,10 +794,10 @@ export const PlayerPage: React.FC = () => {
 
                 <button
                   onClick={() => setIsEpisodeDrawerOpen(!isEpisodeDrawerOpen)}
-                  className="px-2 sm:px-2.5 py-1 rounded-full bg-white/[0.12] hover:bg-white/[0.2] text-[10px] sm:text-[11px] font-bold text-[#FFB224] flex items-center gap-1 cursor-pointer ios-spring"
+                  className="px-2 sm:px-2.5 py-1 rounded-full bg-white/[0.12] hover:bg-white/[0.2] text-[10px] sm:text-[11px] font-bold text-white flex items-center gap-1 cursor-pointer ios-spring"
                   title="Buka daftar episode dengan thumbnail"
                 >
-                  <ListOrdered className="w-3 h-3 text-[#FFB224]" />
+                  <ListOrdered className="w-3 h-3 text-white" />
                   <span>Ep {episodeNum}</span>
                 </button>
 
@@ -806,12 +822,12 @@ export const PlayerPage: React.FC = () => {
                 }}
                 className={`px-2.5 py-1 rounded-full text-[10px] sm:text-[11px] font-bold border transition-all cursor-pointer ios-spring flex items-center gap-1 ${
                   animeAudio === 'sub'
-                    ? 'bg-[#FFB224]/20 border-[#FFB224]/50 text-[#FFB224]'
-                    : 'bg-indigo-500/20 border-indigo-500/50 text-indigo-300'
+                    ? 'bg-white/20 border-white/40 text-white'
+                    : 'bg-white/10 border-white/20 text-white/70'
                 }`}
                 title="Pilih Audio: Sub (Jepang) atau Dub (Inggris)"
               >
-                <Volume2 className="w-3 h-3" />
+                <Volume2 className="w-3 h-3 text-white" />
                 <span>{animeAudio === 'sub' ? 'SUB' : 'DUB'}</span>
               </button>
             )}
@@ -835,8 +851,8 @@ export const PlayerPage: React.FC = () => {
                 </>
               ) : (
                 <>
-                  <Sparkles className="w-3 h-3 text-[#FFB224]" />
-                  <span className="hidden sm:inline">FrameX Embed</span>
+                  <Sparkles className="w-3 h-3 text-white" />
+                  <span className="hidden sm:inline">Modif Embed</span>
                   <span className="sm:hidden">Embed</span>
                 </>
               )}
@@ -1435,6 +1451,7 @@ export const PlayerPage: React.FC = () => {
             allow="autoplay; fullscreen; picture-in-picture; encrypted-media; gyroscope; accelerometer"
             allowFullScreen={true}
             referrerPolicy="origin"
+            sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
             // @ts-ignore
             webkitallowfullscreen="true"
             // @ts-ignore

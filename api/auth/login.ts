@@ -1,4 +1,4 @@
-import crypto from 'crypto';
+import { loginWithPassword } from './service';
 
 export default async function handler(req: any, res: any) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -22,31 +22,37 @@ export default async function handler(req: any, res: any) {
     }
   }
 
-  const { login, email, username, password } = body || {};
+  const { login, email, username, password, rememberMe } = body || {};
   const rawLogin = (login || email || username || '').trim();
+  const clientIp = (req.headers && (req.headers['x-forwarded-for'] || req.headers['x-real-ip'])) || req.socket?.remoteAddress;
 
-  if (!rawLogin || !password) {
-    return res.status(400).json({
+  const result = await loginWithPassword({
+    login: rawLogin,
+    password: password || '',
+    rememberMe: Boolean(rememberMe),
+    ip: String(clientIp || ''),
+  });
+
+  if (!result.success) {
+    if (result.requiresVerification) {
+      return res.status(403).json({
+        success: false,
+        requiresVerification: true,
+        email: result.email,
+        maskedEmail: result.maskedEmail,
+        error: result.error,
+      });
+    }
+    return res.status(401).json({
       success: false,
-      error: 'Email/nama pengguna dan kata sandi wajib diisi.',
+      error: result.error,
     });
   }
 
-  const cleanName = rawLogin.includes('@') ? rawLogin.split('@')[0] : rawLogin;
-  const user = {
-    id: `usr_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
-    name: cleanName,
-    username: rawLogin.toLowerCase().replace(/[^a-z0-9_]/g, ''),
-    email: rawLogin.includes('@') ? rawLogin.toLowerCase() : `${rawLogin.toLowerCase()}@user.zhafx`,
-    joinedAt: Date.now(),
-  };
-
-  const token = crypto.randomBytes(32).toString('hex');
-
   return res.status(200).json({
     success: true,
-    token,
-    user,
-    message: 'Berhasil masuk ke akun ZHAFX!',
+    token: result.token,
+    user: result.user,
+    message: result.message,
   });
 }

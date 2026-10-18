@@ -1,3 +1,5 @@
+import { createAndSendOtp } from './service';
+
 export default async function handler(req: any, res: any) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -20,18 +22,33 @@ export default async function handler(req: any, res: any) {
     }
   }
 
-  const { email } = body || {};
+  const { email, name } = body || {};
   if (!email || typeof email !== 'string') {
     return res.status(400).json({ success: false, error: 'Alamat email wajib diisi.' });
   }
 
-  const cleanEmail = email.trim().toLowerCase();
-  const code = Math.floor(100000 + Math.random() * 900000).toString();
+  const clientIp = (req.headers && (req.headers['x-forwarded-for'] || req.headers['x-real-ip'])) || req.socket?.remoteAddress;
 
+  const result = await createAndSendOtp({
+    email,
+    name,
+    ip: String(clientIp || ''),
+  });
+
+  if (!result.success) {
+    return res.status(400).json({
+      success: false,
+      error: result.error,
+      cooldownSeconds: result.cooldownSeconds,
+      maskedEmail: result.maskedEmail,
+    });
+  }
+
+  // CRITICAL: NEVER leak OTP code in response or console!
   return res.status(200).json({
     success: true,
-    message: `Kode verifikasi 6-digit berhasil dibuat untuk ${cleanEmail}`,
-    code,
-    expiresAt: Date.now() + 15 * 60 * 1000,
+    message: `Kode verifikasi telah dikirim ke alamat email kamu. Silakan periksa kotak masuk Gmail, termasuk folder Spam atau Promosi.`,
+    maskedEmail: result.maskedEmail,
+    cooldownSeconds: result.cooldownSeconds || 60,
   });
 }

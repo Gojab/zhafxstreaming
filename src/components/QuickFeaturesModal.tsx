@@ -94,7 +94,7 @@ export const QuickFeaturesModal: React.FC<QuickFeaturesModalProps> = ({
             <div>
               <h2 className="text-sm sm:text-base font-bold text-white tracking-tight flex items-center gap-1.5">
                 <span>Pusat Fitur</span>
-                <span className="px-2 py-0.5 rounded-full bg-[#FFB224]/20 text-[#FFB224] text-[10px] font-mono font-semibold">
+                <span className="px-2 py-0.5 rounded-full bg-white/10 text-white text-[10px] font-mono font-semibold">
                   ZHAFX
                 </span>
               </h2>
@@ -116,7 +116,7 @@ export const QuickFeaturesModal: React.FC<QuickFeaturesModalProps> = ({
         {user ? (
           <div className="p-3.5 rounded-[22px] bg-white/[0.06] border border-white/10 flex items-center justify-between gap-3">
             <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-[#FFB224] to-amber-300 text-black font-bold text-sm flex items-center justify-center uppercase shadow-sm shrink-0">
+              <div className="w-9 h-9 rounded-full bg-white text-black font-bold text-sm flex items-center justify-center uppercase shadow-sm shrink-0">
                 {user.name?.charAt(0) || user.email?.charAt(0) || 'U'}
               </div>
               <div className="min-w-0">
@@ -181,7 +181,7 @@ export const QuickFeaturesModal: React.FC<QuickFeaturesModalProps> = ({
             onClick={() => handleAction('/')}
             className="p-3.5 rounded-[20px] liquid-glass hover:bg-white/[0.14] transition-all flex flex-col items-start gap-2 text-left group ios-spring cursor-pointer"
           >
-            <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white group-hover:bg-[#FFB224] group-hover:text-black transition-colors">
+            <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white group-hover:bg-white group-hover:text-black transition-colors">
               <Home className="w-4 h-4" />
             </div>
             <div>
@@ -195,7 +195,7 @@ export const QuickFeaturesModal: React.FC<QuickFeaturesModalProps> = ({
             onClick={() => handleAction('/explore/movie')}
             className="p-3.5 rounded-[20px] liquid-glass hover:bg-white/[0.14] transition-all flex flex-col items-start gap-2 text-left group ios-spring cursor-pointer"
           >
-            <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white group-hover:bg-[#FFB224] group-hover:text-black transition-colors">
+            <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white group-hover:bg-white group-hover:text-black transition-colors">
               <Film className="w-4 h-4" />
             </div>
             <div>
@@ -209,7 +209,7 @@ export const QuickFeaturesModal: React.FC<QuickFeaturesModalProps> = ({
             onClick={() => handleAction('/explore/tv')}
             className="p-3.5 rounded-[20px] liquid-glass hover:bg-white/[0.14] transition-all flex flex-col items-start gap-2 text-left group ios-spring cursor-pointer"
           >
-            <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white group-hover:bg-[#FFB224] group-hover:text-black transition-colors">
+            <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white group-hover:bg-white group-hover:text-black transition-colors">
               <Tv className="w-4 h-4" />
             </div>
             <div>
@@ -221,9 +221,9 @@ export const QuickFeaturesModal: React.FC<QuickFeaturesModalProps> = ({
           {/* 4. Anime */}
           <button
             onClick={() => handleAction('/explore/anime')}
-            className="p-3.5 rounded-[20px] liquid-glass hover:bg-white/[0.14] transition-all flex flex-col items-start gap-2 text-left group ios-spring cursor-pointer border border-[#FFB224]/30"
+            className="p-3.5 rounded-[20px] liquid-glass hover:bg-white/[0.14] transition-all flex flex-col items-start gap-2 text-left group ios-spring cursor-pointer border border-white/20"
           >
-            <div className="w-8 h-8 rounded-full bg-[#FFB224]/20 flex items-center justify-center text-[#FFB224] group-hover:bg-[#FFB224] group-hover:text-black transition-colors">
+            <div className="w-8 h-8 rounded-full bg-white/15 flex items-center justify-center text-white group-hover:bg-white group-hover:text-black transition-colors">
               <Sparkles className="w-4 h-4" />
             </div>
             <div>
@@ -237,7 +237,7 @@ export const QuickFeaturesModal: React.FC<QuickFeaturesModalProps> = ({
             onClick={() => handleAction('/search')}
             className="p-3.5 rounded-[20px] liquid-glass hover:bg-white/[0.14] transition-all flex flex-col items-start gap-2 text-left group ios-spring cursor-pointer"
           >
-            <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white group-hover:bg-[#FFB224] group-hover:text-black transition-colors">
+            <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white group-hover:bg-white group-hover:text-black transition-colors">
               <Search className="w-4 h-4" />
             </div>
             <div>
@@ -251,7 +251,7 @@ export const QuickFeaturesModal: React.FC<QuickFeaturesModalProps> = ({
             onClick={() => handleAction('/my-list')}
             className="p-3.5 rounded-[20px] liquid-glass hover:bg-white/[0.14] transition-all flex flex-col items-start gap-2 text-left group ios-spring cursor-pointer"
           >
-            <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white group-hover:bg-[#FFB224] group-hover:text-black transition-colors">
+            <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white group-hover:bg-white group-hover:text-black transition-colors">
               <Bookmark className="w-4 h-4" />
             </div>
             <div>
@@ -265,7 +265,7 @@ export const QuickFeaturesModal: React.FC<QuickFeaturesModalProps> = ({
             onClick={() => handleAction('/history')}
             className="p-3.5 rounded-[20px] liquid-glass hover:bg-white/[0.14] transition-all flex flex-col items-start gap-2 text-left group ios-spring cursor-pointer"
           >
-            <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white group-hover:bg-[#FFB224] group-hover:text-black transition-colors">
+            <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white group-hover:bg-white group-hover:text-black transition-colors">
               <History className="w-4 h-4" />
             </div>
             <div>
@@ -280,9 +280,9 @@ export const QuickFeaturesModal: React.FC<QuickFeaturesModalProps> = ({
               onClose();
               window.dispatchEvent(new Event('play-zhafx-intro'));
             }}
-            className="p-3.5 rounded-[20px] liquid-glass hover:bg-white/[0.14] transition-all flex flex-col items-start gap-2 text-left group ios-spring cursor-pointer border border-[#FFB224]/30"
+            className="p-3.5 rounded-[20px] liquid-glass hover:bg-white/[0.14] transition-all flex flex-col items-start gap-2 text-left group ios-spring cursor-pointer border border-white/20"
           >
-            <div className="w-8 h-8 rounded-full bg-[#FFB224]/20 flex items-center justify-center text-[#FFB224] group-hover:bg-[#FFB224] group-hover:text-black transition-colors">
+            <div className="w-8 h-8 rounded-full bg-white/15 flex items-center justify-center text-white group-hover:bg-white group-hover:text-black transition-colors">
               <Clapperboard className="w-4 h-4" />
             </div>
             <div>
@@ -299,10 +299,10 @@ export const QuickFeaturesModal: React.FC<QuickFeaturesModalProps> = ({
               onClose();
               onOpenAI();
             }}
-            className="w-full p-3.5 rounded-[22px] bg-gradient-to-r from-amber-500/20 via-orange-500/20 to-amber-500/10 border border-amber-500/30 hover:border-amber-500/50 flex items-center justify-between text-left transition-all ios-spring cursor-pointer"
+            className="w-full p-3.5 rounded-[22px] bg-white/[0.08] hover:bg-white/[0.14] border border-white/20 flex items-center justify-between text-left transition-all ios-spring cursor-pointer shadow-lg"
           >
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-full bg-[#FFB224] text-black flex items-center justify-center shadow-md">
+              <div className="w-9 h-9 rounded-full bg-white text-black flex items-center justify-center shadow-md">
                 <Sparkles className="w-4 h-4" />
               </div>
               <div>

@@ -80,10 +80,10 @@ export default async function handler(req: any, res: any) {
     if (upstreamRes.headers.get('content-range')) {
       res.setHeader('Content-Range', upstreamRes.headers.get('content-range')!);
     }
-    if (upstreamRes.headers.get('accept-ranges')) {
-      res.setHeader('Accept-Ranges', upstreamRes.headers.get('accept-ranges')!);
-    }
-    res.setHeader('Content-Type', contentType || 'video/MP2T');
+    const finalContentType = (contentType && (contentType.includes('mp4') || contentType.includes('webm')))
+      ? contentType
+      : 'video/MP2T';
+    res.setHeader('Content-Type', finalContentType);
     res.status(upstreamRes.status);
 
     if (upstreamRes.body) {

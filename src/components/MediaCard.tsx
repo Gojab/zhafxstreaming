@@ -118,7 +118,7 @@ export const MediaCard: React.FC<MediaCardProps> = ({ item, className = '', show
           {/* Top Badges (Rating & Type) */}
           <div className="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between pointer-events-none gap-1 z-10">
             {item.rating && parseFloat(item.rating) > 0 ? (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-md text-amber-300 text-[10px] font-semibold">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-md text-white text-[10px] font-semibold">
                 <Star className="w-2.5 h-2.5 fill-current" />
                 <span>{item.rating}</span>
               </span>
@@ -143,7 +143,7 @@ export const MediaCard: React.FC<MediaCardProps> = ({ item, className = '', show
               title="Putar sekarang"
               className="w-10 h-10 rounded-full liquid-glass liquid-specular flex items-center justify-center text-white hover:bg-white/20 active:scale-90 transition-transform cursor-pointer ios-spring"
             >
-              <Play className="w-4 h-4 fill-current ml-0.5 text-[#FFB224]" />
+              <Play className="w-4 h-4 fill-current ml-0.5 text-white" />
             </button>
 
             {/* Quick Watchlist Glass Button */}
@@ -155,7 +155,7 @@ export const MediaCard: React.FC<MediaCardProps> = ({ item, className = '', show
               className="w-9 h-9 rounded-full liquid-glass liquid-specular flex items-center justify-center text-white hover:bg-white/20 active:scale-90 transition-transform cursor-pointer ios-spring"
             >
               {saved ? (
-                <BookmarkCheck className="w-4 h-4 text-[#FFB224]" />
+                <BookmarkCheck className="w-4 h-4 text-white" />
               ) : (
                 <Bookmark className="w-4 h-4 text-white/80" />
               )}

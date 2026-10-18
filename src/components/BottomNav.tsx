@@ -54,15 +54,15 @@ export const BottomNav: React.FC<BottomNavProps> = ({ onOpenAI, onOpenFeatures, 
           title="X"
           className="flex flex-col items-center justify-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-medium text-white active:scale-90 transition-transform ios-spring cursor-pointer"
         >
-          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-white/[0.14] to-white/[0.24] border border-white/30 flex items-center justify-center shadow-lg text-[#FFB224]">
+          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-white/[0.14] to-white/[0.24] border border-white/30 flex items-center justify-center shadow-lg text-white">
             <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 fill-none" stroke="currentColor">
               <path d="M5 5L19 19M19 5L5 19" strokeWidth="2.4" strokeLinecap="round" />
-              <circle cx="5" cy="5" r="1.8" fill="#FFB224" stroke="none" />
+              <circle cx="5" cy="5" r="1.8" fill="#FFFFFF" stroke="none" />
               <circle cx="12" cy="12" r="2" fill="#FFFFFF" stroke="none" />
-              <circle cx="19" cy="19" r="1.8" fill="#FFB224" stroke="none" />
+              <circle cx="19" cy="19" r="1.8" fill="#FFFFFF" stroke="none" />
             </svg>
           </div>
-          <span className="text-[10px] text-[#FFB224] font-bold leading-none">X</span>
+          <span className="text-[10px] text-white font-bold leading-none">X</span>
         </button>
 
         {/* 4. Daftar Saya */}
@@ -79,11 +79,11 @@ export const BottomNav: React.FC<BottomNavProps> = ({ onOpenAI, onOpenFeatures, 
           className="flex flex-col items-center justify-center gap-0.5 px-2.5 py-1.5 rounded-full text-[10px] font-medium text-white/80 active:scale-90 transition-transform ios-spring cursor-pointer"
         >
           {user ? (
-            <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-[#FFB224] to-amber-300 text-black font-bold text-[10px] flex items-center justify-center uppercase shadow-sm">
+            <div className="w-6 h-6 rounded-full bg-white text-black font-bold text-[10px] flex items-center justify-center uppercase shadow-sm">
               {user.name?.charAt(0) || 'U'}
             </div>
           ) : (
-            <div className="w-6 h-6 rounded-full bg-white/[0.12] border border-white/20 flex items-center justify-center shadow-inner text-[#FFB224]">
+            <div className="w-6 h-6 rounded-full bg-white/[0.12] border border-white/20 flex items-center justify-center shadow-inner text-white">
               <Sparkles className="w-3.5 h-3.5" />
             </div>
           )}

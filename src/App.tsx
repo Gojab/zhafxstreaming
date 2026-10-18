@@ -38,7 +38,7 @@ function AppLayout() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#06070B] text-white relative selection:bg-[#FFB224]/30 selection:text-white">
+    <div className="min-h-screen flex flex-col bg-[#06070B] text-white relative selection:bg-white/20 selection:text-white">
       {/* Apple iOS 26 Dynamic Ambient Blurred Backdrop */}
       <LiquidBackground />
 
@@ -88,7 +88,7 @@ function AppLayout() {
           aria-label="Buka Tanya Zhafx AI"
           className="hidden md:flex fixed bottom-8 right-8 z-30 items-center gap-2 px-4 py-2.5 rounded-full liquid-glass liquid-specular text-white text-xs font-semibold shadow-2xl ios-spring cursor-pointer hover:bg-white/[0.14]"
         >
-          <Sparkles className="w-3.5 h-3.5 text-[#FFB224]" />
+          <Sparkles className="w-3.5 h-3.5 text-white" />
           <span>Tanya AI</span>
         </button>
       )}

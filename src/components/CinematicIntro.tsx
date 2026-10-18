@@ -470,16 +470,16 @@ export const CinematicIntro: React.FC<CinematicIntroProps> = ({ onComplete, forc
       {/* Explosive Shockwave Ring (Triggers on 2.2s Bass Drop) */}
       <div
         ref={shockwaveRef}
-        className="absolute w-[450px] h-[450px] rounded-full border-2 border-[#FFB224]/80 shadow-[0_0_80px_rgba(255,178,36,0.8),inset_0_0_50px_rgba(59,130,246,0.6)] pointer-events-none z-3 opacity-0"
+        className="absolute w-[450px] h-[450px] rounded-full border-2 border-white/80 shadow-[0_0_80px_rgba(255,255,255,0.8),inset_0_0_50px_rgba(255,255,255,0.4)] pointer-events-none z-3 opacity-0"
       />
 
-      {/* Anamorphic Horizontal Blue/Amber Laser Optical Flare */}
+      {/* Anamorphic Horizontal Optical Flare */}
       <div
         ref={flareRef}
         className="absolute top-1/2 left-1/2 -translate-y-1/2 w-[140vw] h-[3px] pointer-events-none z-4 opacity-0 flex items-center justify-center"
       >
-        <div className="w-full h-full bg-gradient-to-r from-transparent via-[#FFB224] to-transparent blur-[1px]" />
-        <div className="absolute w-[60%] h-[8px] bg-gradient-to-r from-transparent via-[#00F0FF] to-transparent blur-[3px]" />
+        <div className="w-full h-full bg-gradient-to-r from-transparent via-white to-transparent blur-[1px]" />
+        <div className="absolute w-[60%] h-[8px] bg-gradient-to-r from-transparent via-white/80 to-transparent blur-[3px]" />
         <div className="absolute w-24 h-24 rounded-full bg-white blur-xl opacity-90" />
       </div>
 
@@ -494,13 +494,13 @@ export const CinematicIntro: React.FC<CinematicIntroProps> = ({ onComplete, forc
             className="w-[280px] sm:w-[440px] md:w-[580px] lg:w-[680px] h-auto overflow-visible filter"
           >
             <defs>
-              {/* Ultra-luminous Platinum Gold Shimmer Gradient */}
+              {/* Ultra-luminous Platinum Glass Shimmer Gradient */}
               <linearGradient id="zhafxEpicGold" x1="0%" y1="0%" x2="100%" y2="100%">
                 <stop offset="0%" stopColor="#FFFFFF" />
-                <stop offset="25%" stopColor="#FFF2D6" />
-                <stop offset="50%" stopColor="#FFB224" />
+                <stop offset="25%" stopColor="#F4F4F6" />
+                <stop offset="50%" stopColor="#E4E4E7" />
                 <stop offset="75%" stopColor="#FFFFFF" />
-                <stop offset="100%" stopColor="#FF9500" />
+                <stop offset="100%" stopColor="#D4D4D8" />
               </linearGradient>
 
               {/* Specular Diagonal Gleam Mask */}
@@ -541,8 +541,8 @@ export const CinematicIntro: React.FC<CinematicIntroProps> = ({ onComplete, forc
             ref={arrowheadGleamRef}
             className="absolute top-[8%] right-[2%] pointer-events-none transform -translate-x-1/2 -translate-y-1/2 opacity-0"
           >
-            <div className="w-8 h-8 rounded-full bg-[#FFB224] blur-md" />
-            <Sparkles className="w-7 h-7 text-white drop-shadow-[0_0_12px_#FFB224] absolute inset-0 animate-spin [animation-duration:8s]" />
+            <div className="w-8 h-8 rounded-full bg-white blur-md" />
+            <Sparkles className="w-7 h-7 text-white drop-shadow-[0_0_12px_rgba(255,255,255,0.9)] absolute inset-0 animate-spin [animation-duration:8s]" />
           </div>
         </div>
 
@@ -552,13 +552,13 @@ export const CinematicIntro: React.FC<CinematicIntroProps> = ({ onComplete, forc
           className="mt-6 sm:mt-8 flex flex-col items-center gap-2 text-center opacity-0"
         >
           <div className="flex items-center gap-3">
-            <div className="w-8 sm:w-16 h-[1px] bg-gradient-to-r from-transparent via-[#FFB224]/80 to-transparent" />
+            <div className="w-8 sm:w-16 h-[1px] bg-gradient-to-r from-transparent via-white/80 to-transparent" />
             <span className="text-[10px] sm:text-xs md:text-sm font-semibold tracking-[0.45em] sm:tracking-[0.6em] text-white/90 uppercase font-mono">
               STREAM WITHOUT LIMITS
             </span>
-            <div className="w-8 sm:w-16 h-[1px] bg-gradient-to-l from-transparent via-[#FFB224]/80 to-transparent" />
+            <div className="w-8 sm:w-16 h-[1px] bg-gradient-to-l from-transparent via-white/80 to-transparent" />
           </div>
-          <span className="text-[9px] sm:text-[11px] text-[#FFB224]/80 tracking-[0.25em] font-medium uppercase mt-0.5">
+          <span className="text-[9px] sm:text-[11px] text-white/70 tracking-[0.25em] font-medium uppercase mt-0.5">
             FILM • SERIAL TV • ANIME
           </span>
         </div>
@@ -588,7 +588,7 @@ export const CinematicIntro: React.FC<CinematicIntroProps> = ({ onComplete, forc
           title={isMuted ? 'Nyalakan Audio Sinematik' : 'Matikan Suara'}
           aria-label={isMuted ? 'Nyalakan Suara' : 'Matikan Suara'}
         >
-          {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4 text-[#FFB224]" />}
+          {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4 text-white" />}
         </button>
 
         <button

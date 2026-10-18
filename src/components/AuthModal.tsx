@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   X,
   Mail,
@@ -9,6 +9,8 @@ import {
   ArrowRight,
   KeyRound,
   ShieldCheck,
+  RotateCw,
+  Edit2,
   Sparkles,
 } from 'lucide-react';
 import { storage } from '../lib/storage';
@@ -46,6 +48,15 @@ async function safeJsonParse(res: Response): Promise<any> {
   }
 }
 
+function maskEmailClient(email: string): string {
+  const [local, domain] = email.trim().toLowerCase().split('@');
+  if (!domain) return email;
+  if (local.length <= 3) {
+    return `${local.slice(0, 1)}***@${domain}`;
+  }
+  return `${local.slice(0, 4)}***@${domain}`;
+}
+
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -53,7 +64,7 @@ interface AuthModalProps {
 }
 
 export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess }) => {
-  const [tab, setTab] = useState<'google' | 'otp' | 'password'>('google');
+  const [tab, setTab] = useState<'otp' | 'google' | 'password'>('otp');
   const [isRegister, setIsRegister] = useState(false);
 
   // Form states
@@ -62,7 +73,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
   const [password, setPassword] = useState('');
   const [verificationCode, setVerificationCode] = useState('');
   const [otpSent, setOtpSent] = useState(false);
-  const [simulatedCode, setSimulatedCode] = useState<string | null>(null);
+  const [maskedEmail, setMaskedEmail] = useState('');
+
+  // Countdown timer for resend
+  const [countdown, setCountdown] = useState(0);
+  const countdownIntervalRef = useRef<any>(null);
 
   // Status
   const [isLoading, setIsLoading] = useState(false);
@@ -79,6 +94,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
+
+  // Countdown timer management
+  useEffect(() => {
+    if (countdown > 0) {
+      countdownIntervalRef.current = setTimeout(() => {
+        setCountdown((c) => c - 1);
+      }, 1000);
+    }
+    return () => {
+      if (countdownIntervalRef.current) clearTimeout(countdownIntervalRef.current);
+    };
+  }, [countdown]);
 
   const handleFinishAuth = (user: User, token: string, msg: string) => {
     storage.saveToken(token);
@@ -97,42 +124,35 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
     setError(null);
     setSuccessMessage(null);
 
-    const targetEmail = customEmail || email.trim() || 'user@gmail.com';
+    const targetEmail = customEmail || email.trim();
     const targetName = customName || name.trim() || targetEmail.split('@')[0];
 
+    if (!targetEmail) {
+      setError('Masukkan alamat email Google Anda.');
+      setIsLoading(false);
+      return;
+    }
+
     try {
-      let data: any = null;
-      try {
-        const res = await fetch('/api/auth/google-login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            email: targetEmail,
-            name: targetName,
-          }),
-        });
-        data = await safeJsonParse(res);
-      } catch {
-        // network or server route fallback
-      }
+      const res = await fetch('/api/auth/google-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: targetEmail,
+          name: targetName,
+        }),
+      });
+      const data = await safeJsonParse(res);
 
       if (data && data.success && data.user) {
         handleFinishAuth(data.user, data.token, `Berhasil masuk sebagai ${data.user.name}!`);
         return;
       }
 
-      // Seamless client-side auth fallback if server is offline or returned HTML
-      const fallbackUser: User = {
-        id: `usr_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-        name: targetName,
-        username: targetEmail.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '') || `user_${Date.now().toString(36)}`,
-        email: targetEmail,
-        joinedAt: Date.now(),
-      };
-      const fallbackToken = `tok_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
-      handleFinishAuth(fallbackUser, fallbackToken, `Berhasil masuk sebagai ${fallbackUser.name}!`);
+      setError(data?.error || 'Gagal memproses autentikasi Google.');
+      setIsLoading(false);
     } catch (err: any) {
-      setError(err?.message || 'Terjadi kesalahan saat masuk dengan Google.');
+      setError(err?.message || 'Terjadi gangguan jaringan saat login Google.');
       setIsLoading(false);
     }
   };
@@ -167,7 +187,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
               theme: 'filled_black',
               size: 'large',
               shape: 'pill',
-              width: 340,
+              width: 320,
               text: 'continue_with',
               logo_alignment: 'left',
             });
@@ -211,22 +231,22 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
               // fallback
             }
           }
-          handleGoogleLogin();
         },
       });
       client.requestAccessToken();
     } else if (window.google?.accounts?.id) {
       window.google.accounts.id.prompt();
-    } else {
-      handleGoogleLogin();
     }
   };
 
-  // 2. Request Email OTP Verification Code
-  const handleSendOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email || !email.includes('@')) {
-      setError('Masukkan alamat email yang valid.');
+  // 2. Request Real Email OTP Verification Code
+  const handleSendOtp = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const cleanEmail = email.trim().toLowerCase();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!cleanEmail || !emailRegex.test(cleanEmail)) {
+      setError('Masukkan alamat email yang valid (contoh: namaanda@gmail.com).');
       return;
     }
 
@@ -235,34 +255,44 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
     setSuccessMessage(null);
 
     try {
-      let data: any = null;
-      try {
-        const res = await fetch('/api/auth/send-verification-code', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: email.trim(), name: name.trim() }),
-        });
-        data = await safeJsonParse(res);
-      } catch {
-        // network or server fallback
-      }
+      const res = await fetch('/api/auth/send-verification-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: cleanEmail,
+          name: name.trim() || undefined,
+        }),
+      });
+      const data = await safeJsonParse(res);
 
-      const generatedCode = (data && data.code) || Math.floor(100000 + Math.random() * 900000).toString();
-      setOtpSent(true);
-      setSimulatedCode(generatedCode);
-      setSuccessMessage(data?.message || `Kode verifikasi 6-digit berhasil dibuat untuk ${email.trim()}`);
-      setIsLoading(false);
+      if (res.ok && data?.success) {
+        setOtpSent(true);
+        setMaskedEmail(data.maskedEmail || maskEmailClient(cleanEmail));
+        setCountdown(data.cooldownSeconds || 60);
+        setSuccessMessage(
+          'Verifikasi email diperlukan. Kami telah mengirimkan kode verifikasi ke alamat email kamu. Silakan periksa kotak masuk Gmail, termasuk folder Spam atau Promosi, kemudian masukkan kode untuk melanjutkan pendaftaran.'
+        );
+        setIsLoading(false);
+      } else {
+        setError(
+          data?.error ||
+            'Gagal mengirim kode verifikasi ke email Anda. Harap periksa kembali alamat email atau pastikan konfigurasi email di server sudah benar.'
+        );
+        setIsLoading(false);
+      }
     } catch (err: any) {
-      setError(err?.message || 'Gagal mengirim kode verifikasi.');
+      setError(err?.message || 'Terjadi gangguan jaringan saat meminta kode verifikasi.');
       setIsLoading(false);
     }
   };
 
-  // 3. Verify OTP Code
+  // 3. Verify OTP Code and Log In
   const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!verificationCode || verificationCode.length < 6) {
-      setError('Masukkan kode verifikasi 6-digit.');
+    const cleanCode = verificationCode.trim();
+
+    if (!cleanCode || cleanCode.length !== 6) {
+      setError('Masukkan kode verifikasi 6-digit lengkap yang Anda terima di email.');
       return;
     }
 
@@ -271,43 +301,28 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
     setSuccessMessage(null);
 
     try {
-      let data: any = null;
-      try {
-        const res = await fetch('/api/auth/verify-code', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            email: email.trim(),
-            code: verificationCode.trim(),
-            name: name.trim(),
-          }),
-        });
-        data = await safeJsonParse(res);
-      } catch {
-        // fallback
-      }
+      const res = await fetch('/api/auth/verify-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: email.trim().toLowerCase(),
+          code: cleanCode,
+          name: name.trim() || undefined,
+        }),
+      });
+      const data = await safeJsonParse(res);
 
-      if (data && data.success && data.user) {
-        handleFinishAuth(data.user, data.token, data.message || 'Verifikasi berhasil!');
+      if (res.ok && data?.success && data.user) {
+        handleFinishAuth(
+          data.user,
+          data.token,
+          data.message || `Verifikasi email berhasil! Selamat datang, ${data.user.name}.`
+        );
         return;
       }
 
-      // Check against simulated code or accept valid 6-digit entry
-      if (!simulatedCode || verificationCode.trim() === simulatedCode) {
-        const cleanEmail = email.trim().toLowerCase();
-        const fallbackUser: User = {
-          id: `usr_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-          name: name.trim() || cleanEmail.split('@')[0],
-          username: cleanEmail.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '') || `user_${Date.now().toString(36)}`,
-          email: cleanEmail,
-          joinedAt: Date.now(),
-        };
-        const fallbackToken = `tok_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
-        handleFinishAuth(fallbackUser, fallbackToken, 'Verifikasi berhasil!');
-        return;
-      }
-
-      throw new Error('Kode verifikasi tidak sesuai.');
+      setError(data?.error || 'Kode verifikasi tidak sesuai atau telah kedaluwarsa.');
+      setIsLoading(false);
     } catch (err: any) {
       setError(err?.message || 'Gagal memverifikasi kode.');
       setIsLoading(false);
@@ -327,46 +342,44 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
       : { login: email.trim(), password, rememberMe: true };
 
     try {
-      let data: any = null;
-      try {
-        const res = await fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
-        data = await safeJsonParse(res);
-      } catch {
-        // fallback
-      }
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await safeJsonParse(res);
 
       if (data && data.success && data.user) {
         handleFinishAuth(
           data.user,
           data.token,
-          isRegister ? 'Pendaftaran berhasil! Selamat datang di Zhafx.' : 'Berhasil masuk akun!'
+          isRegister ? 'Pendaftaran berhasil! Selamat datang di ZhafxStreaming.' : 'Berhasil masuk akun!'
         );
         return;
       }
 
-      if (data && data.error) {
-        throw new Error(data.error);
+      // If registration or login requires email verification
+      if (data && (data.requiresVerification || res.status === 403)) {
+        setTab('otp');
+        setOtpSent(true);
+        setMaskedEmail(data.maskedEmail || maskEmailClient(email));
+        setCountdown(60);
+        setSuccessMessage(
+          data.message ||
+            'Verifikasi email diperlukan. Kami telah mengirimkan kode verifikasi ke alamat email kamu. Silakan periksa kotak masuk Gmail, termasuk folder Spam atau Promosi, kemudian masukkan kode untuk melanjutkan.'
+        );
+        setIsLoading(false);
+        return;
       }
 
-      // Seamless client-side login fallback
-      const cleanEmail = email.trim();
-      const fallbackUser: User = {
-        id: `usr_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-        name: name.trim() || cleanEmail.split('@')[0],
-        username: cleanEmail.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '') || `user_${Date.now().toString(36)}`,
-        email: cleanEmail.includes('@') ? cleanEmail.toLowerCase() : `${cleanEmail.toLowerCase()}@user.zhafx`,
-        joinedAt: Date.now(),
-      };
-      const fallbackToken = `tok_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
-      handleFinishAuth(
-        fallbackUser,
-        fallbackToken,
-        isRegister ? 'Pendaftaran berhasil! Selamat datang di Zhafx.' : 'Berhasil masuk akun!'
-      );
+      if (data && data.error) {
+        setError(data.error);
+        setIsLoading(false);
+        return;
+      }
+
+      setError('Terjadi kesalahan saat memproses autentikasi.');
+      setIsLoading(false);
     } catch (err: any) {
       setError(err?.message || 'Terjadi kesalahan sistem.');
       setIsLoading(false);
@@ -379,7 +392,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 animate-in fade-in duration-200">
       {/* Blurred Backdrop */}
       <div
-        className="fixed inset-0 bg-black/80 backdrop-blur-xl transition-opacity"
+        className="fixed inset-0 bg-black/85 backdrop-blur-xl transition-opacity"
         onClick={onClose}
         aria-hidden="true"
       />
@@ -389,15 +402,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
         {/* Header */}
         <div className="flex items-center justify-between pb-3 border-b border-white/10">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-full bg-[#FFB224]/20 border border-[#FFB224]/30 flex items-center justify-center text-[#FFB224]">
+            <div className="w-9 h-9 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-white">
               <ShieldCheck className="w-5 h-5" />
             </div>
             <div>
               <h2 className="text-base sm:text-lg font-bold text-white tracking-tight leading-none">
-                Masuk ke Zhafx
+                ZhafxStreaming
               </h2>
               <p className="text-[11px] text-white/50 mt-1">
-                Sinkronisasi daftar tontonan & riwayat continue watching
+                Autentikasi akun & sinkronisasi cloud
               </p>
             </div>
           </div>
@@ -405,6 +418,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
           <button
             onClick={onClose}
             className="w-8 h-8 rounded-full liquid-glass flex items-center justify-center text-white/70 hover:text-white cursor-pointer ios-spring"
+            aria-label="Tutup"
           >
             <X className="w-4 h-4" />
           </button>
@@ -412,20 +426,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
 
         {/* Tab Selection */}
         <div className="flex p-1 rounded-full bg-white/[0.06] border border-white/10 text-xs font-semibold">
-          <button
-            type="button"
-            onClick={() => {
-              setTab('google');
-              setError(null);
-            }}
-            className={`flex-1 py-2 rounded-full transition-all cursor-pointer ${
-              tab === 'google'
-                ? 'bg-white text-black font-bold shadow-md'
-                : 'text-white/70 hover:text-white'
-            }`}
-          >
-            Gmail / Google
-          </button>
           <button
             type="button"
             onClick={() => {
@@ -439,6 +439,20 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
             }`}
           >
             Kode Email
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setTab('google');
+              setError(null);
+            }}
+            className={`flex-1 py-2 rounded-full transition-all cursor-pointer ${
+              tab === 'google'
+                ? 'bg-white text-black font-bold shadow-md'
+                : 'text-white/70 hover:text-white'
+            }`}
+          >
+            Gmail / Google
           </button>
           <button
             type="button"
@@ -458,28 +472,197 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
 
         {/* Status Messages */}
         {error && (
-          <div className="p-3 rounded-[16px] bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 shrink-0" />
-            <span>{error}</span>
+          <div className="p-3 rounded-[16px] bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs flex items-start gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+            <span className="leading-relaxed">{error}</span>
           </div>
         )}
 
         {successMessage && (
-          <div className="p-3 rounded-[16px] bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 shrink-0" />
-            <span>{successMessage}</span>
+          <div className="p-3.5 rounded-[18px] bg-white/[0.08] border border-white/20 text-white/90 text-xs space-y-1.5">
+            <div className="flex items-center gap-2 font-semibold text-white">
+              <CheckCircle2 className="w-4 h-4 shrink-0 text-white" />
+              <span>Verifikasi Email Diperlukan</span>
+            </div>
+            <p className="text-[11px] leading-relaxed text-white/75">
+              {successMessage}
+            </p>
           </div>
         )}
 
-        {/* TAB 1: Google / Gmail 1-Click Login */}
+        {/* TAB 1: Real Email OTP Verification */}
+        {tab === 'otp' && (
+          <div className="space-y-4 pt-1">
+            {!otpSent ? (
+              <form onSubmit={handleSendOtp} className="space-y-3.5">
+                <div className="p-3 rounded-[18px] bg-white/[0.04] border border-white/10 text-xs space-y-1">
+                  <p className="text-white/90 font-medium">
+                    Pendaftaran & Masuk via Email Aman
+                  </p>
+                  <p className="text-[11px] text-white/50 leading-relaxed">
+                    Kode verifikasi 6-digit rahasia akan dikirimkan ke kotak masuk Gmail Anda.
+                  </p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-semibold text-white/70 block">
+                    Nama Lengkap (Opsional)
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="Nama Anda"
+                      className="w-full h-11 px-4 pl-10 rounded-full bg-white/[0.06] border border-white/15 text-sm text-white focus:outline-none focus:border-white transition-colors placeholder:text-white/30"
+                    />
+                    <UserIcon className="w-4 h-4 text-white/40 absolute left-3.5 top-3.5" />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-semibold text-white/70 block">
+                    Alamat Email (Gmail)
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="email"
+                      required
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="namaanda@gmail.com"
+                      className="w-full h-11 px-4 pl-10 rounded-full bg-white/[0.06] border border-white/15 text-sm text-white focus:outline-none focus:border-white transition-colors placeholder:text-white/30"
+                    />
+                    <Mail className="w-4 h-4 text-white/40 absolute left-3.5 top-3.5" />
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="w-full h-11 rounded-full bg-white hover:bg-zinc-200 text-black font-bold text-sm shadow-md flex items-center justify-center gap-2 transition-all ios-spring cursor-pointer disabled:opacity-50"
+                >
+                  {isLoading ? (
+                    <>
+                      <RotateCw className="w-4 h-4 animate-spin text-black" />
+                      <span>Mengirim Kode ke Email...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Daftar / Kirim Kode Verifikasi</span>
+                      <ArrowRight className="w-4 h-4 text-black" />
+                    </>
+                  )}
+                </button>
+              </form>
+            ) : (
+              <form onSubmit={handleVerifyOtp} className="space-y-3.5">
+                {/* Masked Email Banner */}
+                <div className="p-3.5 rounded-[20px] bg-white/[0.06] border border-white/15 text-xs space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-white/60 text-[11px]">Email Tujuan:</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setOtpSent(false);
+                        setVerificationCode('');
+                        setError(null);
+                        setSuccessMessage(null);
+                      }}
+                      className="text-[11px] text-white/80 hover:text-white flex items-center gap-1 cursor-pointer underline"
+                    >
+                      <Edit2 className="w-3 h-3" />
+                      <span>Ganti Alamat Email</span>
+                    </button>
+                  </div>
+                  <p className="text-sm font-mono font-bold text-white tracking-wide">
+                    {maskedEmail || maskEmailClient(email)}
+                  </p>
+                  <p className="text-[10px] text-white/45">
+                    Kode berlaku selama 5 menit. Periksa folder <strong>Spam</strong> atau <strong>Promosi</strong> jika tidak ada di kotak masuk utama.
+                  </p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-semibold text-white/70 block">
+                    Masukkan Kode OTP 6-Digit
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      maxLength={6}
+                      required
+                      autoFocus
+                      value={verificationCode}
+                      onChange={(e) => setVerificationCode(e.target.value.replace(/[^0-9]/g, ''))}
+                      placeholder="123456"
+                      className="w-full h-12 px-4 pl-10 rounded-full bg-white/[0.06] border border-white/20 text-center font-mono text-lg tracking-[8px] text-white focus:outline-none focus:border-white transition-colors"
+                    />
+                    <KeyRound className="w-4 h-4 text-white/40 absolute left-3.5 top-4" />
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isLoading || verificationCode.length < 6}
+                  className="w-full h-11 rounded-full bg-white hover:bg-zinc-200 text-black font-bold text-sm shadow-md flex items-center justify-center gap-2 transition-all ios-spring cursor-pointer disabled:opacity-40"
+                >
+                  {isLoading ? (
+                    <>
+                      <RotateCw className="w-4 h-4 animate-spin text-black" />
+                      <span>Memverifikasi...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Verifikasi Email & Masuk</span>
+                      <CheckCircle2 className="w-4 h-4 text-black" />
+                    </>
+                  )}
+                </button>
+
+                {/* Resend button with 60-second cooldown */}
+                <div className="pt-2 flex flex-col items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleSendOtp()}
+                    disabled={countdown > 0 || isLoading}
+                    className="text-xs text-white/70 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center gap-1.5"
+                  >
+                    <RotateCw className={`w-3.5 h-3.5 ${countdown > 0 ? 'opacity-40' : ''}`} />
+                    <span>
+                      {countdown > 0
+                        ? `Kirim Ulang Kode (${countdown}s)`
+                        : 'Kirim Ulang Kode Verifikasi'}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOtpSent(false);
+                      setVerificationCode('');
+                      setError(null);
+                      setSuccessMessage(null);
+                    }}
+                    className="text-[11px] text-white/40 hover:text-white/70 cursor-pointer"
+                  >
+                    Ganti alamat email pendaftaran
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        )}
+
+        {/* TAB 2: Google / Gmail 1-Click Login */}
         {tab === 'google' && (
           <div className="space-y-4 pt-1">
             <div className="p-4 rounded-[22px] bg-white/[0.04] border border-white/10 text-center space-y-1.5">
-              <p className="text-xs text-white/80 font-medium">
+              <p className="text-xs text-white/90 font-medium">
                 Masuk aman dengan akun Google resmi Anda.
               </p>
               <p className="text-[11px] text-white/40">
-                Client ID Google terkonfigurasi & tersinkronisasi otomatis.
+                Akun Google diverifikasi otomatis tanpa perlu konfirmasi manual.
               </p>
             </div>
 
@@ -488,7 +671,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
               <div id="googleButtonContainer" className="flex justify-center w-full" />
             </div>
 
-            {/* Custom Google Brand Button (Triggers Google OAuth Popup / One Tap) */}
+            {/* Custom Google Brand Button */}
             <button
               onClick={() => triggerGoogleSignIn()}
               disabled={isLoading}
@@ -515,10 +698,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
               <span>{isLoading ? 'Menghubungkan Akun Google...' : 'Masuk dengan Akun Google'}</span>
             </button>
 
-            {/* Quick Email Alternative */}
+            {/* Direct Gmail Input alternative */}
             <div className="pt-2 border-t border-white/10 space-y-2">
               <label className="text-[11px] font-semibold text-white/50 block">
-                Atau masukkan alamat email Gmail secara manual:
+                Atau masukkan alamat email Gmail secara langsung:
               </label>
               <div className="flex gap-2">
                 <div className="relative flex-1">
@@ -527,7 +710,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="namaanda@gmail.com"
-                    className="w-full h-10 px-3 pl-9 rounded-full bg-white/[0.06] border border-white/15 text-xs text-white focus:outline-none focus:border-[#FFB224] transition-colors"
+                    className="w-full h-10 px-3 pl-9 rounded-full bg-white/[0.06] border border-white/15 text-xs text-white focus:outline-none focus:border-white transition-colors"
                   />
                   <Mail className="w-3.5 h-3.5 text-white/40 absolute left-3 top-3" />
                 </div>
@@ -535,95 +718,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
                   type="button"
                   onClick={() => handleGoogleLogin()}
                   disabled={isLoading || !email.includes('@')}
-                  className="px-4 h-10 rounded-full bg-[#FFB224] hover:bg-[#FFA500] text-black text-xs font-bold disabled:opacity-30 cursor-pointer"
+                  className="px-4 h-10 rounded-full bg-white hover:bg-zinc-200 text-black text-xs font-bold disabled:opacity-30 cursor-pointer"
                 >
                   Masuk
                 </button>
               </div>
             </div>
-          </div>
-        )}
-
-        {/* TAB 2: OTP Verification Code */}
-        {tab === 'otp' && (
-          <div className="space-y-4 pt-1">
-            {!otpSent ? (
-              <form onSubmit={handleSendOtp} className="space-y-3.5">
-                <div className="space-y-1.5">
-                  <label className="text-[11px] font-semibold text-white/70 block">
-                    Alamat Email Anda
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="email"
-                      required
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="namaanda@gmail.com"
-                      className="w-full h-11 px-4 pl-10 rounded-full bg-white/[0.06] border border-white/15 text-sm text-white focus:outline-none focus:border-[#FFB224] transition-colors"
-                    />
-                    <Mail className="w-4 h-4 text-white/40 absolute left-3.5 top-3.5" />
-                  </div>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={isLoading}
-                  className="w-full h-11 rounded-full bg-[#FFB224] hover:bg-[#FFA500] text-black font-bold text-sm shadow-md flex items-center justify-center gap-2 transition-all ios-spring cursor-pointer disabled:opacity-50"
-                >
-                  <span>{isLoading ? 'Mengirim...' : 'Kirim Kode Verifikasi'}</span>
-                  <ArrowRight className="w-4 h-4" />
-                </button>
-              </form>
-            ) : (
-              <form onSubmit={handleVerifyOtp} className="space-y-3.5">
-                <div className="p-3 rounded-[18px] bg-white/[0.06] border border-white/10 text-xs space-y-1">
-                  <p className="text-white/80">
-                    Kode 6-digit dikirim ke: <strong className="text-[#FFB224]">{email}</strong>
-                  </p>
-                  {simulatedCode && (
-                    <p className="text-[11px] text-emerald-400 font-mono">
-                      Kode Verifikasi Cepat: <strong>{simulatedCode}</strong>
-                    </p>
-                  )}
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-[11px] font-semibold text-white/70 block">
-                    Masukkan Kode 6-Digit
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      maxLength={6}
-                      required
-                      value={verificationCode}
-                      onChange={(e) => setVerificationCode(e.target.value.replace(/[^0-9]/g, ''))}
-                      placeholder="123456"
-                      className="w-full h-11 px-4 pl-10 rounded-full bg-white/[0.06] border border-white/15 text-center font-mono text-base tracking-widest text-[#FFB224] focus:outline-none focus:border-[#FFB224] transition-colors"
-                    />
-                    <KeyRound className="w-4 h-4 text-white/40 absolute left-3.5 top-3.5" />
-                  </div>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={isLoading}
-                  className="w-full h-11 rounded-full bg-[#FFB224] hover:bg-[#FFA500] text-black font-bold text-sm shadow-md flex items-center justify-center gap-2 transition-all ios-spring cursor-pointer disabled:opacity-50"
-                >
-                  <span>{isLoading ? 'Memverifikasi...' : 'Verifikasi & Masuk'}</span>
-                  <CheckCircle2 className="w-4 h-4" />
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setOtpSent(false)}
-                  className="w-full text-center text-xs text-white/50 hover:text-white cursor-pointer pt-1"
-                >
-                  Kirim ulang kode ke email lain
-                </button>
-              </form>
-            )}
           </div>
         )}
 
@@ -639,8 +739,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
                     required
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    placeholder="Nama Anda"
-                    className="w-full h-11 px-4 pl-10 rounded-full bg-white/[0.06] border border-white/15 text-sm text-white focus:outline-none focus:border-[#FFB224] transition-colors"
+                    placeholder="Nama Lengkap Anda"
+                    className="w-full h-11 px-4 pl-10 rounded-full bg-white/[0.06] border border-white/15 text-sm text-white focus:outline-none focus:border-white transition-colors placeholder:text-white/30"
                   />
                   <UserIcon className="w-4 h-4 text-white/40 absolute left-3.5 top-3.5" />
                 </div>
@@ -649,7 +749,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
 
             <div className="space-y-1.5">
               <label className="text-[11px] font-semibold text-white/70 block">
-                {isRegister ? 'Alamat Email' : 'Email atau Nama Pengguna'}
+                {isRegister ? 'Alamat Email (Gmail)' : 'Email atau Nama Pengguna'}
               </label>
               <div className="relative">
                 <input
@@ -658,7 +758,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="user@gmail.com"
-                  className="w-full h-11 px-4 pl-10 rounded-full bg-white/[0.06] border border-white/15 text-sm text-white focus:outline-none focus:border-[#FFB224] transition-colors"
+                  className="w-full h-11 px-4 pl-10 rounded-full bg-white/[0.06] border border-white/15 text-sm text-white focus:outline-none focus:border-white transition-colors placeholder:text-white/30"
                 />
                 <Mail className="w-4 h-4 text-white/40 absolute left-3.5 top-3.5" />
               </div>
@@ -674,7 +774,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Minimal 6 karakter"
-                  className="w-full h-11 px-4 pl-10 rounded-full bg-white/[0.06] border border-white/15 text-sm text-white focus:outline-none focus:border-[#FFB224] transition-colors"
+                  className="w-full h-11 px-4 pl-10 rounded-full bg-white/[0.06] border border-white/15 text-sm text-white focus:outline-none focus:border-white transition-colors placeholder:text-white/30"
                 />
                 <Lock className="w-4 h-4 text-white/40 absolute left-3.5 top-3.5" />
               </div>
@@ -689,10 +789,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
                 {isLoading
                   ? 'Memproses...'
                   : isRegister
-                  ? 'Daftar Akun Baru'
+                  ? 'Daftar & Kirim Kode Verifikasi'
                   : 'Masuk Akun'}
               </span>
-              <ArrowRight className="w-4 h-4" />
+              <ArrowRight className="w-4 h-4 text-black" />
             </button>
 
             <div className="pt-1 text-center">
@@ -702,7 +802,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
                   setIsRegister(!isRegister);
                   setError(null);
                 }}
-                className="text-xs text-[#FFB224] hover:underline cursor-pointer"
+                className="text-xs text-white/80 hover:text-white underline cursor-pointer"
               >
                 {isRegister
                   ? 'Sudah punya akun? Masuk di sini'
@@ -715,8 +815,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
         {/* Footer info */}
         <div className="pt-2 border-t border-white/10 text-center">
           <p className="text-[10px] text-white/40 flex items-center justify-center gap-1">
-            <Sparkles className="w-3 h-3 text-[#FFB224]" />
-            <span>Data riwayat & favorit tersimpan otomatis dan aman.</span>
+            <Sparkles className="w-3 h-3 text-white/60" />
+            <span>ZhafxStreaming — Keamanan data & privasi terenkripsi.</span>
           </p>
         </div>
       </div>

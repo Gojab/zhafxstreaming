@@ -147,11 +147,11 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAI, onOpenFeatures, onOpen
           >
             <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 fill-none" stroke="currentColor">
               <path d="M5 5L19 19M19 5L5 19" strokeWidth="2.4" strokeLinecap="round" />
-              <circle cx="5" cy="5" r="1.8" fill="#FFB224" stroke="none" />
+              <circle cx="5" cy="5" r="1.8" fill="#FFFFFF" stroke="none" />
               <circle cx="12" cy="12" r="2" fill="#FFFFFF" stroke="none" />
-              <circle cx="19" cy="19" r="1.8" fill="#FFB224" stroke="none" />
+              <circle cx="19" cy="19" r="1.8" fill="#FFFFFF" stroke="none" />
             </svg>
-            <span className="text-[12px] text-[#FFB224] font-bold">X</span>
+            <span className="text-[12px] text-white font-bold">X</span>
           </button>
 
           {/* Tanya AI Glass Pill */}
@@ -160,7 +160,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAI, onOpenFeatures, onOpen
             className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/[0.08] hover:bg-white/[0.16] border border-white/15 text-white font-medium text-xs transition-all cursor-pointer h-9 ios-spring shadow-sm"
             title="Buka Tanya Zhafx AI"
           >
-            <Sparkles className="w-3.5 h-3.5 text-[#FFB224]" />
+            <Sparkles className="w-3.5 h-3.5 text-white" />
             <span className="text-[12px]">Tanya AI</span>
           </button>
 
@@ -171,7 +171,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAI, onOpenFeatures, onOpen
                 onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
                 className="flex items-center gap-1.5 pl-2 pr-2.5 sm:px-3 py-1 rounded-full liquid-glass hover:bg-white/[0.16] border border-white/20 text-white text-xs transition-all cursor-pointer h-9 ios-spring"
               >
-                <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-[#FFB224] to-amber-300 text-black font-bold text-[11px] flex items-center justify-center uppercase shadow-sm">
+                <div className="w-6 h-6 rounded-full bg-white text-black font-bold text-[11px] flex items-center justify-center uppercase shadow-sm">
                   {user.name?.charAt(0) || user.email?.charAt(0) || 'U'}
                 </div>
                 <span className="hidden md:inline font-semibold text-[12px] max-w-[90px] truncate">
@@ -195,7 +195,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAI, onOpenFeatures, onOpen
                     }}
                     className="w-full px-3 py-2 rounded-xl text-left text-xs text-white/80 hover:text-white hover:bg-white/10 flex items-center gap-2 cursor-pointer transition-colors"
                   >
-                    <Bookmark className="w-3.5 h-3.5 text-[#FFB224]" />
+                    <Bookmark className="w-3.5 h-3.5 text-white" />
                     <span>Daftar Saya</span>
                   </button>
 
@@ -206,7 +206,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAI, onOpenFeatures, onOpen
                     }}
                     className="w-full px-3 py-2 rounded-xl text-left text-xs text-white/80 hover:text-white hover:bg-white/10 flex items-center gap-2 cursor-pointer transition-colors"
                   >
-                    <History className="w-3.5 h-3.5 text-[#FFB224]" />
+                    <History className="w-3.5 h-3.5 text-white" />
                     <span>Riwayat Nonton</span>
                   </button>
 
