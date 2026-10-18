@@ -64,7 +64,7 @@ interface AuthModalProps {
 }
 
 export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess }) => {
-  const [tab, setTab] = useState<'otp' | 'google' | 'password'>('otp');
+  const [tab, setTab] = useState<'email' | 'google'>('email');
   const [isRegister, setIsRegister] = useState(false);
 
   // Form states
@@ -180,18 +180,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
             auto_select: false,
           });
 
-          const btnContainer = document.getElementById('googleButtonContainer');
-          if (btnContainer) {
-            btnContainer.innerHTML = '';
-            window.google.accounts.id.renderButton(btnContainer, {
-              theme: 'filled_black',
-              size: 'large',
-              shape: 'pill',
-              width: 320,
-              text: 'continue_with',
-              logo_alignment: 'left',
-            });
-          }
         } catch (e) {
           console.warn('[Google Auth] Init error:', e);
         }
@@ -360,7 +348,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
 
       // If registration or login requires email verification
       if (data && (data.requiresVerification || res.status === 403)) {
-        setTab('otp');
         setOtpSent(true);
         setMaskedEmail(data.maskedEmail || maskEmailClient(email));
         setCountdown(60);
@@ -425,20 +412,21 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
         </div>
 
         {/* Tab Selection */}
+        {/* Tab Selection: Email & Google */}
         <div className="flex p-1 rounded-full bg-white/[0.06] border border-white/10 text-xs font-semibold">
           <button
             type="button"
             onClick={() => {
-              setTab('otp');
+              setTab('email');
               setError(null);
             }}
             className={`flex-1 py-2 rounded-full transition-all cursor-pointer ${
-              tab === 'otp'
+              tab === 'email'
                 ? 'bg-white text-black font-bold shadow-md'
                 : 'text-white/70 hover:text-white'
             }`}
           >
-            Kode Email
+            Email
           </button>
           <button
             type="button"
@@ -452,21 +440,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
                 : 'text-white/70 hover:text-white'
             }`}
           >
-            Gmail / Google
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setTab('password');
-              setError(null);
-            }}
-            className={`flex-1 py-2 rounded-full transition-all cursor-pointer ${
-              tab === 'password'
-                ? 'bg-white text-black font-bold shadow-md'
-                : 'text-white/70 hover:text-white'
-            }`}
-          >
-            Kata Sandi
+            Google
           </button>
         </div>
 
@@ -490,72 +464,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
           </div>
         )}
 
-        {/* TAB 1: Real Email OTP Verification */}
-        {tab === 'otp' && (
+        {/* TAB 1: Email (Masuk & Buat Akun dengan Kode Verifikasi) */}
+        {tab === 'email' && (
           <div className="space-y-4 pt-1">
-            {!otpSent ? (
-              <form onSubmit={handleSendOtp} className="space-y-3.5">
-                <div className="p-3 rounded-[18px] bg-white/[0.04] border border-white/10 text-xs space-y-1">
-                  <p className="text-white/90 font-medium">
-                    Pendaftaran & Masuk via Email Aman
-                  </p>
-                  <p className="text-[11px] text-white/50 leading-relaxed">
-                    Kode verifikasi 6-digit rahasia akan dikirimkan ke kotak masuk Gmail Anda.
-                  </p>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-[11px] font-semibold text-white/70 block">
-                    Nama Lengkap (Opsional)
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      placeholder="Nama Anda"
-                      className="w-full h-11 px-4 pl-10 rounded-full bg-white/[0.06] border border-white/15 text-sm text-white focus:outline-none focus:border-white transition-colors placeholder:text-white/30"
-                    />
-                    <UserIcon className="w-4 h-4 text-white/40 absolute left-3.5 top-3.5" />
-                  </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-[11px] font-semibold text-white/70 block">
-                    Alamat Email (Gmail)
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="email"
-                      required
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="namaanda@gmail.com"
-                      className="w-full h-11 px-4 pl-10 rounded-full bg-white/[0.06] border border-white/15 text-sm text-white focus:outline-none focus:border-white transition-colors placeholder:text-white/30"
-                    />
-                    <Mail className="w-4 h-4 text-white/40 absolute left-3.5 top-3.5" />
-                  </div>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={isLoading}
-                  className="w-full h-11 rounded-full bg-white hover:bg-zinc-200 text-black font-bold text-sm shadow-md flex items-center justify-center gap-2 transition-all ios-spring cursor-pointer disabled:opacity-50"
-                >
-                  {isLoading ? (
-                    <>
-                      <RotateCw className="w-4 h-4 animate-spin text-black" />
-                      <span>Mengirim Kode ke Email...</span>
-                    </>
-                  ) : (
-                    <>
-                      <span>Daftar / Kirim Kode Verifikasi</span>
-                      <ArrowRight className="w-4 h-4 text-black" />
-                    </>
-                  )}
-                </button>
-              </form>
-            ) : (
+            {otpSent ? (
               <form onSubmit={handleVerifyOtp} className="space-y-3.5">
                 {/* Masked Email Banner */}
                 <div className="p-3.5 rounded-[20px] bg-white/[0.06] border border-white/15 text-xs space-y-1.5">
@@ -579,7 +491,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
                     {maskedEmail || maskEmailClient(email)}
                   </p>
                   <p className="text-[10px] text-white/45">
-                    Kode berlaku selama 5 menit. Periksa folder <strong>Spam</strong> atau <strong>Promosi</strong> jika tidak ada di kotak masuk utama.
+                    Kode verifikasi 6-digit telah dikirim ke kotak masuk Anda. Berlaku selama 5 menit. Periksa folder <strong>Spam</strong> atau <strong>Promosi</strong> jika tidak ada di kotak masuk utama.
                   </p>
                 </div>
 
@@ -650,11 +562,101 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
                   </button>
                 </div>
               </form>
+            ) : (
+              <form onSubmit={handlePasswordAuth} className="space-y-3.5">
+                {isRegister && (
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-semibold text-white/70 block">Nama Lengkap</label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        required
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        placeholder="Nama Lengkap Anda"
+                        className="w-full h-11 px-4 pl-10 rounded-full bg-white/[0.06] border border-white/15 text-sm text-white focus:outline-none focus:border-white transition-colors placeholder:text-white/30"
+                      />
+                      <UserIcon className="w-4 h-4 text-white/40 absolute left-3.5 top-3.5" />
+                    </div>
+                  </div>
+                )}
+
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-semibold text-white/70 block">
+                    {isRegister ? 'Alamat Email (Gmail)' : 'Email atau Nama Pengguna'}
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={isRegister ? 'email' : 'text'}
+                      required
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder={isRegister ? 'namaanda@gmail.com' : 'user@gmail.com'}
+                      className="w-full h-11 px-4 pl-10 rounded-full bg-white/[0.06] border border-white/15 text-sm text-white focus:outline-none focus:border-white transition-colors placeholder:text-white/30"
+                    />
+                    <Mail className="w-4 h-4 text-white/40 absolute left-3.5 top-3.5" />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-semibold text-white/70 block">Kata Sandi</label>
+                  <div className="relative">
+                    <input
+                      type="password"
+                      required
+                      minLength={6}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="Minimal 6 karakter"
+                      className="w-full h-11 px-4 pl-10 rounded-full bg-white/[0.06] border border-white/15 text-sm text-white focus:outline-none focus:border-white transition-colors placeholder:text-white/30"
+                    />
+                    <Lock className="w-4 h-4 text-white/40 absolute left-3.5 top-3.5" />
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="w-full h-11 rounded-full bg-white hover:bg-zinc-200 text-black font-bold text-sm shadow-md flex items-center justify-center gap-2 transition-all ios-spring cursor-pointer disabled:opacity-50"
+                >
+                  {isLoading ? (
+                    <>
+                      <RotateCw className="w-4 h-4 animate-spin text-black" />
+                      <span>{isRegister ? 'Mengirim Kode Verifikasi...' : 'Memproses...'}</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>
+                        {isRegister
+                          ? 'Daftar & Kirim Kode Verifikasi'
+                          : 'Masuk Akun'}
+                      </span>
+                      <ArrowRight className="w-4 h-4 text-black" />
+                    </>
+                  )}
+                </button>
+
+                <div className="pt-1 text-center">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsRegister(!isRegister);
+                      setError(null);
+                      setOtpSent(false);
+                    }}
+                    className="text-xs text-white/80 hover:text-white underline cursor-pointer"
+                  >
+                    {isRegister
+                      ? 'Sudah punya akun? Masuk di sini'
+                      : 'Belum punya akun? Daftar gratis'}
+                  </button>
+                </div>
+              </form>
             )}
           </div>
         )}
 
-        {/* TAB 2: Google / Gmail 1-Click Login */}
+        {/* TAB 2: Google 1-Click Login */}
         {tab === 'google' && (
           <div className="space-y-4 pt-1">
             <div className="p-4 rounded-[22px] bg-white/[0.04] border border-white/10 text-center space-y-1.5">
@@ -664,11 +666,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
               <p className="text-[11px] text-white/40">
                 Akun Google diverifikasi otomatis tanpa perlu konfirmasi manual.
               </p>
-            </div>
-
-            {/* Official Google Identity Button Container */}
-            <div className="flex justify-center items-center min-h-12 w-full">
-              <div id="googleButtonContainer" className="flex justify-center w-full" />
             </div>
 
             {/* Custom Google Brand Button */}
@@ -725,91 +722,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
               </div>
             </div>
           </div>
-        )}
-
-        {/* TAB 3: Email & Password */}
-        {tab === 'password' && (
-          <form onSubmit={handlePasswordAuth} className="space-y-3.5 pt-1">
-            {isRegister && (
-              <div className="space-y-1.5">
-                <label className="text-[11px] font-semibold text-white/70 block">Nama Lengkap</label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    required
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="Nama Lengkap Anda"
-                    className="w-full h-11 px-4 pl-10 rounded-full bg-white/[0.06] border border-white/15 text-sm text-white focus:outline-none focus:border-white transition-colors placeholder:text-white/30"
-                  />
-                  <UserIcon className="w-4 h-4 text-white/40 absolute left-3.5 top-3.5" />
-                </div>
-              </div>
-            )}
-
-            <div className="space-y-1.5">
-              <label className="text-[11px] font-semibold text-white/70 block">
-                {isRegister ? 'Alamat Email (Gmail)' : 'Email atau Nama Pengguna'}
-              </label>
-              <div className="relative">
-                <input
-                  type={isRegister ? 'email' : 'text'}
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="user@gmail.com"
-                  className="w-full h-11 px-4 pl-10 rounded-full bg-white/[0.06] border border-white/15 text-sm text-white focus:outline-none focus:border-white transition-colors placeholder:text-white/30"
-                />
-                <Mail className="w-4 h-4 text-white/40 absolute left-3.5 top-3.5" />
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-[11px] font-semibold text-white/70 block">Kata Sandi</label>
-              <div className="relative">
-                <input
-                  type="password"
-                  required
-                  minLength={6}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Minimal 6 karakter"
-                  className="w-full h-11 px-4 pl-10 rounded-full bg-white/[0.06] border border-white/15 text-sm text-white focus:outline-none focus:border-white transition-colors placeholder:text-white/30"
-                />
-                <Lock className="w-4 h-4 text-white/40 absolute left-3.5 top-3.5" />
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full h-11 rounded-full bg-white hover:bg-zinc-200 text-black font-bold text-sm shadow-md flex items-center justify-center gap-2 transition-all ios-spring cursor-pointer disabled:opacity-50"
-            >
-              <span>
-                {isLoading
-                  ? 'Memproses...'
-                  : isRegister
-                  ? 'Daftar & Kirim Kode Verifikasi'
-                  : 'Masuk Akun'}
-              </span>
-              <ArrowRight className="w-4 h-4 text-black" />
-            </button>
-
-            <div className="pt-1 text-center">
-              <button
-                type="button"
-                onClick={() => {
-                  setIsRegister(!isRegister);
-                  setError(null);
-                }}
-                className="text-xs text-white/80 hover:text-white underline cursor-pointer"
-              >
-                {isRegister
-                  ? 'Sudah punya akun? Masuk di sini'
-                  : 'Belum punya akun? Daftar gratis'}
-              </button>
-            </div>
-          </form>
         )}
 
         {/* Footer info */}
