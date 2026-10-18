@@ -1,15 +1,17 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
 import { Title, MediaType } from '../types';
 import { MediaCard } from '../components/MediaCard';
 import { MediaCardSkeleton } from '../components/Skeleton';
+import { SEOHead } from '../components/SEOHead';
 import { CONFIG } from '../config';
 import { Filter, RotateCcw, AlertTriangle, ChevronDown, Compass } from 'lucide-react';
 
 export const ExplorePage: React.FC = () => {
   const { type: typeParam } = useParams<{ type?: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
 
   // Validate type
   const mediaType: MediaType =
@@ -133,8 +135,16 @@ export const ExplorePage: React.FC = () => {
     }
   };
 
+  const canonicalPath = typeParam ? `/explore/${typeParam}` : '/explore';
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8 pt-20 sm:pt-24 pb-16 space-y-7">
+      <SEOHead
+        title={pageTitle}
+        canonicalPath={canonicalPath}
+        description={`Katalog lengkap ${pageTitle.toLowerCase()} di Zhafx. Tonton film, serial TV, dan anime favorit dengan filter kategori, tahun, dan rekomendasi AI.`}
+      />
+
       {/* Page Header with Apple iOS 26 Segmented Control */}
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-5 border-b border-white/[0.08] pb-6">
         <div className="space-y-1">
@@ -153,8 +163,7 @@ export const ExplorePage: React.FC = () => {
         <div className="inline-flex p-1 rounded-full liquid-glass liquid-specular shadow-lg shrink-0 self-start sm:self-auto">
           <button
             onClick={() => {
-              setSearchParams(new URLSearchParams());
-              window.location.hash = '#/explore/movie';
+              navigate('/explore/movie');
             }}
             className={`px-4 py-2 rounded-full text-xs font-semibold transition-all ios-spring cursor-pointer ${
               mediaType === 'movie'
@@ -166,8 +175,7 @@ export const ExplorePage: React.FC = () => {
           </button>
           <button
             onClick={() => {
-              setSearchParams(new URLSearchParams());
-              window.location.hash = '#/explore/tv';
+              navigate('/explore/tv');
             }}
             className={`px-4 py-2 rounded-full text-xs font-semibold transition-all ios-spring cursor-pointer ${
               mediaType === 'tv'
@@ -179,8 +187,7 @@ export const ExplorePage: React.FC = () => {
           </button>
           <button
             onClick={() => {
-              setSearchParams(new URLSearchParams());
-              window.location.hash = '#/explore/anime';
+              navigate('/explore/anime');
             }}
             className={`px-4 py-2 rounded-full text-xs font-semibold transition-all ios-spring cursor-pointer ${
               mediaType === 'anime'

@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { HashRouter, Routes, Route, useLocation } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { BrowserRouter, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import { Sparkles } from 'lucide-react';
 import { Navbar } from './components/Navbar';
 import { BottomNav } from './components/BottomNav';
@@ -29,6 +29,16 @@ function AppLayout() {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [aiContextTitle, setAiContextTitle] = useState<Title | null>(null);
   const location = useLocation();
+  const navigate = useNavigate();
+
+  // Automatically migrate legacy hash URLs (e.g. /#/explore) to standard paths
+  useEffect(() => {
+    if (window.location.hash && window.location.hash.startsWith('#/')) {
+      const cleanPath = window.location.hash.slice(1);
+      window.history.replaceState(null, '', cleanPath);
+      navigate(cleanPath, { replace: true });
+    }
+  }, [navigate]);
 
   // Hide Navbar, BottomNav, and Footer in player mode for true cinematic fullscreen
   const isPlayerMode = location.pathname.startsWith('/watch');
@@ -126,9 +136,9 @@ export default function App() {
   return (
     <ErrorBoundary>
       <ActiveMediaProvider>
-        <HashRouter>
+        <BrowserRouter>
           <AppLayout />
-        </HashRouter>
+        </BrowserRouter>
       </ActiveMediaProvider>
     </ErrorBoundary>
   );

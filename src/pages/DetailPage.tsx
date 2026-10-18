@@ -23,6 +23,7 @@ import { api } from '../services/api';
 import { Title, Episode, MediaType, CastMember, VideoTrailer } from '../types';
 import { DetailSkeleton } from '../components/Skeleton';
 import { MediaRow } from '../components/MediaRow';
+import { SEOHead } from '../components/SEOHead';
 import { useMyList } from '../hooks/useMyList';
 import { useActiveMedia } from '../context/ActiveMediaContext';
 import { storage } from '../lib/storage';
@@ -217,6 +218,12 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
 
   return (
     <div className="min-h-screen pb-20 space-y-12">
+      <SEOHead
+        title={title.title}
+        description={title.overview || `Nonton ${title.title} (${title.year}) di Zhafx dengan kualitas sinematik dan rekomendasi cerdas AI.`}
+        canonicalPath={`/detail/${mediaType}/${id}`}
+        ogType="video.movie"
+      />
       {/* Toast Notification */}
       {showShareToast && (
         <div className="fixed top-20 right-6 z-50 px-4 py-2.5 rounded-xl bg-zinc-900 border border-white/20 text-white text-xs font-medium shadow-xl flex items-center gap-2">

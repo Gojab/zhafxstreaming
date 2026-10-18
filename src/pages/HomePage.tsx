@@ -4,6 +4,7 @@ import { Title } from '../types';
 import { HeroBillboard } from '../components/HeroBillboard';
 import { MediaRow } from '../components/MediaRow';
 import { HeroSkeleton, MediaCardSkeleton } from '../components/Skeleton';
+import { SEOHead } from '../components/SEOHead';
 import { useWatchHistory } from '../hooks/useWatchHistory';
 import { useMyList } from '../hooks/useMyList';
 import {
@@ -141,6 +142,11 @@ export const HomePage: React.FC = () => {
 
   return (
     <div className="space-y-4 pb-12">
+      <SEOHead
+        title=""
+        canonicalPath="/"
+        description="Platform streaming film, serial TV, dan anime modern dengan rekomendasi bertenaga AI."
+      />
       {/* Hero Billboard Carousel */}
       <HeroBillboard items={heroItems} />
 
