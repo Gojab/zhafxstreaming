@@ -1,4 +1,4 @@
-import { executeMultiModelChat } from '../server/aiPipeline';
+import { executeMultiModelChat } from '../server/aiPipeline.ts';
 
 export default async function handler(req: any, res: any) {
   // CORS configuration

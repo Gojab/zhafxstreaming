@@ -1,4 +1,5 @@
-import express, { Request, Response } from 'express';
+import express from 'express';
+import type { Request, Response } from 'express';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -13,11 +14,13 @@ import {
   getUserByToken,
   readAuthDb,
   writeAuthDb,
+} from './server/authService.ts';
+import type {
   StoredUser,
   StoredSession,
   AuthDb,
-} from './server/authService';
-import { executeMultiModelChat } from './server/aiPipeline';
+} from './server/authService.ts';
+import { executeMultiModelChat } from './server/aiPipeline.ts';
 
 dotenv.config();
 

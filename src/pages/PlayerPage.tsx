@@ -23,52 +23,54 @@ export interface ServerOption {
   id: string;
   name: string;
   tagline: string;
-  type: 'anime_embed' | 'anime_provider' | 'tv_embed' | 'universal_embed';
-  provider?: string;
+  type: 'anime_embed' | 'tv_embed' | 'movie_embed';
+  provider: string;
   serverParam?: string;
 }
 
-// 6 Dedicated FrameX servers for seamless cascading failover
+// 6 Dedicated FrameX servers for anime with verified upstream provider mapping
 export const ANIME_SERVERS: ServerOption[] = [
   {
     id: 'server-1',
-    name: 'Server 1 (FrameX Cloud Utama)',
-    tagline: 'Grand Warden • 1080p Ultra HD',
+    name: 'Server 1 — FrameX Cloud Utama',
+    tagline: 'Grand Warden • 1080p Ultra HD Fast Stream',
     type: 'anime_embed',
     provider: 'grand_warden',
   },
   {
     id: 'server-2',
-    name: 'Server 2 (FrameX Wizard Dual Audio)',
-    tagline: 'Dual Audio & Softsub Cepat',
-    type: 'anime_provider',
+    name: 'Server 2 — FrameX Wizard Dual Audio',
+    tagline: 'Wizard • Dual Audio & Softsub Cepat',
+    type: 'anime_embed',
     provider: 'wizard',
   },
   {
     id: 'server-3',
-    name: 'Server 3 (FrameX TV & Anime Mirror)',
-    tagline: 'Multi-Source TV Mirror (TMDB/AniList)',
-    type: 'tv_embed',
+    name: 'Server 3 — FrameX TV & Anime Mirror',
+    tagline: 'Super P.E.K.K.A • 1080p Ultra High Bitrate Multi-Source',
+    type: 'anime_embed',
+    provider: 'super_pekka',
   },
   {
     id: 'server-4',
-    name: 'Server 4 (FrameX Valkyrie HD)',
-    tagline: 'FlixCloud HD Fast CDN',
-    type: 'anime_provider',
+    name: 'Server 4 — FrameX Valkyrie HD',
+    tagline: 'Valkyrie • FlixCloud HD Fast CDN',
+    type: 'anime_embed',
     provider: 'valkyrie',
   },
   {
     id: 'server-5',
-    name: 'Server 5 (FrameX Universal Stream)',
-    tagline: 'Universal Multi-CDN Direct',
-    type: 'universal_embed',
+    name: 'Server 5 — FrameX Universal Stream',
+    tagline: 'Giant • Universal Multi-CDN Stream',
+    type: 'anime_embed',
+    provider: 'giant',
   },
   {
     id: 'server-6',
-    name: 'Server 6 (FrameX Direct Path)',
-    tagline: 'Direct Path Anime Player',
+    name: 'Server 6 — FrameX Direct Path',
+    tagline: 'Goblin • Direct Fast Auto Stream',
     type: 'anime_embed',
-    serverParam: '2',
+    provider: 'goblin',
   },
 ];
 
@@ -226,7 +228,7 @@ export const PlayerPage: React.FC = () => {
     return () => controller.abort();
   }, [id, mediaType, seasonNum, episodeNum, recordHistory, searchParams]);
 
-  // 10-Second Timeout Fallback Watchdog (Requirement 3)
+  // Persistent Iframe Watchdog: Displays non-intrusive helper banner if loading takes longer than 15s without unmounting iframe
   useEffect(() => {
     if (!isPlayable) {
       setIsIframeLoading(false);
@@ -241,12 +243,11 @@ export const PlayerPage: React.FC = () => {
       clearTimeout(timeoutRef.current);
     }
 
-    // Set 10s watchdog: if onLoad has not triggered within 10 seconds, activate timeout helper banner
+    // Set 15s watchdog: does NOT destroy iframe, only shows assistant helper card
     timeoutRef.current = setTimeout(() => {
-      setIsIframeLoading(false);
       setIsIframeTimedOut(true);
-      console.warn('[Zhafx Player] Iframe load timed out after 10 seconds, showing helper options.');
-    }, 10000);
+      console.warn('[Zhafx Player] Server taking longer than 15 seconds to respond. Player remains mounted while helper is shown.');
+    }, 15000);
 
     return () => {
       if (timeoutRef.current) {
@@ -256,14 +257,12 @@ export const PlayerPage: React.FC = () => {
   }, [id, episodeNum, seasonNum, currentServerIndex, iframeKey, isPlayable, animeAudio]);
 
   const handleIframeLoad = () => {
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-    }
+    // Note: onLoad indicates document loaded, not video playback finished buffering.
+    // Dismiss the heavy loading screen gently, leaving helper timer running if stream is slow.
     setIsIframeLoading(false);
-    setIsIframeTimedOut(false);
   };
 
-  // Switch to next fallback server (Requirement 3)
+  // Switch to next fallback server
   const handleNextServer = () => {
     const nextIdx = (currentServerIndex + 1) % ANIME_SERVERS.length;
     setCurrentServerIndex(nextIdx);
@@ -274,60 +273,87 @@ export const PlayerPage: React.FC = () => {
     setIframeKey((k) => k + 1);
   };
 
-  // Retry loading current server (Requirement 3)
+  // Retry loading current server
   const handleRetry = () => {
     setIsIframeLoading(true);
     setIsIframeTimedOut(false);
     setIframeKey((k) => k + 1);
   };
 
-  // Build clean FrameX Embed URL (Requirement 2: HTTPS only, encodeURIComponent, full parameter passing)
+  // Build clean FrameX Embed URL (HTTPS only, URL and URLSearchParams, no double encoding, no_ads=1)
   const buildEmbedUrl = (): string => {
     if (!isPlayable) return '';
 
-    const cleanId = encodeURIComponent(String(id).trim());
-    const ep = encodeURIComponent(String(Math.max(1, episodeNum)));
-    const s = encodeURIComponent(String(Math.max(1, seasonNum)));
+    const cleanId = String(id).trim();
+    const validEp = Math.max(1, episodeNum);
+    const validSeason = Math.max(1, seasonNum);
     const activeServer = ANIME_SERVERS[currentServerIndex] || ANIME_SERVERS[0];
 
-    const q = new URLSearchParams();
-    q.set('id', String(id).trim());
-    q.set('episode', String(Math.max(1, episodeNum)));
-    q.set('season', String(Math.max(1, seasonNum)));
-    q.set('type', mediaType === 'anime' ? 'anime' : mediaType);
-    q.set('sub_type', animeAudio || 'sub');
-    q.set('autoplay', '1');
-    q.set('muted', '0');
-
-    if (activeServer.provider) {
-      q.set('provider', activeServer.provider);
-    }
-    if (activeServer.serverParam) {
-      q.set('server', activeServer.serverParam);
-    }
-    if (title?.title) {
-      q.set('title', title.title);
+    // Determine sub/dub provider variant
+    let targetProvider = activeServer.provider || 'grand_warden';
+    if (animeAudio === 'dub') {
+      if (targetProvider === 'grand_warden') targetProvider = 'grand_warden_dub';
+      else if (targetProvider === 'wizard') targetProvider = 'wizard_dub';
+      else if (targetProvider === 'valkyrie') targetProvider = 'valkyrie_dub';
+      else if (targetProvider === 'goblin') targetProvider = 'goblin_dub';
     }
 
     if (mediaType === 'anime') {
-      if (activeServer.type === 'tv_embed') {
-        return `https://framextv.xyz/embed/tv/${cleanId}/${s}/${ep}?autoplay=1&muted=0${title?.title ? `&title=${encodeURIComponent(title.title)}` : ''}`;
+      // Official FrameX Anime Embed
+      // Path: /embed/anime/:id/:episode with full query params: ?id=&episode=&season=&type=anime&sub_type=&provider=&autoplay=1&muted=0&no_ads=1
+      // Both path and query params provided for maximum compatibility across FrameX player versions
+      const baseUrl = `https://framextv.xyz/embed/anime/${encodeURIComponent(cleanId)}/${encodeURIComponent(String(validEp))}`;
+      const url = new URL(baseUrl);
+      url.searchParams.set('id', cleanId);
+      url.searchParams.set('episode', String(validEp));
+      url.searchParams.set('season', String(validSeason));
+      url.searchParams.set('type', 'anime');
+      url.searchParams.set('sub_type', animeAudio);
+      url.searchParams.set('provider', targetProvider);
+      url.searchParams.set('autoplay', '1');
+      url.searchParams.set('muted', '0');
+      // CRITICAL: no_ads=1 prevents FrameX from injecting the rogue popup ad script (im.frshery.com)
+      url.searchParams.set('no_ads', '1');
+      if (title?.title) {
+        url.searchParams.set('title', title.title.trim());
       }
-      if (activeServer.type === 'universal_embed') {
-        return `https://framextv.xyz/embed/${cleanId}/${s}/${ep}?autoplay=1&muted=0${title?.title ? `&title=${encodeURIComponent(title.title)}` : ''}`;
-      }
-      // Official FrameX Anime embed: pass both path and complete query string so FrameX's ke() parser extracts id & episode
-      return `https://framextv.xyz/embed/anime/${cleanId}/${ep}?${q.toString()}`;
+      return url.toString();
     }
 
     if (mediaType === 'tv') {
-      if (title?.title) q.set('title', title.title);
-      return `https://framextv.xyz/embed/tv/${cleanId}/${s}/${ep}?${q.toString()}`;
+      const baseUrl = `https://framextv.xyz/embed/tv/${encodeURIComponent(cleanId)}/${encodeURIComponent(String(validSeason))}/${encodeURIComponent(String(validEp))}`;
+      const url = new URL(baseUrl);
+      url.searchParams.set('id', cleanId);
+      url.searchParams.set('season', String(validSeason));
+      url.searchParams.set('episode', String(validEp));
+      url.searchParams.set('type', 'tv');
+      url.searchParams.set('autoplay', '1');
+      url.searchParams.set('muted', '0');
+      url.searchParams.set('no_ads', '1'); // CRITICAL: disables popup ads on TV series
+      if (activeServer.provider) {
+        url.searchParams.set('provider', activeServer.provider);
+      }
+      if (title?.title) {
+        url.searchParams.set('title', title.title.trim());
+      }
+      return url.toString();
     }
 
     // movie
-    if (title?.title) q.set('title', title.title);
-    return `https://framextv.xyz/embed/movie/${cleanId}?${q.toString()}`;
+    const baseUrl = `https://framextv.xyz/embed/movie/${encodeURIComponent(cleanId)}`;
+    const url = new URL(baseUrl);
+    url.searchParams.set('id', cleanId);
+    url.searchParams.set('type', 'movie');
+    url.searchParams.set('autoplay', '1');
+    url.searchParams.set('muted', '0');
+    url.searchParams.set('no_ads', '1'); // CRITICAL: disables popup ads on Movies
+    if (activeServer.provider) {
+      url.searchParams.set('provider', activeServer.provider);
+    }
+    if (title?.title) {
+      url.searchParams.set('title', title.title.trim());
+    }
+    return url.toString();
   };
 
   const embedUrl = buildEmbedUrl();
@@ -797,7 +823,7 @@ export const PlayerPage: React.FC = () => {
           </div>
         )}
 
-        {/* 10-Second Timeout Fallback Helper Card (Requirement 3: Does NOT unmount the player) */}
+        {/* Persistent Timeout Helper Card (Does NOT unmount the player iframe) */}
         {isIframeTimedOut && isPlayable && (
           <div className="absolute top-20 sm:top-24 left-1/2 -translate-x-1/2 z-30 w-[92%] max-w-md p-4 rounded-2xl liquid-glass-dense border border-amber-500/40 text-center space-y-2.5 shadow-2xl backdrop-blur-xl animate-in-scale">
             <div className="flex items-center justify-center gap-2 text-amber-400 font-bold text-xs sm:text-sm">
@@ -805,7 +831,7 @@ export const PlayerPage: React.FC = () => {
               <span>Server sedang memuat atau lambat merespons</span>
             </div>
             <p className="text-[11px] text-white/70 leading-snug">
-              Pemutar membutuhkan waktu lebih lama untuk memuat stream dari server ini. Anda dapat menunggu beberapa saat, coba lagi, atau beralih ke server cadangan.
+              Pemutar membutuhkan waktu lebih lama untuk memuat stream dari server ini. Pemutar tetap aktif di latar belakang. Anda dapat menunggu, coba lagi, atau beralih ke server cadangan.
             </p>
             <div className="flex items-center justify-center gap-2 pt-1">
               <button
@@ -833,12 +859,11 @@ export const PlayerPage: React.FC = () => {
         )}
 
         {/*
-          Official FrameX Embed Iframe (Requirements 1 & 2):
-          - Strict sandbox removal (NO sandbox attribute)
-          - width="100%" height="100%" frameBorder="0" allowFullScreen
-          - allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
-          - referrerPolicy="origin" loading="lazy"
-          - Stays persistently mounted while isPlayable so playback never gets aborted prematurely
+          Official FrameX Persistent Embed Iframe:
+          - loading="eager" for immediate player boot
+          - allowFullScreen and allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
+          - referrerPolicy="origin" for secure provider authentication
+          - Stays persistently mounted so video decoding is never killed prematurely
         */}
         {isPlayable && (
           <iframe
@@ -850,7 +875,7 @@ export const PlayerPage: React.FC = () => {
             allowFullScreen
             allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
             referrerPolicy="origin"
-            loading="lazy"
+            loading="eager"
             title={title?.title || 'Zhafx Stream Player'}
             onLoad={handleIframeLoad}
             className="w-full h-full border-0 absolute inset-0 z-10"
