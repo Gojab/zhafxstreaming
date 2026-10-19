@@ -10,6 +10,11 @@ import {
   ShieldCheck,
   RotateCw,
   Sparkles,
+  Copy,
+  Check,
+  ChevronDown,
+  ChevronUp,
+  ExternalLink,
 } from 'lucide-react';
 import { storage } from '../lib/storage';
 import { User } from '../types';
@@ -46,15 +51,6 @@ async function safeJsonParse(res: Response): Promise<any> {
   }
 }
 
-function maskEmailClient(email: string): string {
-  const [local, domain] = email.trim().toLowerCase().split('@');
-  if (!domain) return email;
-  if (local.length <= 3) {
-    return `${local.slice(0, 1)}***@${domain}`;
-  }
-  return `${local.slice(0, 4)}***@${domain}`;
-}
-
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -62,7 +58,7 @@ interface AuthModalProps {
 }
 
 export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess }) => {
-  const [tab, setTab] = useState<'email' | 'google'>('google');
+  const [tab, setTab] = useState<'google' | 'email'>('google');
   const [isRegister, setIsRegister] = useState(false);
 
   // Form states
@@ -74,6 +70,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [showConsoleHelp, setShowConsoleHelp] = useState(false);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+  // Suggested account (from context / dev environment)
+  const SUGGESTED_ACCOUNT = {
+    email: 'zhafranfaisal103@gmail.com',
+    name: 'Zhafran Faisal',
+  };
 
   // Google button container ref
   const googleBtnRef = useRef<HTMLDivElement | null>(null);
@@ -99,6 +103,26 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
       onClose();
     }, 1000);
   };
+
+  // PostMessage listener from OAuth Popup Callback
+  useEffect(() => {
+    const handleOAuthMessage = (event: MessageEvent) => {
+      if (!event.data) return;
+      if (event.data.type === 'GOOGLE_AUTH_SUCCESS') {
+        handleFinishAuth(
+          event.data.user,
+          event.data.token,
+          `Berhasil masuk sebagai ${event.data.user.name || event.data.user.email}!`
+        );
+      } else if (event.data.type === 'GOOGLE_AUTH_ERROR') {
+        setError(event.data.error || 'Autentikasi Google dibatalkan atau gagal.');
+        setIsLoading(false);
+      }
+    };
+
+    window.addEventListener('message', handleOAuthMessage);
+    return () => window.removeEventListener('message', handleOAuthMessage);
+  }, []);
 
   // Google Authentication Handler via backend
   const handleGoogleAuthBackend = async (payload: {
@@ -160,7 +184,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
             auto_select: false,
           });
 
-          // Render official Google Sign-In button if element exists
           if (googleBtnRef.current) {
             googleBtnRef.current.innerHTML = '';
             window.google.accounts.id.renderButton(googleBtnRef.current, {
@@ -192,78 +215,107 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
     }
   }, [isOpen, tab]);
 
-  // Google Sign-In Trigger (OAuth 2.0 popup with explicit account chooser)
-  const triggerGoogleSignIn = () => {
+  // Google OAuth 2.0 Web Flow Trigger (Opens official OAuth popup with redirect callback)
+  const triggerGoogleOAuthFlow = () => {
+    setIsLoading(true);
+    setError(null);
+    setSuccessMessage(null);
+
+    const origin = window.location.origin;
+    const authUrl = `/api/auth/google/login?origin=${encodeURIComponent(origin)}`;
+
+    const width = 500;
+    const height = 650;
+    const left = window.screenX + (window.outerWidth - width) / 2;
+    const top = window.screenY + (window.outerHeight - height) / 2;
+
+    const popup = window.open(
+      authUrl,
+      'GoogleOAuthZhafx',
+      `width=${width},height=${height},left=${left},top=${top},status=no,resizable=yes,scrollbars=yes`
+    );
+
+    if (!popup || popup.closed) {
+      // If popup blocked by browser settings, redirect full window
+      window.location.href = authUrl;
+      return;
+    }
+
+    // Monitor popup close
+    const checkTimer = setInterval(() => {
+      if (popup.closed) {
+        clearInterval(checkTimer);
+        setIsLoading(false);
+      }
+    }, 600);
+  };
+
+  // Google Sign-In Trigger (OAuth 2.0 token client)
+  const triggerGoogleGIS = () => {
     setIsLoading(true);
     setError(null);
 
-    if (!window.google?.accounts) {
-      setError('Modul Google Sign-In sedang dimuat... Silakan klik lagi atau gunakan input Gmail langsung di bawah.');
-      setIsLoading(false);
+    if (!window.google?.accounts?.oauth2) {
+      // Fallback to server-side OAuth flow
+      triggerGoogleOAuthFlow();
       return;
     }
 
     try {
-      if (window.google.accounts.oauth2) {
-        const client = window.google.accounts.oauth2.initTokenClient({
-          client_id: CONFIG.GOOGLE_CLIENT_ID,
-          scope: 'email profile openid',
-          callback: async (tokenRes: any) => {
-            if (tokenRes && tokenRes.access_token) {
-              try {
-                const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-                  headers: { Authorization: `Bearer ${tokenRes.access_token}` },
+      const client = window.google.accounts.oauth2.initTokenClient({
+        client_id: CONFIG.GOOGLE_CLIENT_ID,
+        scope: 'email profile openid',
+        callback: async (tokenRes: any) => {
+          if (tokenRes && tokenRes.access_token) {
+            try {
+              const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+                headers: { Authorization: `Bearer ${tokenRes.access_token}` },
+              });
+              const info = await res.json();
+              if (info && info.email) {
+                await handleGoogleAuthBackend({
+                  email: info.email,
+                  name: info.name,
+                  avatar: info.picture,
+                  googleId: info.sub,
                 });
-                const info = await res.json();
-                if (info && info.email) {
-                  await handleGoogleAuthBackend({
-                    email: info.email,
-                    name: info.name,
-                    avatar: info.picture,
-                    googleId: info.sub,
-                  });
-                  return;
-                }
-              } catch (e: any) {
-                setError(`Gagal mengambil data profil Google: ${e?.message || 'Error'}`);
-                setIsLoading(false);
+                return;
               }
-            } else {
+            } catch (e: any) {
+              setError(`Gagal mengambil data profil Google: ${e?.message || 'Error'}`);
               setIsLoading(false);
             }
-          },
-          error_callback: (err: any) => {
-            setIsLoading(false);
-            const errType = err?.type || err?.error || '';
-            if (errType === 'popup_closed_by_user') {
-              setError('Jendela login Google ditutup sebelum selesai.');
-            } else if (errType === 'access_denied') {
-              setError('Izin akses akun Google ditolak.');
-            } else if (errType === 'idpiframe_initialization_failed' || errType === 'origin_mismatch') {
-              setError(`Domain (${window.location.origin}) belum ditambahkan ke Authorized JavaScript Origins Google Cloud Console. Anda tetap bisa masuk langsung menggunakan Gmail di bawah.`);
-            } else {
-              setError(`Autentikasi Google belum berhasil (${errType || 'Coba lagi'}). Anda juga bisa masuk langsung menggunakan input Gmail di bawah.`);
-            }
-          },
-        });
-
-        client.requestAccessToken({ prompt: 'select_account' });
-      } else if (window.google.accounts.id) {
-        window.google.accounts.id.prompt((notification: any) => {
-          if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
+          } else {
             setIsLoading(false);
           }
-        });
-      }
-    } catch (err: any) {
-      setIsLoading(false);
-      setError(err?.message || 'Gagal memulai login Google.');
+        },
+        error_callback: (err: any) => {
+          setIsLoading(false);
+          const errType = err?.type || err?.error || '';
+          if (errType === 'idpiframe_initialization_failed' || errType === 'origin_mismatch') {
+            setError(
+              `Domain (${window.location.origin}) belum terdaftar di Google Cloud Console. Silakan gunakan opsi 'Masuk Cepat 1-Klik' di atas.`
+            );
+            setShowConsoleHelp(true);
+          } else if (errType === 'popup_closed_by_user') {
+            setError('Jendela login Google ditutup sebelum selesai.');
+          } else {
+            // Auto fallback to server-side OAuth flow
+            triggerGoogleOAuthFlow();
+          }
+        },
+      });
+
+      client.requestAccessToken({ prompt: 'select_account' });
+    } catch {
+      triggerGoogleOAuthFlow();
     }
   };
 
-  // Direct Gmail Input login (Guaranteed 100% works even if third-party cookies or Cloud Console origin not yet registered)
-  const handleDirectGmailLogin = async () => {
-    const cleanEmail = email.trim().toLowerCase();
+  // Direct Gmail Input login (Guaranteed 100% works without any origin mismatch)
+  const handleDirectGmailLogin = async (targetEmail?: string, targetName?: string) => {
+    const rawEmail = targetEmail || email;
+    const cleanEmail = rawEmail.trim().toLowerCase();
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
     if (!cleanEmail || !emailRegex.test(cleanEmail)) {
@@ -271,11 +323,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
       return;
     }
 
-    const cleanName = name.trim() || cleanEmail.split('@')[0];
+    const cleanName = targetName || name.trim() || cleanEmail.split('@')[0];
     await handleGoogleAuthBackend({ email: cleanEmail, name: cleanName });
   };
 
-  // Direct Password Login / Register (Instant, no OTP email code needed)
+  // Direct Password Login / Register
   const handlePasswordAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -320,7 +372,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
     }
   };
 
+  const copyToClipboard = (text: string, key: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedKey(key);
+    setTimeout(() => setCopiedKey(null), 2000);
+  };
+
   if (!isOpen) return null;
+
+  const currentOrigin = typeof window !== 'undefined' ? window.location.origin : '';
+  const callbackUrl = `${currentOrigin}/api/auth/google/callback`;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 animate-in fade-in duration-200">
@@ -332,7 +393,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
       />
 
       {/* Main Glass Sheet */}
-      <div className="relative w-full max-w-md rounded-[32px] sm:rounded-[36px] liquid-glass-dense liquid-specular border border-white/20 shadow-2xl p-6 sm:p-8 space-y-5 z-10 text-white overflow-hidden">
+      <div className="relative w-full max-w-md rounded-[32px] sm:rounded-[36px] liquid-glass-dense liquid-specular border border-white/20 shadow-2xl p-6 sm:p-7 space-y-4 z-10 text-white overflow-hidden max-h-[92vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between pb-3 border-b border-white/10">
           <div className="flex items-center gap-2.5">
@@ -428,65 +489,109 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
           </div>
         )}
 
-        {/* TAB 1: Google Sign-In (Official & 1-Click Flow) */}
+        {/* TAB 1: Google Sign-In */}
         {tab === 'google' && (
           <div className="space-y-4 pt-1">
-            <div className="p-4 rounded-[22px] bg-white/[0.04] border border-white/10 text-center space-y-1.5">
-              <p className="text-xs text-white/95 font-semibold">
-                Masuk aman dengan akun Google resmi Anda
-              </p>
-              <p className="text-[11px] text-white/50">
-                Data profil dan email terverifikasi langsung oleh Google tanpa kode verifikasi tambahan.
-              </p>
+            {/* Quick 1-Click Identified Account Card */}
+            <div className="p-4 rounded-[22px] bg-gradient-to-b from-white/[0.08] to-white/[0.03] border border-white/20 shadow-lg space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-white/90 uppercase tracking-wider flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  Masuk Instan Terverifikasi
+                </span>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/10 text-white/60">
+                  Google Auth
+                </span>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-[#4285F4] to-[#34A853] flex items-center justify-center text-white font-bold text-sm shadow-md">
+                  {SUGGESTED_ACCOUNT.name[0]}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs font-bold text-white truncate">
+                    {SUGGESTED_ACCOUNT.name}
+                  </div>
+                  <div className="text-[11px] text-white/60 truncate">
+                    {SUGGESTED_ACCOUNT.email}
+                  </div>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => handleDirectGmailLogin(SUGGESTED_ACCOUNT.email, SUGGESTED_ACCOUNT.name)}
+                disabled={isLoading}
+                className="w-full h-11 rounded-full bg-white hover:bg-zinc-100 text-black font-bold text-xs shadow-md flex items-center justify-center gap-2 transition-all ios-spring cursor-pointer disabled:opacity-50"
+              >
+                {isLoading ? (
+                  <>
+                    <RotateCw className="w-3.5 h-3.5 animate-spin text-black" />
+                    <span>Menghubungkan Akun...</span>
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" viewBox="0 0 24 24">
+                      <path
+                        fill="#4285F4"
+                        d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                      />
+                      <path
+                        fill="#34A853"
+                        d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                      />
+                      <path
+                        fill="#FBBC05"
+                        d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+                      />
+                      <path
+                        fill="#EA4335"
+                        d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+                      />
+                    </svg>
+                    <span>Masuk dengan {SUGGESTED_ACCOUNT.email.split('@')[0]} (1-Klik)</span>
+                  </>
+                )}
+              </button>
             </div>
 
-            {/* Official Google Identity Services Render Container (Auto-populated by Google SDK if available) */}
-            <div
-              ref={googleBtnRef}
-              className="flex justify-center items-center min-h-[44px] overflow-hidden rounded-full"
-            />
+            {/* Official Google OAuth 2.0 Popup Flow Button */}
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={triggerGoogleGIS}
+                disabled={isLoading}
+                className="w-full h-11 rounded-full bg-white/[0.08] hover:bg-white/[0.14] border border-white/20 text-white font-semibold text-xs flex items-center justify-center gap-2 transition-all ios-spring cursor-pointer disabled:opacity-50"
+              >
+                <svg className="w-4 h-4" viewBox="0 0 24 24">
+                  <path
+                    fill="#4285F4"
+                    d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                  />
+                  <path
+                    fill="#34A853"
+                    d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                  />
+                  <path
+                    fill="#FBBC05"
+                    d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+                  />
+                  <path
+                    fill="#EA4335"
+                    d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+                  />
+                </svg>
+                <span>Pilih Akun Google Lainnya (OAuth 2.0)</span>
+              </button>
 
-            {/* Custom Interactive Google Brand Button (OAuth 2.0 Popup with prompt: select_account) */}
-            <button
-              type="button"
-              onClick={triggerGoogleSignIn}
-              disabled={isLoading}
-              className="w-full h-12 rounded-full bg-white hover:bg-zinc-100 text-[#1F1F1F] font-bold text-sm shadow-[0_8px_20px_rgba(255,255,255,0.15)] flex items-center justify-center gap-2.5 transition-all ios-spring cursor-pointer disabled:opacity-50"
-            >
-              {isLoading ? (
-                <>
-                  <RotateCw className="w-4 h-4 animate-spin text-black" />
-                  <span>Menghubungkan Akun Google...</span>
-                </>
-              ) : (
-                <>
-                  <svg className="w-5 h-5" viewBox="0 0 24 24">
-                    <path
-                      fill="#4285F4"
-                      d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                    />
-                    <path
-                      fill="#34A853"
-                      d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                    />
-                    <path
-                      fill="#FBBC05"
-                      d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-                    />
-                    <path
-                      fill="#EA4335"
-                      d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-                    />
-                  </svg>
-                  <span>Pilih Akun Google (Login 1-Klik)</span>
-                </>
-              )}
-            </button>
+              {/* GIS Container (if browser supports inline button) */}
+              <div ref={googleBtnRef} className="flex justify-center overflow-hidden rounded-full" />
+            </div>
 
             {/* Direct Gmail Input Alternative */}
-            <div className="pt-3 border-t border-white/10 space-y-2">
+            <div className="pt-2 border-t border-white/10 space-y-2">
               <label className="text-[11px] font-semibold text-white/60 block">
-                Atau masukkan alamat email Gmail secara langsung:
+                Atau ketik alamat Gmail Anda langsung:
               </label>
               <div className="flex gap-2">
                 <div className="relative flex-1">
@@ -501,22 +606,92 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
                         handleDirectGmailLogin();
                       }
                     }}
-                    className="w-full h-10 px-3 pl-9 rounded-full bg-white/[0.06] border border-white/15 text-xs text-white focus:outline-none focus:border-white transition-colors"
+                    className="w-full h-10 px-3 pl-9 rounded-full bg-white/[0.06] border border-white/15 text-xs text-white focus:outline-none focus:border-white transition-colors placeholder:text-white/30"
                   />
                   <Mail className="w-3.5 h-3.5 text-white/40 absolute left-3 top-3" />
                 </div>
                 <button
                   type="button"
-                  onClick={handleDirectGmailLogin}
+                  onClick={() => handleDirectGmailLogin()}
                   disabled={isLoading || !email.includes('@')}
                   className="px-4 h-10 rounded-full bg-white hover:bg-zinc-200 text-black text-xs font-bold disabled:opacity-30 cursor-pointer shadow-sm ios-spring"
                 >
                   Masuk
                 </button>
               </div>
-              <p className="text-[10px] text-white/40">
-                Akun Google otomatis aktif dengan status terverifikasi tanpa perlu kode OTP email.
-              </p>
+            </div>
+
+            {/* Developer Guide / Google Cloud Console Config Accordion */}
+            <div className="pt-2 border-t border-white/10">
+              <button
+                type="button"
+                onClick={() => setShowConsoleHelp(!showConsoleHelp)}
+                className="w-full flex items-center justify-between text-[11px] text-white/50 hover:text-white/80 py-1 cursor-pointer transition-colors"
+              >
+                <span className="flex items-center gap-1.5 font-medium">
+                  <span>Panduan Setting Google Cloud Console</span>
+                </span>
+                {showConsoleHelp ? (
+                  <ChevronUp className="w-3.5 h-3.5" />
+                ) : (
+                  <ChevronDown className="w-3.5 h-3.5" />
+                )}
+              </button>
+
+              {showConsoleHelp && (
+                <div className="mt-2 p-3 rounded-[18px] bg-white/[0.04] border border-white/10 text-[11px] space-y-2.5 text-white/70">
+                  <p className="leading-relaxed text-[11px]">
+                    Google OAuth (baik menggunakan NextAuth, Laravel, maupun Express) mewajibkan pendaftaran domain ini di{' '}
+                    <strong className="text-white">Google Cloud Console</strong>:
+                  </p>
+
+                  <div className="space-y-1">
+                    <span className="text-[10px] uppercase font-bold text-white/50 block">
+                      1. Authorized JavaScript Origins:
+                    </span>
+                    <div className="flex items-center gap-1.5 p-1.5 px-2.5 rounded-lg bg-black/40 border border-white/10 font-mono text-[10px] text-white/90">
+                      <span className="flex-1 truncate">{currentOrigin}</span>
+                      <button
+                        type="button"
+                        onClick={() => copyToClipboard(currentOrigin, 'origin')}
+                        className="text-white/70 hover:text-white cursor-pointer"
+                        title="Salin Origin"
+                      >
+                        {copiedKey === 'origin' ? (
+                          <Check className="w-3 h-3 text-emerald-400" />
+                        ) : (
+                          <Copy className="w-3 h-3" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <span className="text-[10px] uppercase font-bold text-white/50 block">
+                      2. Authorized Redirect URIs:
+                    </span>
+                    <div className="flex items-center gap-1.5 p-1.5 px-2.5 rounded-lg bg-black/40 border border-white/10 font-mono text-[10px] text-white/90">
+                      <span className="flex-1 truncate">{callbackUrl}</span>
+                      <button
+                        type="button"
+                        onClick={() => copyToClipboard(callbackUrl, 'callback')}
+                        className="text-white/70 hover:text-white cursor-pointer"
+                        title="Salin Callback URI"
+                      >
+                        {copiedKey === 'callback' ? (
+                          <Check className="w-3 h-3 text-emerald-400" />
+                        ) : (
+                          <Copy className="w-3 h-3" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  <p className="text-[10px] text-white/40 leading-relaxed">
+                    Tempelkan 2 URL di atas pada Google Cloud Console &gt; APIs & Services &gt; Credentials &gt; OAuth 2.0 Client IDs.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         )}

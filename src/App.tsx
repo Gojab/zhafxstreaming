@@ -43,8 +43,24 @@ function AppLayout() {
     }
   }, [navigate]);
 
-  // Validate active session on mount
+  // Validate active session on mount & handle OAuth redirect tokens
   useEffect(() => {
+    // Check if token is passed via OAuth redirect callback (?token=... or ?auth_token=...)
+    try {
+      const searchParams = new URLSearchParams(window.location.search);
+      const urlToken = searchParams.get('token') || searchParams.get('auth_token');
+      if (urlToken) {
+        storage.saveToken(urlToken);
+        searchParams.delete('token');
+        searchParams.delete('auth_token');
+        const cleanQuery = searchParams.toString();
+        const cleanUrl = window.location.pathname + (cleanQuery ? `?${cleanQuery}` : '') + window.location.hash;
+        window.history.replaceState(null, '', cleanUrl);
+      }
+    } catch {
+      // safe fallback
+    }
+
     const token = storage.getToken();
     if (token) {
       fetch('/api/auth/me', {

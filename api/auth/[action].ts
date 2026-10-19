@@ -261,6 +261,14 @@ export default async function handler(req: any, res: any) {
       return res.status(400).json({ success: false, error: 'Email Google atau token kredensial tidak valid.' });
     }
 
+    if (!verifiedName) {
+      verifiedName = verifiedEmail.split('@')[0];
+    }
+
+    if (!userAvatar) {
+      userAvatar = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(verifiedName)}&backgroundColor=4285f4,34a853,fbbc05,ea4335`;
+    }
+
     const result = await authenticateGoogleUser({
       email: verifiedEmail,
       name: verifiedName,

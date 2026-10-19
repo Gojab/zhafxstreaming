@@ -62,12 +62,13 @@
     },
     {
       "id": "usr_1792330640162_87a0bc5c",
-      "name": "zhafran",
+      "name": "zhafranfaisal103",
       "username": "zhafranfaisal103",
       "email": "zhafranfaisal103@gmail.com",
       "passwordHash": "b42262ce3e209206c5c42da457940e1c:cf821337b91e244f8430d9e7c405f36c59ab70e0cb70d5c66c725a54ac6920fdeef1593fe26275b82202e23c75e9344dee58a3a3818724f3ea00e96aaea1d936",
-      "isEmailVerified": false,
-      "joinedAt": 1792330640162
+      "isEmailVerified": true,
+      "joinedAt": 1792330640162,
+      "avatar": "https://api.dicebear.com/7.x/initials/svg?seed=zhafranfaisal103&backgroundColor=4285f4,34a853,fbbc05,ea4335"
     },
     {
       "id": "usr_1792331787312_47a249d6",
@@ -148,6 +149,18 @@
       "userId": "usr_1792331814914_aa71d16d",
       "createdAt": 1792331814914,
       "expiresAt": 1794923814914
+    },
+    {
+      "token": "3745fc4105d4e0b47e1756e6a93944ff48943e78cf8bdcfb65eec80643c4ce41",
+      "userId": "usr_1792330640162_87a0bc5c",
+      "createdAt": 1792403780406,
+      "expiresAt": 1794995780406
+    },
+    {
+      "token": "cfd382aefad4619e58b87f7472501b79190533b0a0dde1bbfd71d8c2341bbe87",
+      "userId": "usr_1792330640162_87a0bc5c",
+      "createdAt": 1792403829825,
+      "expiresAt": 1794995829825
     }
   ],
   "otps": []

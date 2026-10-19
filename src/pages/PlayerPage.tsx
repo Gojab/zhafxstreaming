@@ -52,16 +52,10 @@ export const PlayerPage: React.FC = () => {
   const [providers, setProviders] = useState<Provider[]>([]);
   const [selectedServer, setSelectedServer] = useState<string>('auto');
   const [animeAudio, setAnimeAudio] = useState<'sub' | 'dub'>('sub');
+  // Player mode: default to HLS for anime, with seamless fallback to embed
   const [playerMode, setPlayerMode] = useState<'hls' | 'embed'>(() => {
     return mediaType === 'anime' ? 'hls' : 'embed';
   });
-
-  // Ensure anime is strictly locked to native HLS mode (no embed/sandbox)
-  useEffect(() => {
-    if (mediaType === 'anime') {
-      setPlayerMode('hls');
-    }
-  }, [mediaType]);
 
   // Anime / Stream Native State
   const [animeStream, setAnimeStream] = useState<StreamData | null>(null);
@@ -290,11 +284,13 @@ export const PlayerPage: React.FC = () => {
 
     const providerToRequest = selectedServer === 'auto' ? undefined : selectedServer;
 
+    const animeTitle = title?.title || searchParams.get('title') || '';
+
     const streamPromise =
       mediaType === 'anime'
         ? api.getAnimeStream({
             id,
-            title: title?.title || searchParams.get('title') || undefined,
+            title: animeTitle || undefined,
             episode: episodeNum,
             provider: providerToRequest,
             audio: animeAudio,
@@ -334,12 +330,13 @@ export const PlayerPage: React.FC = () => {
           return;
         }
 
-        // All servers exhausted
-        setAnimeError(
-          customErrMsg ||
-            'Semua server HLS telah dicoba untuk episode ini. Silakan coba audio lain (SUB/DUB) atau muat ulang.'
-        );
-        setFailoverNotice(null);
+        // All HLS servers exhausted - automatically switch to high-compatibility official Embed player
+        console.warn('[PlayerPage] All HLS candidate servers exhausted, switching to official Embed player.');
+        setPlayerMode('embed');
+        setAnimeError(null);
+        setIsIframeLoading(true);
+        setFailoverNotice('Beralih otomatis ke Server Cadangan Cloud...');
+        setTimeout(() => setFailoverNotice(null), 3500);
       } else {
         // Seamless auto-failover to official FrameX Embed mode for non-anime
         setPlayerMode('embed');
@@ -392,7 +389,7 @@ export const PlayerPage: React.FC = () => {
       });
 
     return () => controller.abort();
-  }, [id, mediaType, seasonNum, episodeNum, selectedServer, animeAudio, playerMode, iframeKey, title]);
+  }, [id, mediaType, seasonNum, episodeNum, selectedServer, animeAudio, playerMode, iframeKey]);
 
   // Setup HLS.js or Native Video on Stream Loaded
   useEffect(() => {
@@ -444,8 +441,15 @@ export const PlayerPage: React.FC = () => {
           video.currentTime = resumeTime;
         }
 
-        video.play().catch(() => {
-          setIsPlaying(false);
+        video.play().catch((playErr) => {
+          console.warn('[HLS Autoplay blocked, attempting muted autoplay]:', playErr);
+          video.muted = true;
+          setIsMuted(true);
+          video.play().then(() => {
+            setIsPlaying(true);
+          }).catch(() => {
+            setIsPlaying(false);
+          });
         });
       });
 
@@ -490,7 +494,11 @@ export const PlayerPage: React.FC = () => {
                     return;
                   }
                 }
-                setAnimeError('Terjadi gangguan jaringan pemutar anime. Semua server telah diuji.');
+                setPlayerMode('embed');
+                setAnimeError(null);
+                setIsIframeLoading(true);
+                setFailoverNotice('Beralih ke Server Cadangan Cloud...');
+                setTimeout(() => setFailoverNotice(null), 3500);
               }
               break;
           }
@@ -948,42 +956,32 @@ export const PlayerPage: React.FC = () => {
               </button>
             )}
 
-            {/* Player Mode Switcher: HLS Stream vs FrameX Embed (Anime is STRICTLY HLS Native) */}
-            {mediaType === 'anime' ? (
-              <div
-                className="px-2.5 py-1 rounded-full text-[10px] sm:text-[11px] font-bold border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 flex items-center gap-1.5 shrink-0 shadow-sm"
-                title="Khusus anime menggunakan pemutar HLS Native FrameX langsung di web"
-              >
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                <span className="hidden sm:inline">HLS Native Player</span>
-                <span className="sm:hidden">HLS</span>
-              </div>
-            ) : (
-              <button
-                onClick={() => {
-                  const nextMode = playerMode === 'hls' ? 'embed' : 'hls';
-                  setPlayerMode(nextMode);
-                  setAnimeError(null);
-                  setIframeKey((k) => k + 1);
-                }}
-                className="px-2 sm:px-2.5 py-1 rounded-full text-[10px] sm:text-[11px] font-bold border transition-all cursor-pointer ios-spring flex items-center gap-1.5 bg-white/10 hover:bg-white/20 border-white/20 text-white shrink-0"
-                title="Ganti Mode Pemutar: HLS Stream vs FrameX Embed"
-              >
-                {playerMode === 'hls' ? (
-                  <>
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                    <span className="hidden sm:inline">HLS Stream</span>
-                    <span className="sm:hidden">HLS</span>
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-3 h-3 text-white" />
-                    <span className="hidden sm:inline">Modif Embed</span>
-                    <span className="sm:hidden">Embed</span>
-                  </>
-                )}
-              </button>
-            )}
+            {/* Player Mode Switcher: HLS Stream vs FrameX Embed */}
+            <button
+              onClick={() => {
+                const nextMode = playerMode === 'hls' ? 'embed' : 'hls';
+                setPlayerMode(nextMode);
+                setAnimeError(null);
+                setIsIframeLoading(true);
+                setIframeKey((k) => k + 1);
+              }}
+              className="px-2 sm:px-2.5 py-1 rounded-full text-[10px] sm:text-[11px] font-bold border transition-all cursor-pointer ios-spring flex items-center gap-1.5 bg-white/10 hover:bg-white/20 border-white/20 text-white shrink-0"
+              title="Ganti Mode Pemutar: HLS Stream vs Server Cadangan Embed"
+            >
+              {playerMode === 'hls' ? (
+                <>
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  <span className="hidden sm:inline">HLS Native</span>
+                  <span className="sm:hidden">HLS</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-3 h-3 text-[#FFB224]" />
+                  <span className="hidden sm:inline">Server Cadangan</span>
+                  <span className="sm:hidden">Embed</span>
+                </>
+              )}
+            </button>
 
             {/* Server Selector Dropdown */}
             <div className="flex items-center gap-1 px-2 sm:px-2.5 py-1 rounded-full liquid-glass text-xs text-white">
@@ -991,7 +989,15 @@ export const PlayerPage: React.FC = () => {
               <select
                 value={selectedServer}
                 onChange={(e) => {
-                  setSelectedServer(e.target.value);
+                  const val = e.target.value;
+                  setSelectedServer(val);
+                  if (val === 'embed_cloud') {
+                    setPlayerMode('embed');
+                    setAnimeError(null);
+                    setIsIframeLoading(true);
+                  } else if (mediaType === 'anime' && playerMode === 'embed') {
+                    setPlayerMode('hls');
+                  }
                   setIframeKey((k) => k + 1);
                 }}
                 aria-label="Pilih server stream"
@@ -1000,8 +1006,11 @@ export const PlayerPage: React.FC = () => {
                 <option value="auto" className="bg-[#12141F] text-white">
                   ⚡ ZHAFX AUTO
                 </option>
+                <option value="embed_cloud" className="bg-[#12141F] text-white">
+                  ☁️ Server Cadangan Cloud
+                </option>
                 {providers
-                  .filter((p) => p.id !== 'auto' && p.id !== 'direct_stream')
+                  .filter((p) => p.id !== 'auto' && p.id !== 'direct_stream' && p.id !== 'embed_cloud')
                   .map((p, idx) => {
                     const serverLabel = p.name.startsWith('ZHAFX ENTITY')
                       ? p.name
@@ -1228,6 +1237,18 @@ export const PlayerPage: React.FC = () => {
                   </button>
                   <button
                     onClick={() => {
+                      setPlayerMode('embed');
+                      setAnimeError(null);
+                      setIsIframeLoading(true);
+                      setIframeKey((k) => k + 1);
+                    }}
+                    className="px-4 py-2.5 rounded-full bg-white/10 hover:bg-white/20 text-white text-xs font-semibold cursor-pointer ios-spring flex items-center gap-1.5 border border-white/15"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-[#FFB224]" />
+                    <span>Putar via Server Cadangan (Embed)</span>
+                  </button>
+                  <button
+                    onClick={() => {
                       attemptedServersRef.current.clear();
                       setAnimeAudio(animeAudio === 'sub' ? 'dub' : 'sub');
                       setSelectedServer('auto');
@@ -1353,16 +1374,24 @@ export const PlayerPage: React.FC = () => {
               Browser Anda tidak mendukung pemutar video HTML5.
             </video>
 
-            {/* Big Center Play / Pause Indicator (shows on toggle) */}
+            {/* Big Center Play / Pause Indicator */}
             <div
-              onClick={togglePlay}
-              className={`absolute inset-0 flex items-center justify-center transition-opacity duration-300 pointer-events-none ${
-                !isPlaying && !isLoadingAnime ? 'opacity-100' : 'opacity-0'
+              className={`absolute inset-0 flex items-center justify-center transition-opacity duration-300 ${
+                !isPlaying && !isLoadingAnime ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
               }`}
             >
-              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-black/60 backdrop-blur-md border border-white/20 flex items-center justify-center text-white shadow-2xl pl-1">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  togglePlay();
+                }}
+                className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-black/60 hover:bg-black/80 backdrop-blur-md border border-white/20 flex items-center justify-center text-white shadow-2xl pl-1 ios-spring cursor-pointer"
+                title="Putar Video"
+                aria-label="Putar Video"
+              >
                 <Play className="w-8 h-8 sm:w-10 sm:h-10 text-[#FFB224]" />
-              </div>
+              </button>
             </div>
 
             {/* Custom Control Bar Overlay */}
@@ -1631,9 +1660,9 @@ export const PlayerPage: React.FC = () => {
               </div>
             </div>
           </div>
-        ) : mediaType !== 'anime' ? (
+        ) : (
           /* -------------------------------------------------------------
-             OFFICIAL FRAMEX EMBED IFRAME (MOVIE & TV SERIES ONLY)
+             OFFICIAL FRAMEX EMBED IFRAME (MOVIE, TV SERIES & ANIME)
              ------------------------------------------------------------- */
           <iframe
             key={`${id}-${mediaType}-${seasonNum}-${episodeNum}-${selectedServer}-${iframeKey}-${playerMode}`}
@@ -1650,7 +1679,7 @@ export const PlayerPage: React.FC = () => {
             loading="eager"
             className="w-full h-full border-0 absolute inset-0"
           />
-        ) : null}
+        )}
       </div>
     </div>
   );

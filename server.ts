@@ -246,25 +246,96 @@ app.get('/api/anime/providers', async (_req: Request, res: Response) => {
 
 // Helper: Query AniList GraphQL to resolve anime title or external ID to AniList ID
 async function resolveAnimeId(id: string, title?: string): Promise<string | null> {
-  const searchKey = title || (isNaN(Number(id)) ? id : null);
-  if (!searchKey) return null;
+  // 1. If explicit title provided, search AniList directly
+  if (title && title.trim()) {
+    try {
+      const query = `query ($search: String) { Media(search: $search, type: ANIME) { id } }`;
+      const res = await fetch('https://graphql.anilist.co', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({ query, variables: { search: title.trim() } }),
+        signal: AbortSignal.timeout(3500),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const resolvedId = data?.data?.Media?.id;
+        if (resolvedId) return String(resolvedId);
+      }
+    } catch {}
+  }
+
+  // 2. If non-numeric ID (slug or title string)
+  if (isNaN(Number(id))) {
+    try {
+      const query = `query ($search: String) { Media(search: $search, type: ANIME) { id } }`;
+      const res = await fetch('https://graphql.anilist.co', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({ query, variables: { search: id } }),
+        signal: AbortSignal.timeout(3500),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const resolvedId = data?.data?.Media?.id;
+        if (resolvedId) return String(resolvedId);
+      }
+    } catch {}
+  }
+
+  // 3. If numeric ID (likely TMDB ID), resolve title via TMDB/FrameX details first
   try {
-    const query = `query ($search: String) {
-      Media(search: $search, type: ANIME) { id }
-    }`;
-    const res = await fetch('https://graphql.anilist.co', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-      body: JSON.stringify({ query, variables: { search: searchKey } }),
-      signal: AbortSignal.timeout(3500),
+    const detailsRes = await fetch(`https://api.framextv.tech/api/details?id=${encodeURIComponent(id)}&type=tv`, {
+      signal: AbortSignal.timeout(3000),
     });
-    if (res.ok) {
-      const data = await res.json();
-      const resolvedId = data?.data?.Media?.id;
-      if (resolvedId) return String(resolvedId);
+    if (detailsRes.ok) {
+      const detailsData = await detailsRes.json();
+      const resolvedTitle = detailsData?.title || detailsData?.name;
+      if (resolvedTitle) {
+        const query = `query ($search: String) { Media(search: $search, type: ANIME) { id } }`;
+        const res = await fetch('https://graphql.anilist.co', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+          body: JSON.stringify({ query, variables: { search: resolvedTitle } }),
+          signal: AbortSignal.timeout(3500),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const resolvedId = data?.data?.Media?.id;
+          if (resolvedId) return String(resolvedId);
+        }
+      }
     }
   } catch {}
+
   return null;
+}
+
+// Helper: Unwraps nested proxy URLs recursively to obtain the direct origin CDN URL and referer
+function extractRealUrl(rawUrl: string, defaultRef = 'https://megaplay.buzz/'): { realUrl: string; referer: string } {
+  let url = rawUrl || '';
+  let referer = defaultRef;
+
+  if (url.startsWith('/')) {
+    url = `https://api.framextv.tech${url}`;
+  }
+
+  while (url.includes('/proxy?url=') || url.includes('/proxy/?url=') || url.includes('/subtitles/proxy?url=')) {
+    try {
+      const parsed = new URL(url);
+      const innerUrl = parsed.searchParams.get('url');
+      const innerRef = parsed.searchParams.get('ref') || parsed.searchParams.get('referer');
+      if (innerUrl) {
+        url = innerUrl;
+        if (innerRef) referer = innerRef;
+      } else {
+        break;
+      }
+    } catch {
+      break;
+    }
+  }
+
+  return { realUrl: url, referer };
 }
 
 // Helper: Single upstream provider probe
@@ -363,7 +434,7 @@ app.get('/api/anime/stream', async (req: Request, res: Response) => {
   // Phase 1: Probe with requested ID
   let finalData = await probeMultiProviders(id, episode, audio, provider);
 
-  // Phase 2: If no sources found with raw ID, attempt AniList ID resolution via title or non-numeric ID
+  // Phase 2: If no sources found with raw ID, attempt AniList ID resolution via title or TMDB lookup
   if (!finalData) {
     const resolvedId = await resolveAnimeId(id, title);
     if (resolvedId && resolvedId !== id) {
@@ -381,24 +452,19 @@ app.get('/api/anime/stream', async (req: Request, res: Response) => {
   const actualProvider = finalData.provider || provider || 'grand_warden';
   const fallbackApplied = provider && provider !== 'auto' && provider !== actualProvider;
 
-  // Provide local proxied HLS stream (direct from FrameX API to our web app) with direct CDN fallback
+  // Provide local proxied HLS stream pointing directly to the origin CDN with direct CDN fallback
   const rewrittenSources = finalData.sources.map((src: any) => {
-    let rawUrl = src.url || '';
-    const referer = src.headers?.Referer || src.headers?.referer || 'https://megaplay.buzz/';
+    const defaultRef = src.headers?.Referer || src.headers?.referer || 'https://megaplay.buzz/';
+    const { realUrl, referer } = extractRealUrl(src.url || '', defaultRef);
 
-    let directUrl = rawUrl;
-    if (directUrl.startsWith('/')) {
-      directUrl = `https://api.framextv.tech${directUrl}`;
-    }
-
-    const proxiedUrl = `/api/anime/proxy?url=${encodeURIComponent(directUrl)}&ref=${encodeURIComponent(referer)}`;
+    const proxiedUrl = `/api/anime/proxy?url=${encodeURIComponent(realUrl)}&ref=${encodeURIComponent(referer)}`;
 
     return {
       ...src,
-      url: proxiedUrl, // Primary stream URL goes directly through our web app proxy
-      directUrl,
+      url: proxiedUrl, // Primary stream URL goes directly through our web app proxy to origin CDN
+      directUrl: realUrl,
       proxiedUrl,
-      rawUrl: directUrl,
+      rawUrl: realUrl,
       headers: {
         Referer: referer,
         Origin: referer ? new URL(referer).origin : 'https://megaplay.buzz',
@@ -409,19 +475,15 @@ app.get('/api/anime/stream', async (req: Request, res: Response) => {
   // Resolve subtitles to local converted WebVTT with direct CDN fallback
   const rewrittenSubtitles = Array.isArray(finalData.subtitles)
     ? finalData.subtitles.map((sub: any) => {
-        let subUrl = sub.url || '';
-        if (subUrl.startsWith('/')) {
-          subUrl = `https://api.framextv.tech${subUrl}`;
-        }
-
-        const proxiedSubUrl = `/api/anime/subtitles?url=${encodeURIComponent(subUrl)}&lang=${encodeURIComponent(sub.lang || '')}&label=${encodeURIComponent(sub.label || '')}`;
+        const { realUrl } = extractRealUrl(sub.url || '', 'https://megaplay.buzz/');
+        const proxiedSubUrl = `/api/anime/subtitles?url=${encodeURIComponent(realUrl)}&lang=${encodeURIComponent(sub.lang || '')}&label=${encodeURIComponent(sub.label || '')}`;
 
         return {
           ...sub,
           url: proxiedSubUrl, // Primary subtitle URL converted to WebVTT
-          directUrl: subUrl,
+          directUrl: realUrl,
           proxiedUrl: proxiedSubUrl,
-          rawUrl: subUrl,
+          rawUrl: realUrl,
         };
       })
     : [];
@@ -439,12 +501,19 @@ app.get('/api/anime/stream', async (req: Request, res: Response) => {
   });
 });
 
-// Proxy and rewrite HLS Playlists (.m3u8) & video segments (.ts/.jpg/.mp4)
+// Proxy and rewrite HLS Playlists (.m3u8) & video segments (.ts/.jpg/.mp4) directly from Origin CDNs
 app.all('/api/anime/proxy', async (req: Request, res: Response) => {
-  const targetUrl = (req.query.url as string);
-  const referer = (req.query.ref as string) || 'https://megaplay.buzz/';
+  const rawTargetUrl = (req.query.url as string);
+  const rawReferer = (req.query.ref as string) || 'https://megaplay.buzz/';
 
-  if (!targetUrl || !targetUrl.startsWith('http')) {
+  if (!rawTargetUrl) {
+    return res.status(400).json({ error: 'URL target tidak valid.' });
+  }
+
+  // Always unwrap any nested proxy URLs to fetch straight from the actual CDN
+  const { realUrl: targetUrl, referer } = extractRealUrl(rawTargetUrl, rawReferer);
+
+  if (!targetUrl.startsWith('http')) {
     return res.status(400).json({ error: 'URL target tidak valid.' });
   }
 
@@ -463,6 +532,7 @@ app.all('/api/anime/proxy', async (req: Request, res: Response) => {
     const upstreamRes = await fetch(targetUrl, {
       method: req.method === 'HEAD' ? 'HEAD' : 'GET',
       headers: reqHeaders,
+      signal: AbortSignal.timeout(15000),
     });
 
     const contentType = upstreamRes.headers.get('content-type') || '';
@@ -474,6 +544,7 @@ app.all('/api/anime/proxy', async (req: Request, res: Response) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', '*');
+    res.setHeader('Accept-Ranges', 'bytes');
 
     if (isM3u8) {
       const text = await upstreamRes.text();
@@ -487,7 +558,8 @@ app.all('/api/anime/proxy', async (req: Request, res: Response) => {
             return line.replace(/URI=["']([^"']+)["']/g, (_match, uri) => {
               try {
                 const absUrl = new URL(uri, targetUrl).href;
-                return `URI="/api/anime/proxy?url=${encodeURIComponent(absUrl)}&ref=${encodeURIComponent(referer)}"`;
+                const { realUrl: finalUri } = extractRealUrl(absUrl, referer);
+                return `URI="/api/anime/proxy?url=${encodeURIComponent(finalUri)}&ref=${encodeURIComponent(referer)}"`;
               } catch {
                 return line;
               }
@@ -496,7 +568,8 @@ app.all('/api/anime/proxy', async (req: Request, res: Response) => {
           // Segment or variant m3u8 line
           try {
             const absUrl = new URL(trimmed, targetUrl).href;
-            return `/api/anime/proxy?url=${encodeURIComponent(absUrl)}&ref=${encodeURIComponent(referer)}`;
+            const { realUrl: finalSegUrl } = extractRealUrl(absUrl, referer);
+            return `/api/anime/proxy?url=${encodeURIComponent(finalSegUrl)}&ref=${encodeURIComponent(referer)}`;
           } catch {
             return line;
           }
@@ -538,8 +611,15 @@ app.all('/api/anime/proxy', async (req: Request, res: Response) => {
 
 // Serve and convert Subtitles to clean WebVTT
 app.get('/api/anime/subtitles', async (req: Request, res: Response) => {
-  const targetUrl = req.query.url as string;
-  if (!targetUrl || !targetUrl.startsWith('http')) {
+  const rawUrl = req.query.url as string;
+  if (!rawUrl) {
+    res.setHeader('Content-Type', 'text/vtt; charset=utf-8');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    return res.send('WEBVTT\n\n');
+  }
+
+  const { realUrl: targetUrl, referer } = extractRealUrl(rawUrl, 'https://megaplay.buzz/');
+  if (!targetUrl.startsWith('http')) {
     res.setHeader('Content-Type', 'text/vtt; charset=utf-8');
     res.setHeader('Access-Control-Allow-Origin', '*');
     return res.send('WEBVTT\n\n');
@@ -549,8 +629,9 @@ app.get('/api/anime/subtitles', async (req: Request, res: Response) => {
     const upstreamRes = await fetch(targetUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-        'Referer': 'https://framextv.xyz/',
+        'Referer': referer,
       },
+      signal: AbortSignal.timeout(6000),
     });
 
     res.setHeader('Content-Type', 'text/vtt; charset=utf-8');
@@ -569,7 +650,6 @@ app.get('/api/anime/subtitles', async (req: Request, res: Response) => {
 
     // Convert SRT to WebVTT
     let vtt = 'WEBVTT\n\n' + text.trim();
-    // Replace 00:00:16,730 with 00:00:16.730
     vtt = vtt.replace(/(\d{2}:\d{2}:\d{2}),(\d{3})/g, '$1.$2');
     return res.send(vtt);
   } catch (err: any) {
@@ -833,7 +913,155 @@ app.post('/api/auth/logout', (req: Request, res: Response) => {
   }
 });
 
-// Google / Gmail Direct 1-Click Login
+// Google / Gmail OAuth 2.0 Web Redirection Endpoint
+app.get('/api/auth/google/login', (req: Request, res: Response) => {
+  const host = req.get('host') || 'localhost:3000';
+  const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
+  const defaultOrigin = `${protocol}://${host}`;
+  const origin = (req.query.origin as string) || defaultOrigin;
+  const redirectUri = `${origin}/api/auth/google/callback`;
+  const clientId = process.env.VITE_GOOGLE_CLIENT_ID || '358715674309-hdh36g2l56bqv0rckcvcd4666kemh4sj.apps.googleusercontent.com';
+
+  const state = crypto.randomBytes(16).toString('hex');
+  const googleAuthUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
+  googleAuthUrl.searchParams.set('client_id', clientId);
+  googleAuthUrl.searchParams.set('redirect_uri', redirectUri);
+  googleAuthUrl.searchParams.set('response_type', 'code');
+  googleAuthUrl.searchParams.set('scope', 'openid email profile');
+  googleAuthUrl.searchParams.set('access_type', 'offline');
+  googleAuthUrl.searchParams.set('prompt', 'select_account');
+  googleAuthUrl.searchParams.set('state', state);
+
+  res.redirect(googleAuthUrl.toString());
+});
+
+// Google OAuth 2.0 Callback Handler
+app.get('/api/auth/google/callback', async (req: Request, res: Response) => {
+  const code = req.query.code as string;
+  const error = req.query.error as string;
+  const host = req.get('host') || 'localhost:3000';
+  const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
+  const origin = `${protocol}://${host}`;
+  const redirectUri = `${origin}/api/auth/google/callback`;
+
+  if (error || !code) {
+    const errorMsg = error || 'Otorisasi Google dibatalkan atau gagal.';
+    return res.send(`
+      <!DOCTYPE html>
+      <html>
+        <head><title>Autentikasi Google Gagal</title></head>
+        <body style="font-family:sans-serif;background:#06070B;color:#fff;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;">
+          <div style="text-align:center;padding:24px;border:1px solid rgba(255,255,255,0.15);border-radius:20px;max-width:400px;background:#0E1017;">
+            <h2 style="color:#ef4444;margin-top:0;">Autentikasi Dibatalkan</h2>
+            <p style="font-size:14px;color:rgba(255,255,255,0.7);">${errorMsg}</p>
+            <script>
+              if (window.opener) {
+                window.opener.postMessage({ type: 'GOOGLE_AUTH_ERROR', error: '${errorMsg}' }, '*');
+                setTimeout(() => window.close(), 1500);
+              } else {
+                setTimeout(() => { window.location.href = '/'; }, 2000);
+              }
+            </script>
+          </div>
+        </body>
+      </html>
+    `);
+  }
+
+  const clientId = process.env.VITE_GOOGLE_CLIENT_ID || '358715674309-hdh36g2l56bqv0rckcvcd4666kemh4sj.apps.googleusercontent.com';
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET || '';
+
+  try {
+    const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        code,
+        client_id: clientId,
+        client_secret: clientSecret,
+        redirect_uri: redirectUri,
+        grant_type: 'authorization_code',
+      }),
+    });
+
+    if (!tokenRes.ok) {
+      const errJson = await tokenRes.json().catch(() => ({}));
+      const msg = errJson.error_description || 'Gagal menukarkan token otorisasi Google.';
+      throw new Error(msg);
+    }
+
+    const tokenData = await tokenRes.json();
+    const userRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+      headers: { Authorization: `Bearer ${tokenData.access_token}` },
+    });
+
+    if (!userRes.ok) {
+      throw new Error('Gagal memuat profil pengguna dari Google.');
+    }
+
+    const userData = await userRes.json();
+    const cleanEmail = userData.email?.toLowerCase();
+    if (!cleanEmail) {
+      throw new Error('Email tidak ditemukan pada akun Google.');
+    }
+
+    const cleanName = userData.name || cleanEmail.split('@')[0];
+    const userAvatar = userData.picture || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(cleanName)}&backgroundColor=4285f4,34a853,fbbc05,ea4335`;
+
+    const result = await authenticateGoogleUser({
+      email: cleanEmail,
+      name: cleanName,
+      avatar: userAvatar,
+      googleId: userData.sub,
+    });
+
+    return res.send(`
+      <!DOCTYPE html>
+      <html>
+        <head><title>Autentikasi Berhasil</title></head>
+        <body style="font-family:sans-serif;background:#06070B;color:#fff;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;">
+          <div style="text-align:center;padding:28px;border:1px solid rgba(255,255,255,0.2);border-radius:24px;max-width:420px;background:#0E1017;box-shadow:0 12px 32px rgba(0,0,0,0.5);">
+            <div style="width:48px;height:48px;border-radius:50%;background:#10b981;display:inline-flex;align-items:center;justify-content:center;margin-bottom:12px;">
+              <span style="font-size:24px;color:#fff;">✓</span>
+            </div>
+            <h2 style="margin:0 0 8px 0;font-size:18px;">Berhasil Masuk!</h2>
+            <p style="font-size:13px;color:rgba(255,255,255,0.7);margin-bottom:16px;">Selamat datang, <b>${cleanName}</b>. Mengalihkan ke Zhafx...</p>
+            <script>
+              const payload = {
+                type: 'GOOGLE_AUTH_SUCCESS',
+                token: '${result.token}',
+                user: ${JSON.stringify(result.user)}
+              };
+              if (window.opener) {
+                window.opener.postMessage(payload, '*');
+                setTimeout(() => window.close(), 800);
+              } else {
+                window.location.href = '/?token=' + encodeURIComponent('${result.token}');
+              }
+            </script>
+          </div>
+        </body>
+      </html>
+    `);
+  } catch (err: any) {
+    console.error('[Google OAuth Callback Error]:', err);
+    return res.send(`
+      <!DOCTYPE html>
+      <html>
+        <head><title>Error Autentikasi Google</title></head>
+        <body style="font-family:sans-serif;background:#06070B;color:#fff;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;">
+          <div style="text-align:center;padding:24px;border:1px solid rgba(255,255,255,0.15);border-radius:20px;max-width:420px;background:#0E1017;">
+            <h2 style="color:#ef4444;margin-top:0;">Gagal Masuk Google</h2>
+            <p style="font-size:13px;color:rgba(255,255,255,0.7);">${err.message || 'Terjadi kesalahan sistem'}</p>
+            <a href="/" style="display:inline-block;margin-top:12px;padding:8px 16px;background:#fff;color:#000;border-radius:9999px;text-decoration:none;font-size:12px;font-weight:bold;">Kembali ke Beranda</a>
+          </div>
+        </body>
+      </html>
+    `);
+  }
+});
+
+// Google / Gmail Direct 1-Click Login & API verification
 app.post('/api/auth/google-login', async (req: Request, res: Response) => {
   try {
     const { email, name, credential, code, redirectUri, avatar, googleId } = req.body || {};
@@ -923,6 +1151,14 @@ app.post('/api/auth/google-login', async (req: Request, res: Response) => {
 
     if (!cleanEmail) {
       return res.status(400).json({ success: false, error: 'Email Google atau token kredensial tidak valid.' });
+    }
+
+    if (!cleanName) {
+      cleanName = cleanEmail.split('@')[0];
+    }
+
+    if (!userAvatar) {
+      userAvatar = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(cleanName)}&backgroundColor=4285f4,34a853,fbbc05,ea4335`;
     }
 
     const result = await authenticateGoogleUser({
