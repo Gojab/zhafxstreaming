@@ -255,16 +255,18 @@ export const CinematicIntro: React.FC<CinematicIntroProps> = ({ onComplete, forc
     }
 
     // --- PHASE 1: The Horizontal Anamorphic Laser Flare Sweep (0.1s - 1.2s) ---
-    tl.to(
-      flareRef.current,
-      {
-        opacity: 0.85,
-        scaleX: 1.6,
-        duration: 1.1,
-        ease: 'power2.inOut',
-      },
-      0.1
-    );
+    if (flareRef.current) {
+      tl.to(
+        flareRef.current,
+        {
+          opacity: 0.85,
+          scaleX: 1.6,
+          duration: 1.1,
+          ease: 'power2.inOut',
+        },
+        0.1
+      );
+    }
 
     // --- PHASE 2: Neon Letter Strokes Assemble into Existence (0.8s - 2.1s) ---
     if (logoGroupRef.current) {
@@ -284,47 +286,16 @@ export const CinematicIntro: React.FC<CinematicIntroProps> = ({ onComplete, forc
 
     // --- PHASE 3: THE BASS DROP IMPACT (2.2s) ---
     // Massive illumination, shockwave blast, chromatic flash
-    tl.to(
-      shockwaveRef.current,
-      {
-        opacity: 0.9,
-        scale: 2.8,
-        duration: 1.2,
-        ease: 'power2.out',
-      },
-      2.18
-    );
-
-    tl.to(
-      shockwaveRef.current,
-      {
-        opacity: 0,
-        duration: 0.6,
-        ease: 'power2.in',
-      },
-      2.6
-    );
+    if (shockwaveRef.current) {
+      tl.to(shockwaveRef.current, { opacity: 0.9, scale: 2.8, duration: 1.2, ease: 'power2.out' }, 2.18);
+      tl.to(shockwaveRef.current, { opacity: 0, duration: 0.6, ease: 'power2.in' }, 2.6);
+    }
 
     // Blast god rays behind the logo
-    tl.to(
-      godRaysRef.current,
-      {
-        opacity: 0.8,
-        duration: 0.4,
-        ease: 'power2.out',
-      },
-      2.2
-    );
-
-    tl.to(
-      godRaysRef.current,
-      {
-        opacity: 0.2,
-        duration: 0.9,
-        ease: 'power2.out',
-      },
-      2.6
-    );
+    if (godRaysRef.current) {
+      tl.to(godRaysRef.current, { opacity: 0.8, duration: 0.4, ease: 'power2.out' }, 2.2);
+      tl.to(godRaysRef.current, { opacity: 0.2, duration: 0.9, ease: 'power2.out' }, 2.6);
+    }
 
     // Ignite the full solid logo into blinding white-gold brilliance
     if (logoGroupRef.current) {
@@ -353,62 +324,28 @@ export const CinematicIntro: React.FC<CinematicIntroProps> = ({ onComplete, forc
     }
 
     // Arrowhead Tip Flash (Spark at the upper-right arrow of the X)
-    tl.to(
-      arrowheadGleamRef.current,
-      {
-        opacity: 1,
-        scale: 1.8,
-        duration: 0.2,
-        ease: 'power4.out',
-      },
-      2.22
-    );
-
-    tl.to(
-      arrowheadGleamRef.current,
-      {
-        opacity: 0.4,
-        scale: 1,
-        duration: 0.6,
-        ease: 'power2.out',
-      },
-      2.42
-    );
+    if (arrowheadGleamRef.current) {
+      tl.to(arrowheadGleamRef.current, { opacity: 1, scale: 1.8, duration: 0.2, ease: 'power4.out' }, 2.22);
+      tl.to(arrowheadGleamRef.current, { opacity: 0.4, scale: 1, duration: 0.6, ease: 'power2.out' }, 2.42);
+    }
 
     // --- PHASE 4: Studio Tagline Fade-In & Camera Dolly Zoom (2.4s - 3.4s) ---
-    tl.to(
-      taglineRef.current,
-      {
-        opacity: 1,
-        y: 0,
-        duration: 0.7,
-        ease: 'power2.out',
-      },
-      2.45
-    );
+    if (taglineRef.current) {
+      tl.to(taglineRef.current, { opacity: 1, y: 0, duration: 0.7, ease: 'power2.out' }, 2.45);
+    }
 
     // Cinematic anamorphic bars gently retreat
-    tl.to(
-      [letterboxTopRef.current, letterboxBottomRef.current],
-      {
-        height: '0vh',
-        duration: 0.8,
-        ease: 'power3.inOut',
-      },
-      3.2
+    const letterboxTargets = [letterboxTopRef.current, letterboxBottomRef.current].filter(
+      (element): element is HTMLDivElement => element !== null
     );
+    if (letterboxTargets.length > 0) {
+      tl.to(letterboxTargets, { height: '0vh', duration: 0.8, ease: 'power3.inOut' }, 3.2);
+    }
 
     // --- PHASE 5: Smooth Cinematic Zoom Dissolve into Homepage (3.4s - 4.1s) ---
-    tl.to(
-      containerRef.current,
-      {
-        opacity: 0,
-        scale: 1.08,
-        duration: 0.7,
-        ease: 'power2.inOut',
-      },
-      3.4
-    );
+    if (containerRef.current) {
+      tl.to(containerRef.current, { opacity: 0, scale: 1.08, duration: 0.7, ease: 'power2.inOut' }, 3.4);
+    }
   }, [finishIntro, playEpicCinematicAudio]);
 
   const runEpicSequenceRef = useRef(runEpicSequence);
