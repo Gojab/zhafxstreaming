@@ -12,8 +12,7 @@
 </head>
 <body>
 <script>
-  // Pembungkus embed FrameX. Halaman ini dimuat di dalam iframe ber-sandbox
-  // (tanpa allow-popups), jadi iframe di bawah ini ikut mewarisi blokir popup.
+  // Pemutar resmi embed FrameX
   (function () {
     var ALLOWED_HOSTS = ['framextv.xyz'];
     var raw = new URLSearchParams(location.search).get('u') || '';

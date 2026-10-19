@@ -1171,35 +1171,38 @@ export const api = {
       audio = 'sub',
     } = params;
 
-    // Official FrameX Anime embed player (https://framextv.xyz/embed/anime)
-    if (type === 'anime') {
-      const ep = episode || 1;
-      const cleanId = encodeURIComponent(id);
+    if (!id || String(id).trim() === '' || String(id) === 'undefined' || String(id) === 'null') {
+      return '';
+    }
 
+    const cleanId = encodeURIComponent(String(id).trim());
+    const ep = Math.max(1, Math.round(Number(episode) || 1));
+    const s = Math.max(1, Math.round(Number(season) || 1));
+
+    // Official FrameX Anime embed player (https://framextv.xyz/embed/anime/:id/:episode)
+    if (type === 'anime') {
       const q = new URLSearchParams();
-      q.set('backend', 'prod');
-      q.set('id', String(id));
-      q.set('episode', String(ep));
-      q.set('season', String(season || 1));
-      q.set('type', 'tv');
-      q.set('sub_type', audio || 'sub');
       q.set('autoplay', autoplay ? '1' : '0');
       q.set('muted', muted ? '1' : '0');
       if (server && server !== 'auto' && server !== 'direct_stream' && server !== 'framex') {
-        q.set('provider', server);
+        q.set('server', server);
+      }
+      if (audio) {
+        q.set('sub_type', audio);
+        q.set('audio', audio);
       }
       if (title) q.set('title', title);
       if (poster) q.set('poster', poster);
 
       // Official FrameX Anime Embed URL format: https://framextv.xyz/embed/anime/:id/:episode
-      return `${CONFIG.EMBED_BASE_URL}/anime/${cleanId}/${ep}?${q.toString()}`;
+      return `https://framextv.xyz/embed/anime/${cleanId}/${encodeURIComponent(String(ep))}?${q.toString()}`;
     }
 
     let path = '';
     if (type === 'tv') {
-      path = `${CONFIG.EMBED_BASE_URL}/tv/${encodeURIComponent(id)}/${season}/${episode}`;
+      path = `https://framextv.xyz/embed/tv/${cleanId}/${s}/${encodeURIComponent(String(ep))}`;
     } else {
-      path = `${CONFIG.EMBED_BASE_URL}/movie/${encodeURIComponent(id)}`;
+      path = `https://framextv.xyz/embed/movie/${cleanId}`;
     }
 
     const query = new URLSearchParams();

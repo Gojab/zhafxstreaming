@@ -1,13 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import Hls from 'hls.js';
 import {
   ArrowLeft,
   ChevronLeft,
   ChevronRight,
   Server,
   RotateCw,
-  RotateCcw,
   Maximize,
   Minimize,
   ListOrdered,
@@ -15,21 +13,27 @@ import {
   X,
   Tv,
   Volume2,
-  VolumeX,
-  Volume1,
-  Play,
-  Pause,
   AlertTriangle,
-  Subtitles,
-  Settings,
-  SkipForward,
-  FastForward,
-  Gauge,
-  Sparkles,
 } from 'lucide-react';
 import { api } from '../services/api';
-import { Title, Provider, MediaType, Episode, StreamData, SubtitleTrack } from '../types';
+import { Title, MediaType, Episode } from '../types';
 import { storage } from '../lib/storage';
+
+export interface ServerOption {
+  id: string;
+  name: string;
+  tagline: string;
+  serverParam?: string;
+}
+
+// 5 Dedicated FrameX servers for seamless cascading failover
+export const ANIME_SERVERS: ServerOption[] = [
+  { id: 'server-1', name: 'Server 1 (FrameX Cloud Utama)', tagline: 'Server Cepat 1080p Ultra HD', serverParam: undefined },
+  { id: 'server-2', name: 'Server 2 (FrameX Cadangan 1)', tagline: 'High Bitrate Multi-Server', serverParam: '2' },
+  { id: 'server-3', name: 'Server 3 (FrameX Cadangan 2)', tagline: 'Multi-Source Cloud CDN', serverParam: '3' },
+  { id: 'server-4', name: 'Server 4 (FrameX Direct)', tagline: 'Direct Fast Auto Stream', serverParam: '1' },
+  { id: 'server-5', name: 'Server 5 (FrameX Mirror)', tagline: 'Dual Audio & Fast CDN', serverParam: 'auto' },
+];
 
 export const PlayerPage: React.FC = () => {
   const { type: rawType, id, season: rawSeason, episode: rawEpisode } = useParams<{
@@ -48,69 +52,36 @@ export const PlayerPage: React.FC = () => {
   const seasonNum = parseInt(rawSeason || '1', 10);
   const episodeNum = parseInt(rawEpisode || '1', 10);
 
+  // Validation: Check if ID and Episode are valid
+  const isIdValid = Boolean(id && String(id).trim() !== '' && String(id) !== 'undefined' && String(id) !== 'null');
+  const isEpisodeValid = !isNaN(episodeNum) && episodeNum >= 1;
+  const isPlayable = isIdValid && isEpisodeValid;
+
   const [title, setTitle] = useState<Title | null>(null);
-  const [providers, setProviders] = useState<Provider[]>([]);
-  const [selectedServer, setSelectedServer] = useState<string>('auto');
+  const [currentServerIndex, setCurrentServerIndex] = useState(0);
   const [animeAudio, setAnimeAudio] = useState<'sub' | 'dub'>('sub');
-  // Player mode: default to HLS for anime, with seamless fallback to embed
-  const [playerMode, setPlayerMode] = useState<'hls' | 'embed'>(() => {
-    return mediaType === 'anime' ? 'hls' : 'embed';
-  });
 
-  // Anime / Stream Native State
-  const [animeStream, setAnimeStream] = useState<StreamData | null>(null);
-  const [isLoadingAnime, setIsLoadingAnime] = useState(false);
-  const [animeError, setAnimeError] = useState<string | null>(null);
+  // Iframe loading and 10s timeout state
+  const [isIframeLoading, setIsIframeLoading] = useState(true);
+  const [isIframeTimedOut, setIsIframeTimedOut] = useState(false);
+  const [iframeKey, setIframeKey] = useState(0);
   const [failoverNotice, setFailoverNotice] = useState<string | null>(null);
-  const attemptedServersRef = useRef<Set<string>>(new Set());
+  const timeoutRef = useRef<any>(null);
 
-  // Reset attempted servers on episode or id or audio change
-  useEffect(() => {
-    attemptedServersRef.current.clear();
-    setFailoverNotice(null);
-  }, [id, episodeNum, animeAudio]);
-
-  // Video playback controls state
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const [bufferedTime, setBufferedTime] = useState(0);
-  const [volume, setVolume] = useState(() => {
-    const saved = localStorage.getItem('zhafx_player_volume');
-    return saved !== null ? parseFloat(saved) : 1;
-  });
-  const [isMuted, setIsMuted] = useState(false);
-  const [playbackRate, setPlaybackRate] = useState(1);
+  // UI state
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isCssFullscreen, setIsCssFullscreen] = useState(false);
   const [showControls, setShowControls] = useState(true);
+  const controlsTimeoutRef = useRef<any>(null);
 
-  // Quality & Subtitle menus
-  const [qualities, setQualities] = useState<Array<{ id: number; label: string; height: number }>>([]);
-  const [currentQuality, setCurrentQuality] = useState<number>(-1); // -1 = auto
-  const [subtitles, setSubtitles] = useState<SubtitleTrack[]>([]);
-  const [activeSubtitleUrl, setActiveSubtitleUrl] = useState<string | null>(null);
-  const [isSubtitleMenuOpen, setIsSubtitleMenuOpen] = useState(false);
-  const [isQualityMenuOpen, setIsQualityMenuOpen] = useState(false);
-  const [isSpeedMenuOpen, setIsSpeedMenuOpen] = useState(false);
-
-  // Episode Drawer & Auto Next
+  // Episode Drawer
   const [drawerEpisodes, setDrawerEpisodes] = useState<Episode[]>([]);
   const [isEpisodeDrawerOpen, setIsEpisodeDrawerOpen] = useState(false);
   const [drawerTab, setDrawerTab] = useState<'thumbnails' | 'grid'>('thumbnails');
-  const [nextEpisodeCountdown, setNextEpisodeCountdown] = useState<number | null>(null);
-
-  // Iframe state for Movies / TV only
-  const [isIframeLoading, setIsIframeLoading] = useState(true);
-  const [iframeKey, setIframeKey] = useState(0);
 
   const playerContainerRef = useRef<HTMLDivElement | null>(null);
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const hlsRef = useRef<Hls | null>(null);
-  const controlsTimeoutRef = useRef<any>(null);
-  const progressBarRef = useRef<HTMLDivElement | null>(null);
 
-  // Comprehensive anti-ad and anti-popup protection (blocks popups, frame-busting, and new tab ad triggers)
+  // Comprehensive anti-ad and anti-popup protection
   useEffect(() => {
     const originalOpen = window.open;
     window.open = function (...args: any[]) {
@@ -118,7 +89,6 @@ export const PlayerPage: React.FC = () => {
       return null;
     };
 
-    // Prevent external ad anchors from opening in new tabs
     const handleGlobalClick = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
       const anchor = target?.closest?.('a');
@@ -135,21 +105,10 @@ export const PlayerPage: React.FC = () => {
     window.addEventListener('click', handleGlobalClick, true);
     window.addEventListener('auxclick', handleGlobalClick, true);
 
-    // Prevent frame-busting redirection of parent window
-    let intentionalUnload = false;
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (!intentionalUnload) {
-        // Suppress unauthorized window navigation
-      }
-    };
-    window.addEventListener('beforeunload', handleBeforeUnload);
-
     return () => {
-      intentionalUnload = true;
       window.open = originalOpen;
       window.removeEventListener('click', handleGlobalClick, true);
       window.removeEventListener('auxclick', handleGlobalClick, true);
-      window.removeEventListener('beforeunload', handleBeforeUnload);
     };
   }, []);
 
@@ -177,58 +136,19 @@ export const PlayerPage: React.FC = () => {
     [id, mediaType, seasonNum, episodeNum]
   );
 
-  // Save watch progress
-  const saveProgress = useCallback(
-    (cTime: number, totalDur: number) => {
-      if (!id || !title || totalDur <= 0) return;
-      const progressPercent = Math.min(100, Math.round((cTime / totalDur) * 100));
-      const isCompleted = progressPercent >= 95;
-
-      storage.saveProgress({
-        contentId: id,
-        mediaType,
-        title: title.title,
-        poster: title.poster,
-        backdrop: title.backdrop,
-        year: title.year,
-        season: mediaType === 'tv' ? seasonNum : undefined,
-        episode: mediaType === 'tv' || mediaType === 'anime' ? episodeNum : undefined,
-        episodeName:
-          mediaType === 'tv'
-            ? `Musim ${seasonNum} Ep ${episodeNum}`
-            : mediaType === 'anime'
-            ? `Episode ${episodeNum}`
-            : undefined,
-        currentTime: Math.round(cTime),
-        duration: Math.round(totalDur),
-        progressPercentage: progressPercent,
-        completed: isCompleted,
-      });
-    },
-    [id, title, mediaType, seasonNum, episodeNum]
-  );
-
-  // Load Title Metadata & Providers List
+  // Load Title Metadata & Episode List
   useEffect(() => {
     if (!id) return;
     const controller = new AbortController();
 
     const fetchInitData = async () => {
       try {
-        const [detailsResult, provsResult] = await Promise.allSettled([
-          api.getDetails(id, mediaType, controller.signal),
-          api.getProviders(controller.signal, mediaType),
-        ]);
-
+        const details = await api.getDetails(id, mediaType, controller.signal).catch(() => null);
         if (controller.signal.aborted) return;
 
-        if (provsResult.status === 'fulfilled' && provsResult.value) {
-          setProviders(provsResult.value);
-        }
-
         let finalTitle: Title;
-        if (detailsResult.status === 'fulfilled' && detailsResult.value) {
-          finalTitle = detailsResult.value;
+        if (details) {
+          finalTitle = details;
         } else {
           const historyItem = storage.getHistory().find((h) => h.id === id);
           const myListItem = storage.getMyList().find((m) => m.id === id);
@@ -269,260 +189,98 @@ export const PlayerPage: React.FC = () => {
     return () => controller.abort();
   }, [id, mediaType, seasonNum, episodeNum, recordHistory, searchParams]);
 
-  // STREAM: Load stream data directly from FrameX API when playerMode === 'hls'
+  // 10-Second Timeout Fallback Watchdog (Requirement 3)
   useEffect(() => {
-    if (playerMode !== 'hls' || !id) {
-      setIsLoadingAnime(false);
+    if (!isPlayable) {
+      setIsIframeLoading(false);
+      setIsIframeTimedOut(false);
       return;
     }
 
-    setIsLoadingAnime(true);
-    setAnimeError(null);
-    setAnimeStream(null);
-    setNextEpisodeCountdown(null);
-    const controller = new AbortController();
+    setIsIframeLoading(true);
+    setIsIframeTimedOut(false);
 
-    const providerToRequest = selectedServer === 'auto' ? undefined : selectedServer;
-
-    const animeTitle = title?.title || searchParams.get('title') || '';
-
-    const streamPromise =
-      mediaType === 'anime'
-        ? api.getAnimeStream({
-            id,
-            title: animeTitle || undefined,
-            episode: episodeNum,
-            provider: providerToRequest,
-            audio: animeAudio,
-            signal: controller.signal,
-          })
-        : api.getStream({
-            id,
-            type: mediaType,
-            season: seasonNum,
-            episode: episodeNum,
-            provider: providerToRequest,
-            signal: controller.signal,
-          });
-
-    const handleAutoFailover = (customErrMsg?: string) => {
-      if (mediaType === 'anime') {
-        const currentId = selectedServer === 'auto' ? 'grand_warden' : selectedServer;
-        attemptedServersRef.current.add(currentId);
-
-        // Candidate list from providers or default high-speed entities
-        const allCandidateIds =
-          providers.length > 0
-            ? providers.filter((p) => p.id !== 'auto' && p.id !== 'direct_stream').map((p) => p.id)
-            : (animeAudio === 'dub'
-                ? ['grand_warden_dub', 'wizard_dub', 'valkyrie_dub', 'goblin_dub', 'dragon_dub', 'archer_dub']
-                : ['grand_warden', 'wizard', 'super_pekka', 'giant', 'valkyrie', 'goblin', 'dragon', 'archer']);
-
-        const unattempted = allCandidateIds.filter((pid) => !attemptedServersRef.current.has(pid));
-
-        if (unattempted.length > 0) {
-          const nextPid = unattempted[0];
-          attemptedServersRef.current.add(nextPid);
-          const foundProv = providers.find((p) => p.id === nextPid);
-          const nextName = foundProv ? foundProv.name : nextPid;
-          setFailoverNotice(`Server utama kosong, otomatis beralih ke ${nextName}...`);
-          setSelectedServer(nextPid);
-          return;
-        }
-
-        // All HLS servers exhausted - automatically switch to high-compatibility official Embed player
-        console.warn('[PlayerPage] All HLS candidate servers exhausted, switching to official Embed player.');
-        setPlayerMode('embed');
-        setAnimeError(null);
-        setIsIframeLoading(true);
-        setFailoverNotice('Beralih otomatis ke Server Cadangan Cloud...');
-        setTimeout(() => setFailoverNotice(null), 3500);
-      } else {
-        // Seamless auto-failover to official FrameX Embed mode for non-anime
-        setPlayerMode('embed');
-        setAnimeError(null);
-      }
-    };
-
-    streamPromise
-      .then((data) => {
-        if (data && data.sources && data.sources.length > 0) {
-          setAnimeStream(data);
-          setAnimeError(null);
-
-          // If backend applied fallback or auto-routed to another working provider
-          if (data.fallbackApplied && data.provider) {
-            const foundProv = providers.find((p) => p.id === data.provider);
-            const serverName = foundProv ? foundProv.name : data.provider;
-            setFailoverNotice(`Server utama kosong, otomatis beralih ke ${serverName}`);
-            setSelectedServer(data.provider);
-            setTimeout(() => setFailoverNotice(null), 4000);
-          } else {
-            setFailoverNotice(null);
-          }
-
-          // Subtitles processing
-          if (Array.isArray(data.subtitles) && data.subtitles.length > 0) {
-            setSubtitles(data.subtitles);
-            const indo = data.subtitles.find(
-              (s) =>
-                s.lang === 'in' ||
-                s.lang === 'id' ||
-                (s.label && s.label.toLowerCase().includes('indonesian'))
-            );
-            setActiveSubtitleUrl(indo ? indo.url : data.subtitles[0].url);
-          } else {
-            setSubtitles([]);
-            setActiveSubtitleUrl(null);
-          }
-        } else {
-          handleAutoFailover();
-        }
-      })
-      .catch((err) => {
-        if (!controller.signal.aborted) {
-          handleAutoFailover(err?.message);
-        }
-      })
-      .finally(() => {
-        setIsLoadingAnime(false);
-      });
-
-    return () => controller.abort();
-  }, [id, mediaType, seasonNum, episodeNum, selectedServer, animeAudio, playerMode, iframeKey]);
-
-  // Setup HLS.js or Native Video on Stream Loaded
-  useEffect(() => {
-    if (playerMode !== 'hls' || !animeStream?.sources?.[0]?.url || !videoRef.current) {
-      return;
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
     }
 
-    const video = videoRef.current;
-    const streamSource = animeStream.sources[0].url;
-
-    if (hlsRef.current) {
-      hlsRef.current.destroy();
-      hlsRef.current = null;
-    }
-
-    // Check if there is saved progress to resume
-    const savedProgress = storage.getProgress(id!, 1, episodeNum);
-    const resumeTime = savedProgress && savedProgress.currentTime > 5 && !savedProgress.completed
-      ? savedProgress.currentTime
-      : 0;
-
-    if (Hls.isSupported()) {
-      const hls = new Hls({
-        enableWorker: true,
-        lowLatencyMode: true,
-        backBufferLength: 90,
-      });
-      hlsRef.current = hls;
-
-      hls.loadSource(streamSource);
-      hls.attachMedia(video);
-
-      hls.on(Hls.Events.MANIFEST_PARSED, (_event, data) => {
-        setIsLoadingAnime(false);
-
-        // Populate available video qualities
-        if (data.levels && data.levels.length > 0) {
-          const parsedQualities = data.levels.map((lvl, index) => ({
-            id: index,
-            height: lvl.height || 720,
-            label: lvl.height ? `${lvl.height}p` : `Tingkat ${index + 1}`,
-          }));
-          // Sort descending
-          parsedQualities.sort((a, b) => b.height - a.height);
-          setQualities(parsedQualities);
-        }
-
-        if (resumeTime > 0) {
-          video.currentTime = resumeTime;
-        }
-
-        video.play().catch((playErr) => {
-          console.warn('[HLS Autoplay blocked, attempting muted autoplay]:', playErr);
-          video.muted = true;
-          setIsMuted(true);
-          video.play().then(() => {
-            setIsPlaying(true);
-          }).catch(() => {
-            setIsPlaying(false);
-          });
-        });
-      });
-
-      hls.on(Hls.Events.LEVEL_SWITCHED, (_event, data) => {
-        setCurrentQuality(data.level);
-      });
-
-      hls.on(Hls.Events.ERROR, (_event, data) => {
-        if (data.fatal) {
-          switch (data.type) {
-            case Hls.ErrorTypes.NETWORK_ERROR:
-              console.warn('[HLS] Network error, attempting recovery...');
-              hls.startLoad();
-              break;
-            case Hls.ErrorTypes.MEDIA_ERROR:
-              console.warn('[HLS] Media error, attempting recovery...');
-              hls.recoverMediaError();
-              break;
-            default:
-              console.error('[HLS] Fatal error:', data);
-              if (animeStream?.sources?.[0]?.directUrl && streamSource !== animeStream.sources[0].directUrl) {
-                console.log('[HLS] Attempting fallback to direct CDN URL...');
-                hls.loadSource(animeStream.sources[0].directUrl);
-                hls.startLoad();
-              } else {
-                hls.destroy();
-                if (mediaType === 'anime') {
-                  const currentId = selectedServer === 'auto' ? (animeStream?.provider || 'grand_warden') : selectedServer;
-                  attemptedServersRef.current.add(currentId);
-                  const allCandidateIds = providers.length > 0
-                    ? providers.filter((p) => p.id !== 'auto' && p.id !== 'direct_stream').map((p) => p.id)
-                    : (animeAudio === 'dub'
-                        ? ['grand_warden_dub', 'wizard_dub', 'valkyrie_dub', 'goblin_dub', 'dragon_dub', 'archer_dub']
-                        : ['grand_warden', 'wizard', 'super_pekka', 'giant', 'valkyrie', 'goblin', 'dragon', 'archer']);
-                  const unattempted = allCandidateIds.filter((pid) => !attemptedServersRef.current.has(pid));
-                  if (unattempted.length > 0) {
-                    const nextPid = unattempted[0];
-                    attemptedServersRef.current.add(nextPid);
-                    const foundProv = providers.find((p) => p.id === nextPid);
-                    setFailoverNotice(`Gangguan koneksi stream, otomatis beralih ke ${foundProv ? foundProv.name : nextPid}...`);
-                    setSelectedServer(nextPid);
-                    return;
-                  }
-                }
-                setPlayerMode('embed');
-                setAnimeError(null);
-                setIsIframeLoading(true);
-                setFailoverNotice('Beralih ke Server Cadangan Cloud...');
-                setTimeout(() => setFailoverNotice(null), 3500);
-              }
-              break;
-          }
-        }
-      });
-    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-      // Native Apple HLS (Safari/iOS)
-      video.src = streamSource;
-      video.addEventListener('loadedmetadata', () => {
-        setIsLoadingAnime(false);
-        if (resumeTime > 0) {
-          video.currentTime = resumeTime;
-        }
-        video.play().catch(() => setIsPlaying(false));
-      });
-    }
+    // Set 10s watchdog: if onLoad does not trigger within 10 seconds, show fallback error state
+    timeoutRef.current = setTimeout(() => {
+      setIsIframeLoading(false);
+      setIsIframeTimedOut(true);
+      console.warn('[Zhafx Player] Iframe load timed out after 10 seconds, activating fallback options.');
+    }, 10000);
 
     return () => {
-      if (hlsRef.current) {
-        hlsRef.current.destroy();
-        hlsRef.current = null;
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
       }
     };
-  }, [id, mediaType, animeStream, episodeNum]);
+  }, [id, episodeNum, seasonNum, currentServerIndex, iframeKey, isPlayable, animeAudio]);
+
+  const handleIframeLoad = () => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+    setIsIframeLoading(false);
+    setIsIframeTimedOut(false);
+  };
+
+  // Switch to next fallback server (Requirement 3)
+  const handleNextServer = () => {
+    const nextIdx = (currentServerIndex + 1) % ANIME_SERVERS.length;
+    setCurrentServerIndex(nextIdx);
+    setFailoverNotice(`Beralih ke ${ANIME_SERVERS[nextIdx].name}...`);
+    setTimeout(() => setFailoverNotice(null), 3000);
+    setIsIframeLoading(true);
+    setIsIframeTimedOut(false);
+    setIframeKey((k) => k + 1);
+  };
+
+  // Retry loading current server (Requirement 3)
+  const handleRetry = () => {
+    setIsIframeLoading(true);
+    setIsIframeTimedOut(false);
+    setIframeKey((k) => k + 1);
+  };
+
+  // Build clean FrameX Embed URL (Requirement 2: HTTPS only, encodeURIComponent, no localhost/vercel URLs)
+  const buildEmbedUrl = (): string => {
+    if (!isPlayable) return '';
+
+    const cleanId = encodeURIComponent(String(id).trim());
+    const ep = encodeURIComponent(String(Math.max(1, episodeNum)));
+    const s = encodeURIComponent(String(Math.max(1, seasonNum)));
+    const activeServer = ANIME_SERVERS[currentServerIndex];
+
+    const q = new URLSearchParams();
+    q.set('autoplay', '1');
+    q.set('muted', '0');
+
+    if (activeServer.serverParam) {
+      q.set('server', activeServer.serverParam);
+    }
+
+    if (mediaType === 'anime') {
+      if (animeAudio) {
+        q.set('sub_type', animeAudio);
+        q.set('audio', animeAudio);
+      }
+      if (title?.title) q.set('title', title.title);
+      return `https://framextv.xyz/embed/anime/${cleanId}/${ep}?${q.toString()}`;
+    }
+
+    if (mediaType === 'tv') {
+      if (title?.title) q.set('title', title.title);
+      return `https://framextv.xyz/embed/tv/${cleanId}/${s}/${ep}?${q.toString()}`;
+    }
+
+    // movie
+    if (title?.title) q.set('title', title.title);
+    return `https://framextv.xyz/embed/movie/${cleanId}?${q.toString()}`;
+  };
+
+  const embedUrl = buildEmbedUrl();
 
   // Handle Fullscreen tracking (Native + CSS Fallback)
   useEffect(() => {
@@ -565,101 +323,15 @@ export const PlayerPage: React.FC = () => {
       clearTimeout(controlsTimeoutRef.current);
     }
     controlsTimeoutRef.current = setTimeout(() => {
-      if (isPlaying) {
-        setShowControls(false);
-        setIsSubtitleMenuOpen(false);
-        setIsQualityMenuOpen(false);
-        setIsSpeedMenuOpen(false);
-      }
-    }, 3500);
-  }, [isPlaying]);
+      setShowControls(false);
+    }, 4500);
+  }, []);
 
   useEffect(() => {
     return () => {
       if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
     };
   }, []);
-
-  // Periodic watch progress saver
-  useEffect(() => {
-    if (playerMode !== 'hls' || !isPlaying) return;
-    const interval = setInterval(() => {
-      if (videoRef.current && videoRef.current.duration > 0) {
-        saveProgress(videoRef.current.currentTime, videoRef.current.duration);
-      }
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [playerMode, isPlaying, saveProgress]);
-
-  // Video playback handlers
-  const togglePlay = () => {
-    if (!videoRef.current) return;
-    if (videoRef.current.paused) {
-      videoRef.current.play().catch(() => {});
-      setIsPlaying(true);
-    } else {
-      videoRef.current.pause();
-      setIsPlaying(false);
-    }
-    resetControlsTimeout();
-  };
-
-  const skipTime = (seconds: number) => {
-    if (!videoRef.current) return;
-    videoRef.current.currentTime = Math.max(
-      0,
-      Math.min(videoRef.current.duration, videoRef.current.currentTime + seconds)
-    );
-    resetControlsTimeout();
-  };
-
-  const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!progressBarRef.current || !videoRef.current || !duration) return;
-    const rect = progressBarRef.current.getBoundingClientRect();
-    const pos = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    videoRef.current.currentTime = pos * duration;
-    resetControlsTimeout();
-  };
-
-  const handleVolumeChange = (newVol: number) => {
-    setVolume(newVol);
-    setIsMuted(newVol === 0);
-    if (videoRef.current) {
-      videoRef.current.volume = newVol;
-      videoRef.current.muted = newVol === 0;
-    }
-    localStorage.setItem('zhafx_player_volume', String(newVol));
-    resetControlsTimeout();
-  };
-
-  const toggleMute = () => {
-    if (!videoRef.current) return;
-    const nextMuted = !isMuted;
-    setIsMuted(nextMuted);
-    videoRef.current.muted = nextMuted;
-    if (!nextMuted && volume === 0) {
-      handleVolumeChange(0.5);
-    }
-    resetControlsTimeout();
-  };
-
-  const handleSpeedChange = (speed: number) => {
-    setPlaybackRate(speed);
-    if (videoRef.current) {
-      videoRef.current.playbackRate = speed;
-    }
-    setIsSpeedMenuOpen(false);
-    resetControlsTimeout();
-  };
-
-  const handleQualityChange = (qualityId: number) => {
-    if (hlsRef.current) {
-      hlsRef.current.currentLevel = qualityId;
-      setCurrentQuality(qualityId);
-    }
-    setIsQualityMenuOpen(false);
-    resetControlsTimeout();
-  };
 
   const toggleFullscreen = () => {
     const isCurrentlyFs =
@@ -671,7 +343,6 @@ export const PlayerPage: React.FC = () => {
       ) || isCssFullscreen;
 
     if (isCurrentlyFs) {
-      // Exit fullscreen mode
       setIsCssFullscreen(false);
       setIsFullscreen(false);
       try {
@@ -679,16 +350,11 @@ export const PlayerPage: React.FC = () => {
           document.exitFullscreen().catch(() => {});
         } else if ((document as any).webkitExitFullscreen) {
           (document as any).webkitExitFullscreen();
-        } else if ((document as any).mozCancelFullScreen) {
-          (document as any).mozCancelFullScreen();
-        } else if ((document as any).msExitFullscreen) {
-          (document as any).msExitFullscreen();
         }
       } catch {
         // ignore
       }
     } else {
-      // Enter fullscreen mode
       const container = playerContainerRef.current;
       if (!container) return;
 
@@ -703,35 +369,21 @@ export const PlayerPage: React.FC = () => {
           const promise = reqFs.call(container);
           if (promise && typeof promise.then === 'function') {
             promise
-              .then(() => {
-                setIsFullscreen(true);
-              })
-              .catch((err: any) => {
-                console.warn('[PlayerPage] Native fullscreen denied/unsupported, activating CSS Fullscreen:', err);
+              .then(() => setIsFullscreen(true))
+              .catch(() => {
                 setIsCssFullscreen(true);
                 setIsFullscreen(true);
               });
           } else {
             setIsFullscreen(true);
           }
-        } catch (err: any) {
-          console.warn('[PlayerPage] RequestFullscreen error, activating CSS Fullscreen:', err);
+        } catch {
           setIsCssFullscreen(true);
           setIsFullscreen(true);
         }
       } else {
-        // iOS Safari / WebKit fallback
-        if (videoRef.current && (videoRef.current as any).webkitEnterFullscreen) {
-          try {
-            (videoRef.current as any).webkitEnterFullscreen();
-          } catch {
-            setIsCssFullscreen(true);
-            setIsFullscreen(true);
-          }
-        } else {
-          setIsCssFullscreen(true);
-          setIsFullscreen(true);
-        }
+        setIsCssFullscreen(true);
+        setIsFullscreen(true);
       }
     }
     resetControlsTimeout();
@@ -748,111 +400,13 @@ export const PlayerPage: React.FC = () => {
   const navigateEpisode = (targetEp: number) => {
     setIsEpisodeDrawerOpen(false);
     setIsIframeLoading(true);
-    setNextEpisodeCountdown(null);
+    setIsIframeTimedOut(false);
     if (mediaType === 'tv') {
       navigate(`/watch/tv/${id}/${seasonNum}/${targetEp}`);
     } else if (mediaType === 'anime') {
       navigate(`/watch/anime/${id}/1/${targetEp}`);
     }
   };
-
-  // Video time update handler
-  const handleTimeUpdate = () => {
-    if (!videoRef.current) return;
-    setCurrentTime(videoRef.current.currentTime);
-    setDuration(videoRef.current.duration || 0);
-
-    // Calculate buffer
-    if (videoRef.current.buffered.length > 0) {
-      const bufferedEnd = videoRef.current.buffered.end(videoRef.current.buffered.length - 1);
-      setBufferedTime(bufferedEnd);
-    }
-  };
-
-  // On Video Ended: Trigger Auto-Next Episode for Anime
-  const handleVideoEnded = () => {
-    setIsPlaying(false);
-    if (videoRef.current) {
-      saveProgress(videoRef.current.duration, videoRef.current.duration);
-    }
-    if (hasNextEpisode) {
-      setNextEpisodeCountdown(5);
-    }
-  };
-
-  // Countdown timer for next episode
-  useEffect(() => {
-    if (nextEpisodeCountdown === null) return;
-    if (nextEpisodeCountdown <= 0) {
-      navigateEpisode(episodeNum + 1);
-      return;
-    }
-    const timer = setTimeout(() => {
-      setNextEpisodeCountdown((c) => (c !== null ? c - 1 : null));
-    }, 1000);
-    return () => clearTimeout(timer);
-  }, [nextEpisodeCountdown, episodeNum]);
-
-  // Keyboard navigation
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Ignore if typing in input
-      if (['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement)?.tagName)) {
-        return;
-      }
-      if (mediaType === 'anime') {
-        if (e.key === ' ' || e.key === 'k' || e.key === 'K') {
-          e.preventDefault();
-          togglePlay();
-        } else if (e.key === 'ArrowLeft') {
-          e.preventDefault();
-          skipTime(-10);
-        } else if (e.key === 'ArrowRight') {
-          e.preventDefault();
-          skipTime(10);
-        } else if (e.key === 'ArrowUp') {
-          e.preventDefault();
-          handleVolumeChange(Math.min(1, volume + 0.1));
-        } else if (e.key === 'ArrowDown') {
-          e.preventDefault();
-          handleVolumeChange(Math.max(0, volume - 0.1));
-        } else if (e.key === 'm' || e.key === 'M') {
-          e.preventDefault();
-          toggleMute();
-        } else if (e.key === 'f' || e.key === 'F') {
-          e.preventDefault();
-          toggleFullscreen();
-        }
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [mediaType, volume, isPlaying]);
-
-  // Format Seconds into MM:SS or HH:MM:SS
-  const formatTime = (secs: number) => {
-    if (isNaN(secs) || secs < 0) return '00:00';
-    const h = Math.floor(secs / 3600);
-    const m = Math.floor((secs % 3600) / 60);
-    const s = Math.floor(secs % 60);
-    if (h > 0) {
-      return `${h}:${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
-    }
-    return `${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
-  };
-
-  // Embed URL for Movie & TV Series
-  const embedUrl = api.getEmbedUrl({
-    type: mediaType,
-    id: id || '',
-    season: seasonNum,
-    episode: episodeNum,
-    server: selectedServer !== 'auto' ? selectedServer : undefined,
-    autoplay: true,
-    muted: false,
-    title: title?.title,
-    poster: title?.backdrop || title?.poster,
-  });
 
   return (
     <div
@@ -893,7 +447,7 @@ export const PlayerPage: React.FC = () => {
               </h1>
               {(mediaType === 'tv' || mediaType === 'anime') && (
                 <div className="flex items-center gap-1.5 text-[10px] sm:text-[11px] text-white/80 font-medium truncate">
-                  <span>{mediaType === 'anime' ? 'FrameX Native Stream' : `Musim ${seasonNum}`}</span>
+                  <span>{mediaType === 'anime' ? 'FrameX Anime Stream' : `Musim ${seasonNum}`}</span>
                   <span>•</span>
                   <span>Episode {episodeNum}</span>
                 </div>
@@ -919,7 +473,7 @@ export const PlayerPage: React.FC = () => {
                 <button
                   onClick={() => setIsEpisodeDrawerOpen(!isEpisodeDrawerOpen)}
                   className="px-2 sm:px-2.5 py-1 rounded-full bg-white/[0.12] hover:bg-white/[0.2] text-[10px] sm:text-[11px] font-bold text-white flex items-center gap-1 cursor-pointer ios-spring"
-                  title="Buka daftar episode dengan thumbnail"
+                  title="Buka daftar episode"
                 >
                   <ListOrdered className="w-3 h-3 text-white" />
                   <span>Ep {episodeNum}</span>
@@ -956,90 +510,49 @@ export const PlayerPage: React.FC = () => {
               </button>
             )}
 
-            {/* Player Mode Switcher: HLS Stream vs FrameX Embed */}
+            {/* Dedicated "Ganti Server" Button (Requirement 3) */}
             <button
-              onClick={() => {
-                const nextMode = playerMode === 'hls' ? 'embed' : 'hls';
-                setPlayerMode(nextMode);
-                setAnimeError(null);
-                setIsIframeLoading(true);
-                setIframeKey((k) => k + 1);
-              }}
-              className="px-2 sm:px-2.5 py-1 rounded-full text-[10px] sm:text-[11px] font-bold border transition-all cursor-pointer ios-spring flex items-center gap-1.5 bg-white/10 hover:bg-white/20 border-white/20 text-white shrink-0"
-              title="Ganti Mode Pemutar: HLS Stream vs Server Cadangan Embed"
+              onClick={handleNextServer}
+              className="px-2.5 sm:px-3 py-1 rounded-full text-[10px] sm:text-[11px] font-bold border transition-all cursor-pointer ios-spring flex items-center gap-1.5 bg-[#FFB224]/20 hover:bg-[#FFB224]/30 border-[#FFB224]/50 text-[#FFB224] shrink-0"
+              title="Ganti ke Server Cadangan Berikutnya"
             >
-              {playerMode === 'hls' ? (
-                <>
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  <span className="hidden sm:inline">HLS Native</span>
-                  <span className="sm:hidden">HLS</span>
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-3 h-3 text-[#FFB224]" />
-                  <span className="hidden sm:inline">Server Cadangan</span>
-                  <span className="sm:hidden">Embed</span>
-                </>
-              )}
+              <Server className="w-3 h-3" />
+              <span>Ganti Server</span>
             </button>
 
             {/* Server Selector Dropdown */}
             <div className="flex items-center gap-1 px-2 sm:px-2.5 py-1 rounded-full liquid-glass text-xs text-white">
-              <Server className="w-3 h-3 text-[#FFB224] shrink-0" />
               <select
-                value={selectedServer}
+                value={currentServerIndex}
                 onChange={(e) => {
-                  const val = e.target.value;
-                  setSelectedServer(val);
-                  if (val === 'embed_cloud') {
-                    setPlayerMode('embed');
-                    setAnimeError(null);
-                    setIsIframeLoading(true);
-                  } else if (mediaType === 'anime' && playerMode === 'embed') {
-                    setPlayerMode('hls');
-                  }
+                  const idx = parseInt(e.target.value, 10);
+                  setCurrentServerIndex(idx);
+                  setIsIframeLoading(true);
+                  setIsIframeTimedOut(false);
                   setIframeKey((k) => k + 1);
                 }}
                 aria-label="Pilih server stream"
-                className="bg-transparent text-[10px] sm:text-xs text-white font-medium focus:outline-none cursor-pointer max-w-[95px] sm:max-w-[155px] truncate"
+                className="bg-transparent text-[10px] sm:text-xs text-white font-medium focus:outline-none cursor-pointer max-w-[110px] sm:max-w-[170px] truncate"
               >
-                <option value="auto" className="bg-[#12141F] text-white">
-                  ⚡ ZHAFX AUTO
-                </option>
-                <option value="embed_cloud" className="bg-[#12141F] text-white">
-                  ☁️ Server Cadangan Cloud
-                </option>
-                {providers
-                  .filter((p) => p.id !== 'auto' && p.id !== 'direct_stream' && p.id !== 'embed_cloud')
-                  .map((p, idx) => {
-                    const serverLabel = p.name.startsWith('ZHAFX ENTITY')
-                      ? p.name
-                      : `ZHAFX ENTITY ${String(idx + 1).padStart(3, '0')}`;
-                    return (
-                      <option key={p.id} value={p.id} className="bg-[#12141F] text-white">
-                        {serverLabel}
-                      </option>
-                    );
-                  })}
+                {ANIME_SERVERS.map((s, idx) => (
+                  <option key={s.id} value={idx} className="bg-[#12141F] text-white">
+                    {s.name}
+                  </option>
+                ))}
               </select>
             </div>
 
             {/* Reload Stream Button */}
             <button
-              onClick={() => {
-                setIframeKey((k) => k + 1);
-                if (videoRef.current) {
-                  videoRef.current.load();
-                }
-              }}
-              title="Muat ulang stream"
-              aria-label="Muat ulang stream"
+              onClick={handleRetry}
+              title="Muat ulang pemutar"
+              aria-label="Muat ulang pemutar"
               className="w-7 h-7 sm:w-8 sm:h-8 rounded-full liquid-glass flex items-center justify-center text-white/80 hover:text-white hover:bg-white/[0.18] transition-all cursor-pointer ios-spring"
             >
               <RotateCw className="w-3.5 h-3.5" />
             </button>
 
-            {/* Fullscreen Button (always visible on mobile & desktop) */}
+            {/* Fullscreen Button */}
             <button
               onClick={toggleFullscreen}
               title={isFullscreen ? 'Keluar Layar Penuh' : 'Layar Penuh'}
@@ -1052,7 +565,7 @@ export const PlayerPage: React.FC = () => {
         </div>
       </header>
 
-      {/* SERIES EPISODE SELECTION DRAWER WITH THUMBNAILS */}
+      {/* SERIES EPISODE SELECTION DRAWER */}
       {isEpisodeDrawerOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5">
           <div
@@ -1060,7 +573,6 @@ export const PlayerPage: React.FC = () => {
             onClick={() => setIsEpisodeDrawerOpen(false)}
           />
           <div className="relative w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-[32px] liquid-glass-dense liquid-specular p-5 sm:p-6 space-y-4 z-10 border border-white/20 shadow-2xl text-white">
-            {/* Drawer Header */}
             <div className="flex items-center justify-between pb-3 border-b border-white/10">
               <div className="flex items-center gap-2.5">
                 <Tv className="w-4 h-4 text-[#FFB224]" />
@@ -1074,7 +586,6 @@ export const PlayerPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* View toggle (Thumbnails vs Quick Grid) */}
               <div className="flex items-center gap-2">
                 <div className="flex p-0.5 rounded-full bg-white/10 border border-white/10 text-xs">
                   <button
@@ -1104,7 +615,6 @@ export const PlayerPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Tab 1: Thumbnails View */}
             {drawerTab === 'thumbnails' ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[60vh] overflow-y-auto pr-1">
                 {Array.from({ length: totalEpisodes }, (_, i) => i + 1).map((ep) => {
@@ -1158,7 +668,6 @@ export const PlayerPage: React.FC = () => {
                 })}
               </div>
             ) : (
-              /* Tab 2: Compact Numbers Grid */
               <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2 max-h-[60vh] overflow-y-auto pr-1">
                 {Array.from({ length: totalEpisodes }, (_, i) => i + 1).map((ep) => {
                   const isCurrent = ep === episodeNum;
@@ -1194,489 +703,99 @@ export const PlayerPage: React.FC = () => {
         )}
 
         {/* Loading Overlay */}
-        {(isLoadingAnime || (playerMode === 'embed' && isIframeLoading)) && (
+        {isIframeLoading && isPlayable && !isIframeTimedOut && (
           <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-[#06070B] space-y-3 pointer-events-none px-4 text-center">
             <div className="w-11 h-11 border-3 border-white/20 border-t-[#FFB224] rounded-full animate-spin" />
             <span className="text-xs font-mono text-white/60 tracking-wider uppercase">
-              {mediaType === 'anime' ? 'Menyiapkan Stream HLS Native Anime dari API FrameX...' : (playerMode === 'hls' ? 'Menyiapkan Stream HLS...' : 'Memuat Pemutar Embed FrameX...')}
+              Menghubungkan ke {ANIME_SERVERS[currentServerIndex].name}...
             </span>
           </div>
         )}
 
-        {/* Error State for HLS Stream */}
-        {playerMode === 'hls' && animeError && !isLoadingAnime && (
+        {/* Validation Error: Episode Not Available (Requirement 2) */}
+        {!isPlayable && (
           <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-[#06070B] p-6 text-center space-y-3">
-            <div className="w-14 h-14 rounded-full bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400">
-              <AlertTriangle className="w-7 h-7" />
+            <div className="w-14 h-14 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-white/80">
+              <AlertTriangle className="w-7 h-7 text-[#FFB224]" />
             </div>
-            <h3 className="text-lg font-bold text-white">
-              {mediaType === 'anime' ? 'Stream Anime Belum Siap di Server Ini' : 'Stream HLS Memerlukan Mode Embed'}
-            </h3>
+            <h3 className="text-lg font-bold text-white">Episode belum tersedia</h3>
             <p className="text-xs text-white/60 max-w-md">
-              {animeError}
+              Tayangan atau episode yang Anda tuju belum tersedia atau ID tidak valid.
             </p>
-            <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
-              {mediaType === 'anime' ? (
-                <>
-                  <button
-                    onClick={() => {
-                      attemptedServersRef.current.clear();
-                      const available = providers.filter((p) => p.id !== 'auto' && p.id !== selectedServer);
-                      if (available.length > 0) {
-                        const nextProv = available[Math.floor(Math.random() * available.length)];
-                        setSelectedServer(nextProv.id);
-                      } else {
-                        setSelectedServer('auto');
-                      }
-                      setIframeKey((k) => k + 1);
-                    }}
-                    className="px-5 py-2.5 rounded-full bg-[#FFB224] text-black text-xs font-bold hover:bg-[#FFA500] cursor-pointer shadow-lg ios-spring flex items-center gap-1.5"
-                  >
-                    <Server className="w-4 h-4" />
-                    <span>Coba Server Anime Lain</span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      setPlayerMode('embed');
-                      setAnimeError(null);
-                      setIsIframeLoading(true);
-                      setIframeKey((k) => k + 1);
-                    }}
-                    className="px-4 py-2.5 rounded-full bg-white/10 hover:bg-white/20 text-white text-xs font-semibold cursor-pointer ios-spring flex items-center gap-1.5 border border-white/15"
-                  >
-                    <Sparkles className="w-3.5 h-3.5 text-[#FFB224]" />
-                    <span>Putar via Server Cadangan (Embed)</span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      attemptedServersRef.current.clear();
-                      setAnimeAudio(animeAudio === 'sub' ? 'dub' : 'sub');
-                      setSelectedServer('auto');
-                      setIframeKey((k) => k + 1);
-                    }}
-                    className="px-4 py-2.5 rounded-full liquid-glass text-white text-xs font-semibold hover:bg-white/10 cursor-pointer ios-spring flex items-center gap-1.5"
-                  >
-                    <Volume2 className="w-3.5 h-3.5 text-white/80" />
-                    <span>Ganti ke {animeAudio === 'sub' ? 'DUB (Inggris)' : 'SUB (Jepang)'}</span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      attemptedServersRef.current.clear();
-                      setSelectedServer('auto');
-                      setIframeKey((k) => k + 1);
-                    }}
-                    className="px-4 py-2.5 rounded-full liquid-glass text-white text-xs font-semibold hover:bg-white/10 cursor-pointer ios-spring"
-                  >
-                    Server Otomatis
-                  </button>
-                  <button
-                    onClick={() => {
-                      attemptedServersRef.current.clear();
-                      setIframeKey((k) => k + 1);
-                    }}
-                    className="px-4 py-2.5 rounded-full liquid-glass text-white text-xs font-semibold hover:bg-white/10 cursor-pointer ios-spring"
-                  >
-                    Coba Lagi
-                  </button>
-                </>
-              ) : (
-                <>
-                  <button
-                    onClick={() => {
-                      setPlayerMode('embed');
-                      setAnimeError(null);
-                      setIsIframeLoading(true);
-                      setIframeKey((k) => k + 1);
-                    }}
-                    className="px-5 py-2.5 rounded-full bg-[#FFB224] text-black text-xs font-bold hover:bg-[#FFA500] cursor-pointer shadow-lg ios-spring flex items-center gap-1.5"
-                  >
-                    <Sparkles className="w-4 h-4" />
-                    <span>Putar via Embed FrameX (Rekomendasi)</span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      setSelectedServer('auto');
-                      setIframeKey((k) => k + 1);
-                    }}
-                    className="px-4 py-2.5 rounded-full liquid-glass text-white text-xs font-semibold hover:bg-white/10 cursor-pointer ios-spring"
-                  >
-                    Ganti ke Server Otomatis
-                  </button>
-                  <button
-                    onClick={() => setIframeKey((k) => k + 1)}
-                    className="px-4 py-2.5 rounded-full liquid-glass text-white text-xs font-semibold hover:bg-white/10 cursor-pointer ios-spring"
-                  >
-                    Coba Lagi
-                  </button>
-                </>
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                onClick={() => {
+                  if (window.history.length > 1) {
+                    navigate(-1);
+                  } else {
+                    navigate(`/detail/${mediaType}/${id || ''}`);
+                  }
+                }}
+                className="px-5 py-2.5 rounded-full bg-[#FFB224] text-black text-xs font-bold hover:bg-[#FFA500] cursor-pointer shadow-lg ios-spring"
+              >
+                Kembali
+              </button>
+              {drawerEpisodes.length > 0 && (
+                <button
+                  onClick={() => setIsEpisodeDrawerOpen(true)}
+                  className="px-4 py-2.5 rounded-full liquid-glass text-white text-xs font-semibold hover:bg-white/10 cursor-pointer ios-spring"
+                >
+                  Pilih Episode Lain
+                </button>
               )}
             </div>
           </div>
         )}
 
-        {/* Next Episode Countdown Overlay */}
-        {nextEpisodeCountdown !== null && (
-          <div className="absolute inset-0 z-35 flex flex-col items-center justify-center bg-black/85 backdrop-blur-md p-6 text-center space-y-4">
-            <div className="w-14 h-14 rounded-full bg-[#FFB224]/20 border border-[#FFB224]/40 flex items-center justify-center text-[#FFB224]">
-              <FastForward className="w-7 h-7" />
+        {/* 10-Second Timeout Fallback Error State (Requirement 3) */}
+        {isIframeTimedOut && isPlayable && (
+          <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-[#06070B] p-6 text-center space-y-3">
+            <div className="w-14 h-14 rounded-full bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400">
+              <AlertTriangle className="w-7 h-7" />
             </div>
-            <div>
-              <h3 className="text-lg font-bold text-white">Memutar Episode Berikutnya</h3>
-              <p className="text-xs text-white/60 mt-1">
-                Episode {episodeNum + 1} akan dimulai dalam <span className="text-[#FFB224] font-bold">{nextEpisodeCountdown}</span> detik
-              </p>
-            </div>
-            <div className="flex items-center gap-3">
+            <h3 className="text-lg font-bold text-white">Server tidak merespons</h3>
+            <p className="text-xs text-white/60 max-w-md">
+              Pemutar belum selesai dimuat dalam 10 detik atau server sedang mengalami gangguan koneksi.
+            </p>
+            <div className="flex flex-wrap items-center justify-center gap-2.5 pt-2">
               <button
-                onClick={() => navigateEpisode(episodeNum + 1)}
-                className="px-6 py-2.5 rounded-full bg-[#FFB224] text-black text-xs font-bold hover:bg-[#FFA500] cursor-pointer shadow-lg ios-spring"
+                onClick={handleRetry}
+                className="px-5 py-2.5 rounded-full bg-white/10 hover:bg-white/20 text-white text-xs font-semibold cursor-pointer ios-spring flex items-center gap-1.5 border border-white/15"
               >
-                Putar Sekarang
+                <RotateCw className="w-3.5 h-3.5 text-white" />
+                <span>Coba lagi</span>
               </button>
               <button
-                onClick={() => setNextEpisodeCountdown(null)}
-                className="px-4 py-2.5 rounded-full liquid-glass text-white text-xs font-semibold hover:bg-white/10 cursor-pointer"
+                onClick={handleNextServer}
+                className="px-5 py-2.5 rounded-full bg-[#FFB224] text-black text-xs font-bold hover:bg-[#FFA500] cursor-pointer shadow-lg ios-spring flex items-center gap-1.5"
               >
-                Batal
+                <Server className="w-4 h-4" />
+                <span>Ganti Server</span>
               </button>
             </div>
           </div>
         )}
 
-        {/* -------------------------------------------------------------
-            PLAYER RENDERING: HLS NATIVE OR OFFICIAL FRAMEX EMBED
-            ------------------------------------------------------------- */}
-        {playerMode === 'hls' && animeStream?.sources?.[0]?.url ? (
-          <div className="relative w-full h-full flex items-center justify-center bg-black group">
-            {/* Video Element */}
-            <video
-              ref={videoRef}
-              key={`${id}-${episodeNum}-${animeStream?.sources?.[0]?.url}`}
-              playsInline
-              crossOrigin="anonymous"
-              onClick={togglePlay}
-              onTimeUpdate={handleTimeUpdate}
-              onEnded={handleVideoEnded}
-              onPlay={() => setIsPlaying(true)}
-              onPause={() => setIsPlaying(false)}
-              className="w-full h-full object-contain cursor-pointer"
-            >
-              {subtitles.map((sub, i) => (
-                <track
-                  key={`${i}-${sub.url}`}
-                  kind="subtitles"
-                  src={sub.url}
-                  srcLang={sub.lang || 'id'}
-                  label={sub.label || `Subtitle ${i + 1}`}
-                  default={activeSubtitleUrl === sub.url}
-                />
-              ))}
-              Browser Anda tidak mendukung pemutar video HTML5.
-            </video>
-
-            {/* Big Center Play / Pause Indicator */}
-            <div
-              className={`absolute inset-0 flex items-center justify-center transition-opacity duration-300 ${
-                !isPlaying && !isLoadingAnime ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
-              }`}
-            >
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  togglePlay();
-                }}
-                className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-black/60 hover:bg-black/80 backdrop-blur-md border border-white/20 flex items-center justify-center text-white shadow-2xl pl-1 ios-spring cursor-pointer"
-                title="Putar Video"
-                aria-label="Putar Video"
-              >
-                <Play className="w-8 h-8 sm:w-10 sm:h-10 text-[#FFB224]" />
-              </button>
-            </div>
-
-            {/* Custom Control Bar Overlay */}
-            <div
-              className={`absolute bottom-0 left-0 right-0 z-30 bg-gradient-to-t from-black/95 via-black/60 to-transparent pt-16 pb-4 sm:pb-6 px-3 sm:px-6 transition-all duration-300 ${
-                showControls ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'
-              }`}
-            >
-              {/* Progress Timeline Scrubber */}
-              <div className="relative mb-3 group/timeline cursor-pointer" onClick={handleSeek}>
-                {/* Background track */}
-                <div
-                  ref={progressBarRef}
-                  className="w-full h-1.5 sm:h-2 bg-white/20 rounded-full relative overflow-hidden group-hover/timeline:h-2.5 transition-all"
-                >
-                  {/* Buffer bar */}
-                  <div
-                    className="absolute top-0 bottom-0 left-0 bg-white/30 rounded-full transition-all duration-150"
-                    style={{ width: `${duration > 0 ? (bufferedTime / duration) * 100 : 0}%` }}
-                  />
-                  {/* Played progress bar */}
-                  <div
-                    className="absolute top-0 bottom-0 left-0 bg-[#FFB224] rounded-full transition-all duration-75"
-                    style={{ width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%` }}
-                  />
-                </div>
-              </div>
-
-              {/* Controls Row */}
-              <div className="flex items-center justify-between gap-2 text-white">
-                {/* Left Controls: Play, Skips, Episode Prev/Next, Time */}
-                <div className="flex items-center gap-1 sm:gap-3">
-                  {/* Play/Pause */}
-                  <button
-                    onClick={togglePlay}
-                    className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white cursor-pointer ios-spring"
-                    title={isPlaying ? 'Jeda (Spasi)' : 'Putar (Spasi)'}
-                  >
-                    {isPlaying ? <Pause className="w-4 h-4 sm:w-5 sm:h-5" /> : <Play className="w-4 h-4 sm:w-5 sm:h-5 pl-0.5 text-[#FFB224]" />}
-                  </button>
-
-                  {/* 10s Rewind */}
-                  <button
-                    onClick={() => skipTime(-10)}
-                    className="w-7 h-7 sm:w-8 sm:h-8 rounded-full hover:bg-white/10 flex items-center justify-center text-white/80 hover:text-white cursor-pointer ios-spring"
-                    title="Mundur 10 Detik (Panah Kiri)"
-                  >
-                    <RotateCcw className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                  </button>
-
-                  {/* 10s Fast Forward */}
-                  <button
-                    onClick={() => skipTime(10)}
-                    className="w-7 h-7 sm:w-8 sm:h-8 rounded-full hover:bg-white/10 flex items-center justify-center text-white/80 hover:text-white cursor-pointer ios-spring"
-                    title="Maju 10 Detik (Panah Kanan)"
-                  >
-                    <RotateCw className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                  </button>
-
-                  {/* Prev Episode */}
-                  <button
-                    onClick={() => navigateEpisode(episodeNum - 1)}
-                    disabled={!hasPrevEpisode}
-                    className="w-7 h-7 sm:w-8 sm:h-8 rounded-full hover:bg-white/10 hidden sm:flex items-center justify-center text-white/80 hover:text-white disabled:opacity-20 cursor-pointer"
-                    title="Episode Sebelumnya"
-                  >
-                    <ChevronLeft className="w-4 h-4" />
-                  </button>
-
-                  {/* Next Episode */}
-                  <button
-                    onClick={() => navigateEpisode(episodeNum + 1)}
-                    disabled={!hasNextEpisode}
-                    className="w-7 h-7 sm:w-8 sm:h-8 rounded-full hover:bg-white/10 hidden sm:flex items-center justify-center text-white/80 hover:text-white disabled:opacity-20 cursor-pointer"
-                    title="Episode Berikutnya"
-                  >
-                    <SkipForward className="w-4 h-4" />
-                  </button>
-
-                  {/* Volume Controller */}
-                  <div className="flex items-center gap-1.5 ml-1 group/vol">
-                    <button
-                      onClick={toggleMute}
-                      className="w-7 h-7 sm:w-8 sm:h-8 rounded-full hover:bg-white/10 flex items-center justify-center text-white/80 hover:text-white cursor-pointer"
-                      title={isMuted ? 'Buka Suara (M)' : 'Bisukan (M)'}
-                    >
-                      {isMuted || volume === 0 ? (
-                        <VolumeX className="w-4 h-4 text-rose-400" />
-                      ) : volume < 0.5 ? (
-                        <Volume1 className="w-4 h-4" />
-                      ) : (
-                        <Volume2 className="w-4 h-4" />
-                      )}
-                    </button>
-                    <input
-                      type="range"
-                      min="0"
-                      max="1"
-                      step="0.05"
-                      value={isMuted ? 0 : volume}
-                      onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
-                      className="w-14 sm:w-20 h-1 bg-white/20 rounded-full appearance-none cursor-pointer accent-[#FFB224] hidden sm:block"
-                    />
-                  </div>
-
-                  {/* Time Counter */}
-                  <div className="text-[11px] sm:text-xs font-mono text-white/70 ml-2">
-                    <span className="text-white font-semibold">{formatTime(currentTime)}</span>
-                    <span className="mx-1 text-white/30">/</span>
-                    <span>{formatTime(duration)}</span>
-                  </div>
-                </div>
-
-                {/* Right Controls: Subtitles, Quality, Speed, Fullscreen */}
-                <div className="flex items-center gap-1 sm:gap-2">
-                  {/* Subtitle Selector */}
-                  <div className="relative">
-                    <button
-                      onClick={() => {
-                        setIsSubtitleMenuOpen(!isSubtitleMenuOpen);
-                        setIsQualityMenuOpen(false);
-                        setIsSpeedMenuOpen(false);
-                      }}
-                      className={`px-2 py-1 rounded-full text-xs font-medium border flex items-center gap-1 cursor-pointer ios-spring ${
-                        activeSubtitleUrl
-                          ? 'bg-[#FFB224]/20 border-[#FFB224]/50 text-[#FFB224]'
-                          : 'bg-white/10 border-white/20 text-white/70'
-                      }`}
-                      title="Pilihan Subtitle"
-                    >
-                      <Subtitles className="w-3.5 h-3.5" />
-                      <span className="hidden sm:inline">Sub</span>
-                    </button>
-
-                    {isSubtitleMenuOpen && (
-                      <div className="absolute bottom-full right-0 mb-2 w-56 max-h-60 overflow-y-auto rounded-[20px] liquid-glass-dense p-2 shadow-2xl border border-white/20 z-50 text-xs">
-                        <div className="px-2 py-1.5 text-[10px] font-bold text-white/40 uppercase tracking-wider">
-                          Pilihan Teks Subtitle
-                        </div>
-                        <button
-                          onClick={() => {
-                            setActiveSubtitleUrl(null);
-                            setIsSubtitleMenuOpen(false);
-                          }}
-                          className={`w-full text-left px-2.5 py-1.5 rounded-lg flex items-center justify-between ${
-                            !activeSubtitleUrl ? 'bg-[#FFB224]/20 text-[#FFB224] font-bold' : 'text-white/80 hover:bg-white/10'
-                          }`}
-                        >
-                          <span>Nonaktifkan Subtitle</span>
-                          {!activeSubtitleUrl && <CheckCircle2 className="w-3.5 h-3.5" />}
-                        </button>
-                        {subtitles.map((sub, i) => {
-                          const isSelected = activeSubtitleUrl === sub.url;
-                          return (
-                            <button
-                              key={i}
-                              onClick={() => {
-                                setActiveSubtitleUrl(sub.url);
-                                setIsSubtitleMenuOpen(false);
-                              }}
-                              className={`w-full text-left px-2.5 py-1.5 rounded-lg flex items-center justify-between truncate ${
-                                isSelected ? 'bg-[#FFB224]/20 text-[#FFB224] font-bold' : 'text-white/80 hover:bg-white/10'
-                              }`}
-                            >
-                              <span className="truncate">{sub.label || `Subtitle ${sub.lang}`}</span>
-                              {isSelected && <CheckCircle2 className="w-3.5 h-3.5 shrink-0 ml-1" />}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Quality Selector */}
-                  <div className="relative">
-                    <button
-                      onClick={() => {
-                        setIsQualityMenuOpen(!isQualityMenuOpen);
-                        setIsSubtitleMenuOpen(false);
-                        setIsSpeedMenuOpen(false);
-                      }}
-                      className="px-2 py-1 rounded-full text-xs font-medium liquid-glass flex items-center gap-1 cursor-pointer ios-spring text-white"
-                      title="Resolusi Kualitas Video"
-                    >
-                      <Settings className="w-3.5 h-3.5 text-[#FFB224]" />
-                      <span className="hidden sm:inline">
-                        {currentQuality === -1 ? 'Auto' : qualities.find((q) => q.id === currentQuality)?.label || 'HD'}
-                      </span>
-                    </button>
-
-                    {isQualityMenuOpen && (
-                      <div className="absolute bottom-full right-0 mb-2 w-40 rounded-[20px] liquid-glass-dense p-2 shadow-2xl border border-white/20 z-50 text-xs">
-                        <div className="px-2 py-1.5 text-[10px] font-bold text-white/40 uppercase tracking-wider">
-                          Kualitas Video
-                        </div>
-                        <button
-                          onClick={() => handleQualityChange(-1)}
-                          className={`w-full text-left px-2.5 py-1.5 rounded-lg flex items-center justify-between ${
-                            currentQuality === -1 ? 'bg-[#FFB224]/20 text-[#FFB224] font-bold' : 'text-white/80 hover:bg-white/10'
-                          }`}
-                        >
-                          <span>Auto (Adaptif)</span>
-                          {currentQuality === -1 && <CheckCircle2 className="w-3.5 h-3.5" />}
-                        </button>
-                        {qualities.map((q) => (
-                          <button
-                            key={q.id}
-                            onClick={() => handleQualityChange(q.id)}
-                            className={`w-full text-left px-2.5 py-1.5 rounded-lg flex items-center justify-between ${
-                              currentQuality === q.id ? 'bg-[#FFB224]/20 text-[#FFB224] font-bold' : 'text-white/80 hover:bg-white/10'
-                            }`}
-                          >
-                            <span>{q.label}</span>
-                            {currentQuality === q.id && <CheckCircle2 className="w-3.5 h-3.5" />}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Playback Speed Selector */}
-                  <div className="relative">
-                    <button
-                      onClick={() => {
-                        setIsSpeedMenuOpen(!isSpeedMenuOpen);
-                        setIsSubtitleMenuOpen(false);
-                        setIsQualityMenuOpen(false);
-                      }}
-                      className="px-2 py-1 rounded-full text-xs font-medium liquid-glass flex items-center gap-1 cursor-pointer ios-spring text-white"
-                      title="Kecepatan Putar"
-                    >
-                      <Gauge className="w-3.5 h-3.5 text-[#FFB224]" />
-                      <span>{playbackRate}x</span>
-                    </button>
-
-                    {isSpeedMenuOpen && (
-                      <div className="absolute bottom-full right-0 mb-2 w-32 rounded-[20px] liquid-glass-dense p-2 shadow-2xl border border-white/20 z-50 text-xs">
-                        <div className="px-2 py-1.5 text-[10px] font-bold text-white/40 uppercase tracking-wider">
-                          Kecepatan
-                        </div>
-                        {[0.5, 0.75, 1, 1.25, 1.5, 2].map((spd) => (
-                          <button
-                            key={spd}
-                            onClick={() => handleSpeedChange(spd)}
-                            className={`w-full text-left px-2.5 py-1.5 rounded-lg flex items-center justify-between ${
-                              playbackRate === spd ? 'bg-[#FFB224]/20 text-[#FFB224] font-bold' : 'text-white/80 hover:bg-white/10'
-                            }`}
-                          >
-                            <span>{spd === 1 ? '1.0x (Normal)' : `${spd}x`}</span>
-                            {playbackRate === spd && <CheckCircle2 className="w-3.5 h-3.5" />}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Fullscreen Button */}
-                  <button
-                    onClick={toggleFullscreen}
-                    className="w-8 h-8 rounded-full liquid-glass flex items-center justify-center text-white/80 hover:text-white cursor-pointer ios-spring ml-1"
-                    title={isFullscreen ? 'Keluar Layar Penuh (F)' : 'Layar Penuh (F)'}
-                  >
-                    {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        ) : (
-          /* -------------------------------------------------------------
-             OFFICIAL FRAMEX EMBED IFRAME (MOVIE, TV SERIES & ANIME)
-             ------------------------------------------------------------- */
+        {/*
+          Official FrameX Embed Iframe (Requirements 1 & 2):
+          - Strict sandbox removal (NO sandbox attribute)
+          - width="100%" height="100%" frameBorder="0" allowFullScreen
+          - allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
+          - referrerPolicy="origin" loading="lazy"
+        */}
+        {isPlayable && !isIframeTimedOut && (
           <iframe
-            key={`${id}-${mediaType}-${seasonNum}-${episodeNum}-${selectedServer}-${iframeKey}-${playerMode}`}
+            key={`${id}-${mediaType}-${seasonNum}-${episodeNum}-${currentServerIndex}-${iframeKey}-${animeAudio}`}
             src={embedUrl}
-            title={title?.title || 'Zhafx Stream'}
-            onLoad={() => setIsIframeLoading(false)}
-            allow="autoplay; fullscreen; picture-in-picture; encrypted-media; gyroscope; accelerometer"
-            allowFullScreen={true}
+            width="100%"
+            height="100%"
+            frameBorder="0"
+            allowFullScreen
+            allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
             referrerPolicy="origin"
-            // @ts-ignore
-            webkitallowfullscreen="true"
-            // @ts-ignore
-            mozallowfullscreen="true"
-            loading="eager"
+            loading="lazy"
+            title={title?.title || 'Zhafx Anime Stream'}
+            onLoad={handleIframeLoad}
             className="w-full h-full border-0 absolute inset-0"
           />
         )}

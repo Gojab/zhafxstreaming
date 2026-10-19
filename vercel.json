@@ -1,40 +1,11 @@
 {
+  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }],
   "headers": [
     {
-      "source": "/sitemap.xml",
+      "source": "/(.*)",
       "headers": [
-        {
-          "key": "Content-Type",
-          "value": "application/xml; charset=utf-8"
-        }
+        { "key": "Referrer-Policy", "value": "origin" }
       ]
-    },
-    {
-      "source": "/robots.txt",
-      "headers": [
-        {
-          "key": "Content-Type",
-          "value": "text/plain; charset=utf-8"
-        }
-      ]
-    }
-  ],
-  "rewrites": [
-    {
-      "source": "/api/ai/chat",
-      "destination": "/api/chat"
-    },
-    {
-      "source": "/api/anime/:action*",
-      "destination": "/api/anime/[action]?action=:action"
-    },
-    {
-      "source": "/api/auth/:action*",
-      "destination": "/api/auth/[action]?action=:action"
-    },
-    {
-      "source": "/((?!api/|sitemap\\.xml|robots\\.txt|player\\.html|google[a-zA-Z0-9_-]+\\.html).*)",
-      "destination": "/index.html"
     }
   ]
 }

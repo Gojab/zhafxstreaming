@@ -31,6 +31,12 @@ const PORT = parseInt(process.env.PORT || '3000', 10);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+// Set Referrer-Policy to origin for proper FrameX embed player support
+app.use((_req, res, next) => {
+  res.setHeader('Referrer-Policy', 'origin');
+  next();
+});
+
 const DATA_DIR = path.resolve(__dirname, 'data');
 
 // --- Persistent Watch Progress Database ---
