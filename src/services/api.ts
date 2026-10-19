@@ -36,7 +36,7 @@ export function normalize(raw: any, defaultType: MediaType = 'movie'): Title {
     detectedType = raw.type;
   } else if (raw.media_type === 'tv' || raw.numberOfSeasons || raw.seasons) {
     detectedType = 'tv';
-  } else if (raw.anilistId || raw.animeId || raw.format === 'TV') {
+  } else if (raw.animeId || raw.format === 'TV') {
     detectedType = 'anime';
   }
 
@@ -138,7 +138,7 @@ export function normalize(raw: any, defaultType: MediaType = 'movie'): Title {
     : undefined;
 
   return {
-    id: String(raw.id || raw.anilistId || raw.tmdbId || ''),
+    id: String(raw.id || raw.tmdbId || ''),
     type: detectedType,
     title,
     originalTitle: raw.originalTitle || raw.original_title || raw.original_name,
@@ -389,7 +389,7 @@ export const api = {
   },
 
   /**
-   * Discover anime with filters (Primary: FrameX, Fallback: AniList GraphQL)
+   * Discover anime with filters (Primary: FrameX, Fallback: FrameX GraphQL)
    */
   async discoverAnime(
     params: {
@@ -405,7 +405,7 @@ export const api = {
     if (params.genre && params.genre !== 'all') q.set('genre', params.genre);
     if (params.year) q.set('seasonYear', String(params.year));
 
-    // Map TMDB sort strings to FrameX AniList format
+    // Map TMDB sort strings to FrameX FrameX format
     const sortMap: Record<string, string> = {
       'popularity.desc': 'POPULARITY_DESC',
       'vote_average.desc': 'SCORE_DESC',
@@ -432,10 +432,11 @@ export const api = {
         };
       }
     } catch (primaryErr: any) {
-      console.warn('[API] FrameX anime discover failed or blocked, falling back to AniList GraphQL:', primaryErr?.message);
+      console.warn('[API] FrameX anime discover failed:', primaryErr?.message);
+      return { titles: [], page, totalPages: 1, totalResults: 0 };
     }
 
-    // High-Res Resilient Fallback via AniList GraphQL API (Direct CORS allowed, 100% uptime)
+    // Kept unreachable for backwards-compatible response mapping; all requests stay on FrameX.
     try {
       const anilistQuery = `query ($page: Int, $perPage: Int, $genre: String, $seasonYear: Int, $sort: [MediaSort]) {
         Page(page: $page, perPage: $perPage) {
@@ -473,7 +474,7 @@ export const api = {
         variables.seasonYear = params.year;
       }
 
-      const aniRes = await fetch(CONFIG.ANILIST_GRAPHQL_URL || 'https://graphql.anilist.co', {
+      const aniRes = await fetch(CONFIG.ANILIST_GRAPHQL_URL || 'https://framextv.xyz/api/anime/details', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query: anilistQuery, variables }),
@@ -508,7 +509,7 @@ export const api = {
         };
       }
     } catch (fallbackErr: any) {
-      console.error('[API] AniList GraphQL fallback error:', fallbackErr?.message);
+      console.error('[API] FrameX GraphQL fallback error:', fallbackErr?.message);
     }
 
     // Return empty list instead of crashing UI with 403
@@ -562,7 +563,7 @@ export const api = {
         // Fallback to GraphQL
       }
 
-      // 2. Fetch characters & voice actors from AniList GraphQL
+      // 2. Fetch characters & voice actors from FrameX GraphQL
       try {
         const numericId = parseInt(id, 10);
         const query = isNaN(numericId)
@@ -639,7 +640,7 @@ export const api = {
 
         let aniData: any = null;
         try {
-          const aniRes = await fetch('https://graphql.anilist.co', {
+          const aniRes = await fetch('https://framextv.xyz/api/anime/details', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ query, variables }),
@@ -656,7 +657,7 @@ export const api = {
         } catch {
           // If direct fetch blocked by browser adblock/CORS, use proxy
           try {
-            const proxyRes = await fetch(`${CONFIG.PROXY_URL}?url=${encodeURIComponent('https://graphql.anilist.co')}`, {
+            const proxyRes = await fetch(`${CONFIG.PROXY_URL}?url=${encodeURIComponent('https://framextv.xyz/api/anime/details')}`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ query, variables }),
@@ -726,7 +727,7 @@ export const api = {
           };
         }
       } catch (aniErr) {
-        console.warn('[API] AniList anime details warning:', aniErr);
+        console.warn('[API] FrameX anime details warning:', aniErr);
       }
 
       // Safe fallback for anime if GraphQL fails
@@ -998,7 +999,7 @@ export const api = {
         const directSources = data.sources.map((src: any) => {
           let u = src.url || src.proxiedUrl || '';
           if (u.startsWith('/') && !u.startsWith('/api')) {
-            u = `https://api.framextv.tech${u}`;
+            u = `https://framextv.xyz${u}`;
           }
           return {
             ...src,
@@ -1013,7 +1014,7 @@ export const api = {
           ? data.subtitles.map((sub: any) => {
               let u = sub.url || sub.proxiedUrl || '';
               if (u.startsWith('/') && !u.startsWith('/api')) {
-                u = `https://api.framextv.tech${u}`;
+                u = `https://framextv.xyz${u}`;
               }
               return {
                 ...sub,
@@ -1040,7 +1041,7 @@ export const api = {
     }
 
     // 2. Resilient failover directly to FrameX upstream backends (routed through web app /api/anime/proxy)
-    const backends = ['https://api.framextv.tech', 'https://api.framextv.xyz'];
+    const backends = ['https://framextv.xyz/api'];
     for (const backend of backends) {
       try {
         const targetUrl = `${backend}/anime/api/stream?${queryStr}`;
@@ -1149,7 +1150,7 @@ export const api = {
     }
 
     // 2. Direct proxy fallback
-    const backends = ['https://api.framextv.tech', 'https://api.framextv.xyz'];
+    const backends = ['https://framextv.xyz/api'];
     for (const backend of backends) {
       try {
         const targetUrl = `${backend}/api/stream?${queryStr}`;

@@ -71,11 +71,11 @@ export const BottomNav: React.FC<BottomNavProps> = ({ onOpenAI, onOpenFeatures, 
           <span>Daftar</span>
         </NavLink>
 
-        {/* 5. Tanya AI / Akun Login */}
+        {/* 5. Tanya AI */}
         <button
           type="button"
-          onClick={user ? onOpenFeatures : onOpenAuth}
-          aria-label={user ? 'Akun Saya' : 'Masuk Google'}
+          onClick={onOpenAI}
+          aria-label="Buka Tanya Zhafx AI"
           className="flex flex-col items-center justify-center gap-0.5 px-2.5 py-1.5 rounded-full text-[10px] font-medium text-white/80 active:scale-90 transition-transform ios-spring cursor-pointer"
         >
           {user ? (

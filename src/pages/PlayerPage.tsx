@@ -1544,7 +1544,7 @@ export const PlayerPage: React.FC = () => {
               frameBorder="0"
               allowFullScreen
               allow="autoplay; fullscreen; picture-in-picture; encrypted-media; accelerometer; gyroscope; clipboard-write; display-capture; web-share"
-              referrerPolicy="origin"
+              referrerPolicy="no-referrer-when-downgrade"
               loading="eager"
               title={title?.title || 'Zhafx Stream Player'}
               onLoad={handleIframeLoad}

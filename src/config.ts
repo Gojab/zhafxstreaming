@@ -8,8 +8,8 @@ export const CONFIG = {
   APP_SLOGAN: 'Platform Streaming Film, Serial TV & Anime',
   
   // Primary upstream API base URL
-  API_BASE_URL: 'https://api.framextv.tech',
-  API_ANIME_BASE_URL: 'https://api.framextv.tech/anime',
+  API_BASE_URL: 'https://framextv.xyz',
+  API_ANIME_BASE_URL: 'https://framextv.xyz/api',
   
   // Embed Player base URL
   EMBED_BASE_URL: 'https://framextv.xyz/embed',
@@ -20,8 +20,6 @@ export const CONFIG = {
   // Google OAuth Client ID
   GOOGLE_CLIENT_ID: (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID || '358715674309-hdh36g2l56bqv0rckcvcd4666kemh4sj.apps.googleusercontent.com',
 
-  // AniList GraphQL API (100% free, CORS open, high-res posters & details)
-  ANILIST_GRAPHQL_URL: 'https://graphql.anilist.co',
 
   // Gemini AI Models
   AI_MODEL: 'gemini-3.8-flash',
@@ -32,7 +30,7 @@ export const CONFIG = {
     HOME: '/api/home',
     TRENDING: '/api/trending',
     DISCOVER: '/api/discover',
-    ANIME_DISCOVER: '/api/discover',
+    ANIME_DISCOVER: '/anime/discover',
     SEARCH: '/api/search',
     DETAILS: '/api/details',
     SEASON: '/api/season',
