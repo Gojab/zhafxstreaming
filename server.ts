@@ -931,7 +931,12 @@ app.get('/api/auth/google/login', (req: Request, res: Response) => {
   const redirectUri = `${origin}/api/auth/google/callback`;
   const clientId = process.env.VITE_GOOGLE_CLIENT_ID || '358715674309-hdh36g2l56bqv0rckcvcd4666kemh4sj.apps.googleusercontent.com';
 
-  const state = crypto.randomBytes(16).toString('hex');
+  // Keep the exact browser origin through Google's redirect. Rebuilding it from
+  // proxy headers can produce a different redirect_uri and invalidate the code.
+  const statePayload = Buffer.from(JSON.stringify({
+    nonce: crypto.randomBytes(16).toString('hex'),
+    origin,
+  })).toString('base64url');
   const googleAuthUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
   googleAuthUrl.searchParams.set('client_id', clientId);
   googleAuthUrl.searchParams.set('redirect_uri', redirectUri);
@@ -939,7 +944,7 @@ app.get('/api/auth/google/login', (req: Request, res: Response) => {
   googleAuthUrl.searchParams.set('scope', 'openid email profile');
   googleAuthUrl.searchParams.set('access_type', 'offline');
   googleAuthUrl.searchParams.set('prompt', 'select_account');
-  googleAuthUrl.searchParams.set('state', state);
+  googleAuthUrl.searchParams.set('state', statePayload);
 
   res.redirect(googleAuthUrl.toString());
 });
@@ -950,7 +955,21 @@ app.get('/api/auth/google/callback', async (req: Request, res: Response) => {
   const error = req.query.error as string;
   const host = req.get('host') || 'localhost:3000';
   const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
-  const origin = `${protocol}://${host}`;
+  let origin = `${protocol}://${host}`;
+
+  // Recover the original origin used to create the authorization request.
+  // This avoids OAuth invalid_grant errors behind Vercel/proxy host headers.
+  if (typeof req.query.state === 'string') {
+    try {
+      const state = JSON.parse(Buffer.from(req.query.state, 'base64url').toString('utf8'));
+      if (typeof state.origin === 'string' && /^https?:\/\//.test(state.origin)) {
+        origin = state.origin;
+      }
+    } catch {
+      // Fall back to the request origin for older/incomplete OAuth states.
+    }
+  }
+
   const redirectUri = `${origin}/api/auth/google/callback`;
 
   if (error || !code) {
