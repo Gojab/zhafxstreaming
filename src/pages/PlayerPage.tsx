@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import Hls from 'hls.js';
 import {
   ArrowLeft,
   ChevronLeft,
@@ -16,15 +15,11 @@ import {
   Film,
   Sparkles,
   Volume2,
-  VolumeX,
-  Play,
-  Pause,
   AlertTriangle,
   ShieldCheck,
-  Subtitles,
 } from 'lucide-react';
 import { api } from '../services/api';
-import { Title, MediaType, Episode, SubtitleTrack, StreamData } from '../types';
+import { Title, MediaType, Episode } from '../types';
 import { storage } from '../lib/storage';
 
 export interface ServerOption {
@@ -121,67 +116,75 @@ export const MOVIE_SERVERS: ServerOption[] = [
 export const TV_SERVERS: ServerOption[] = [
   {
     id: 'server-tv-1',
-    name: 'Server TV 1 — Headhunter Series',
-    tagline: 'VidLink TV Series Multi-Sub & Episode Lengkap',
+    name: 'Server TV 1 — Miner 4K',
+    tagline: 'Movy Multi-City TV Series 4K Server • Ultra HD',
     type: 'tv_embed',
-    provider: 'headhunter',
-    badge: 'SERIES UTAMA',
+    provider: 'miner',
+    badge: '4K ULTRA',
   },
   {
     id: 'server-tv-2',
-    name: 'Server TV 2 — Valkyrie Series HD',
-    tagline: '4K Ultra TV Multi-Server Stabil & Cepat',
+    name: 'Server TV 2 — Headhunter HD',
+    tagline: 'VidLink TV Series Multi-Sub & Episode Lengkap',
     type: 'tv_embed',
-    provider: 'valkyrie',
-    badge: '4K ULTRA TV',
+    provider: 'headhunter',
+    badge: 'HD MULTI-SUB',
   },
   {
     id: 'server-tv-3',
-    name: 'Server TV 3 — Miner Series 4K',
-    tagline: 'Movy Multi-City TV Series 4K Server',
+    name: 'Server TV 3 — Valkyrie 4K Ultra',
+    tagline: '4K Ultra Multi-Server Stabil & Cepat',
     type: 'tv_embed',
-    provider: 'miner',
-    badge: '4K SERIES',
+    provider: 'valkyrie',
+    badge: 'ULTRA STABIL',
   },
   {
     id: 'server-tv-4',
-    name: 'Server TV 4 — Super Barbarian HLS',
+    name: 'Server TV 4 — Titan Direct',
+    tagline: 'Films365 Direct MP4 1080p Server',
+    type: 'tv_embed',
+    provider: 'titan',
+    badge: 'DIRECT 1080P',
+  },
+  {
+    id: 'server-tv-5',
+    name: 'Server TV 5 — Hog Rider 4K',
+    tagline: '4K TV Server Dedicated Cadangan',
+    type: 'tv_embed',
+    provider: 'hog_rider',
+    badge: '4K FAST',
+  },
+  {
+    id: 'server-tv-6',
+    name: 'Server TV 6 — Lava Hound TV',
+    tagline: '4K Fast TV Series Multi-Server Stream',
+    type: 'tv_embed',
+    provider: 'lavahound',
+    badge: 'MULTI-CDN',
+  },
+  {
+    id: 'server-tv-7',
+    name: 'Server TV 7 — Super Barbarian HLS',
     tagline: 'Direct Auto HLS TV Series Stream',
     type: 'tv_embed',
     provider: 'super_barbarian',
     badge: 'AUTO HLS TV',
   },
   {
-    id: 'server-tv-5',
-    name: 'Server TV 5 — Bowler Multi-Sub',
+    id: 'server-tv-8',
+    name: 'Server TV 8 — Bowler Multi-Sub',
     tagline: 'Multi-Language TV Episodes & Softsub',
     type: 'tv_embed',
     provider: 'bowler',
     badge: 'MULTI-SUB',
   },
   {
-    id: 'server-tv-6',
-    name: 'Server TV 6 — Giant TV Stream',
+    id: 'server-tv-9',
+    name: 'Server TV 9 — Giant TV Stream',
     tagline: 'Multi-Audio TV Stream Cepat',
     type: 'tv_embed',
     provider: 'giant',
     badge: 'MULTI-AUDIO',
-  },
-  {
-    id: 'server-tv-7',
-    name: 'Server TV 7 — Lava Hound TV',
-    tagline: '4K Fast TV Series Multi-Server',
-    type: 'tv_embed',
-    provider: 'lavahound',
-    badge: 'FAST TV',
-  },
-  {
-    id: 'server-tv-8',
-    name: 'Server TV 8 — Hog Rider TV',
-    tagline: '4K TV Server Dedicated',
-    type: 'tv_embed',
-    provider: 'hog_rider',
-    badge: '4K BACKUP',
   },
 ];
 
@@ -280,32 +283,6 @@ export const PlayerPage: React.FC = () => {
   const [title, setTitle] = useState<Title | null>(null);
   const [currentServerIndex, setCurrentServerIndex] = useState(0);
   const [animeAudio, setAnimeAudio] = useState<'sub' | 'dub'>('sub');
-
-  // Anime Sandbox-Free Engine state: 'hls' (Native HLS Player, 100% bebas sandbox) vs 'embed' (FrameX Embed)
-  const [animePlayMode, setAnimePlayMode] = useState<'hls' | 'embed'>('hls');
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const hlsInstanceRef = useRef<Hls | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const [volume, setVolume] = useState(1);
-  const [isMuted, setIsMuted] = useState(false);
-  const [availableSubtitles, setAvailableSubtitles] = useState<SubtitleTrack[]>([]);
-  const [selectedSubtitle, setSelectedSubtitle] = useState<string>('off');
-  const [isHlsError, setIsHlsError] = useState(false);
-  const [hlsErrorMsg, setHlsErrorMsg] = useState<string | null>(null);
-
-  const formatTime = (secs: number) => {
-    if (isNaN(secs) || secs < 0) return '00:00';
-    const m = Math.floor(secs / 60);
-    const s = Math.floor(secs % 60);
-    const h = Math.floor(m / 60);
-    if (h > 0) {
-      const remM = m % 60;
-      return `${h}:${remM < 10 ? '0' : ''}${remM}:${s < 10 ? '0' : ''}${s}`;
-    }
-    return `${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
-  };
 
   // Iframe loading and watchdog state
   const [isIframeLoading, setIsIframeLoading] = useState(true);
@@ -493,141 +470,7 @@ export const PlayerPage: React.FC = () => {
     setIframeKey((k) => k + 1);
   };
 
-  // Load HLS Stream for Anime in Native mode (100% Sandbox Free)
-  useEffect(() => {
-    if (mediaType !== 'anime' || animePlayMode !== 'hls' || !isPlayable) {
-      if (hlsInstanceRef.current) {
-        hlsInstanceRef.current.destroy();
-        hlsInstanceRef.current = null;
-      }
-      return;
-    }
 
-    const controller = new AbortController();
-    setIsIframeLoading(true);
-    setIsHlsError(false);
-    setHlsErrorMsg(null);
-
-    const loadHls = async () => {
-      try {
-        const streamData = await api.getAnimeStream({
-          id: id!,
-          episode: episodeNum,
-          provider: activeServer.provider,
-          audio: animeAudio,
-          title: title?.title,
-          signal: controller.signal,
-        });
-
-        if (controller.signal.aborted) return;
-
-        if (!streamData || !streamData.sources || streamData.sources.length === 0) {
-          throw new Error(`Stream anime tidak ditemukan pada ${activeServer.name}.`);
-        }
-
-        const source = streamData.sources[0];
-        const streamUrl = source.url || source.directUrl || '';
-        if (!streamUrl) throw new Error('URL stream video kosong.');
-
-        if (Array.isArray(streamData.subtitles)) {
-          setAvailableSubtitles(streamData.subtitles);
-        }
-
-        const video = videoRef.current;
-        if (!video) return;
-
-        if (Hls.isSupported()) {
-          if (hlsInstanceRef.current) {
-            hlsInstanceRef.current.destroy();
-          }
-
-          const hls = new Hls({
-            enableWorker: true,
-            lowLatencyMode: true,
-            backBufferLength: 90,
-          });
-
-          hls.loadSource(streamUrl);
-          hls.attachMedia(video);
-
-          hls.on(Hls.Events.MANIFEST_PARSED, () => {
-            setIsIframeLoading(false);
-            video.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
-          });
-
-          hls.on(Hls.Events.ERROR, (_evt, data) => {
-            if (data.fatal) {
-              console.warn('[HLS Fatal Error]:', data.type, data.details);
-              setIsHlsError(true);
-              setHlsErrorMsg(`Server ${activeServer.name} gagal memuat stream. Mengalihkan ke server berikutnya...`);
-              setTimeout(() => {
-                handleNextServer();
-              }, 1500);
-            }
-          });
-
-          hlsInstanceRef.current = hls;
-        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-          video.src = streamUrl;
-          video.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
-          setIsIframeLoading(false);
-        }
-      } catch (err: any) {
-        if (!controller.signal.aborted) {
-          console.warn('[HLS Init Error]:', err?.message);
-          setIsHlsError(true);
-          setHlsErrorMsg(err?.message || 'Gagal memuat stream');
-          setIsIframeLoading(false);
-        }
-      }
-    };
-
-    loadHls();
-
-    return () => {
-      controller.abort();
-      if (hlsInstanceRef.current) {
-        hlsInstanceRef.current.destroy();
-        hlsInstanceRef.current = null;
-      }
-    };
-  }, [id, mediaType, episodeNum, safeServerIndex, animeAudio, animePlayMode, isPlayable, title]);
-
-  const togglePlay = () => {
-    if (!videoRef.current) return;
-    if (videoRef.current.paused) {
-      videoRef.current.play().then(() => setIsPlaying(true)).catch(() => {});
-    } else {
-      videoRef.current.pause();
-      setIsPlaying(false);
-    }
-  };
-
-  const handleSeek = (newTime: number) => {
-    if (videoRef.current) {
-      videoRef.current.currentTime = newTime;
-      setCurrentTime(newTime);
-    }
-  };
-
-  const toggleMute = () => {
-    if (!videoRef.current) return;
-    videoRef.current.muted = !isMuted;
-    setIsMuted(!isMuted);
-  };
-
-  const handleVolumeChange = (newVol: number) => {
-    if (!videoRef.current) return;
-    videoRef.current.volume = newVol;
-    setVolume(newVol);
-    if (newVol === 0) {
-      videoRef.current.muted = true;
-      setIsMuted(true);
-    } else if (isMuted) {
-      videoRef.current.muted = false;
-      setIsMuted(false);
-    }
-  };
 
   // Build clean FrameX Embed URL (HTTPS only, URL and URLSearchParams, no double encoding, no_ads=1)
   const buildEmbedUrl = (): string => {
@@ -929,26 +772,15 @@ export const PlayerPage: React.FC = () => {
               </div>
             )}
 
-            {/* Anime Sandbox-Free Mode Switch */}
+            {/* Anime Sandbox Disabled Indicator */}
             {mediaType === 'anime' && (
-              <button
-                onClick={() => {
-                  const nextMode = animePlayMode === 'hls' ? 'embed' : 'hls';
-                  setAnimePlayMode(nextMode);
-                  setIsIframeLoading(true);
-                  setIframeKey((k) => k + 1);
-                }}
-                className={`px-2 sm:px-2.5 py-1 rounded-full text-[10px] sm:text-[11px] font-bold border transition-all cursor-pointer ios-spring flex items-center gap-1.5 ${
-                  animePlayMode === 'hls'
-                    ? 'bg-emerald-500/25 border-emerald-400 text-emerald-300 shadow-sm'
-                    : 'bg-white/10 border-white/20 text-white/70 hover:bg-white/20'
-                }`}
-                title="Beralih ke Pemutar HLS Bebas Sandbox (Tanpa Iframe) atau FrameX Embed"
+              <div
+                className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] sm:text-[11px] font-bold bg-emerald-500/20 border border-emerald-400 text-emerald-300 shadow-sm"
+                title="Pemutar Resmi FrameX (100% Sandbox Dinonaktifkan)"
               >
                 <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                <span className="hidden sm:inline">{animePlayMode === 'hls' ? 'HLS Bebas Sandbox' : 'Mode Embed'}</span>
-                <span className="sm:hidden">{animePlayMode === 'hls' ? 'HLS' : 'Embed'}</span>
-              </button>
+                <span>Sandbox Nonaktif</span>
+              </div>
             )}
 
             {/* Anime Audio Sub / Dub Selector */}
@@ -1219,188 +1051,13 @@ export const PlayerPage: React.FC = () => {
         )}
 
         {/*
-          1. NATIVE HLS PLAYER (Khusus Anime, Bebas Sandbox):
-          - Mengalirkan HLS master.m3u8 langsung menggunakan hls.js dan <video>
-          - 100% Bebas Sandbox, zero restrictions, tanpa popup/iklan pihak ketiga
-          - Dilengkapi kontrol playback Apple Liquid Glass, subtitle selector, dan auto failover
+          OFFICIAL FRAMEX PLAYER (Khusus Film, Serial TV, & Anime):
+          - BEBAS SANDBOX: Atribut 'sandbox' sepenuhnya dinonaktifkan (tidak ada sandbox)
+          - Menggunakan API & Embed Resmi dari https://framextv.xyz/
+          - Izin penuh: autoplay, fullscreen, picture-in-picture, encrypted-media, accelerometer, gyroscope, clipboard-write, web-share
+          - referrerPolicy="origin"
         */}
-        {isPlayable && mediaType === 'anime' && animePlayMode === 'hls' && (
-          <div className="relative w-full h-full flex items-center justify-center bg-black group select-none">
-            <video
-              ref={videoRef}
-              className="w-full h-full object-contain cursor-pointer"
-              onClick={togglePlay}
-              onTimeUpdate={() => {
-                if (videoRef.current) {
-                  setCurrentTime(videoRef.current.currentTime);
-                  setDuration(videoRef.current.duration || 0);
-                }
-              }}
-              onLoadedMetadata={() => {
-                if (videoRef.current) {
-                  setDuration(videoRef.current.duration || 0);
-                }
-              }}
-              onPlay={() => setIsPlaying(true)}
-              onPause={() => setIsPlaying(false)}
-              playsInline
-            >
-              {availableSubtitles.map((sub, idx) => (
-                <track
-                  key={idx}
-                  kind="subtitles"
-                  src={sub.url}
-                  srcLang={sub.lang || 'id'}
-                  label={sub.label || sub.language || `Sub ${idx + 1}`}
-                  default={idx === 0 || sub.lang === 'id' || sub.label?.toLowerCase().includes('indo')}
-                />
-              ))}
-            </video>
-
-            {/* Error fallback overlay if HLS fails on current server */}
-            {isHlsError && (
-              <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-[#06070B]/90 p-6 text-center space-y-3">
-                <div className="w-12 h-12 rounded-full bg-red-500/20 border border-red-500/40 flex items-center justify-center text-red-400">
-                  <AlertTriangle className="w-6 h-6" />
-                </div>
-                <h3 className="text-sm font-bold text-white">Gangguan Stream di {activeServer.name}</h3>
-                <p className="text-xs text-white/60 max-w-sm">
-                  {hlsErrorMsg || 'Stream HLS tidak dapat dimuat. Sedang mencoba server cadangan...'}
-                </p>
-                <div className="flex items-center gap-2 pt-2">
-                  <button
-                    onClick={handleNextServer}
-                    className="px-4 py-2 rounded-full bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold shadow-lg cursor-pointer ios-spring"
-                  >
-                    Coba Server Anime Berikutnya
-                  </button>
-                  <button
-                    onClick={() => setAnimePlayMode('embed')}
-                    className="px-4 py-2 rounded-full liquid-glass text-white text-xs font-semibold hover:bg-white/10 cursor-pointer ios-spring"
-                  >
-                    Beralih ke Mode Embed
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Center Play/Pause Floating Action Button */}
-            {!isPlaying && !isIframeLoading && !isHlsError && (
-              <button
-                onClick={togglePlay}
-                className="absolute inset-0 m-auto w-16 h-16 sm:w-20 sm:h-20 rounded-full liquid-glass-dense flex items-center justify-center text-white hover:scale-110 transition-transform cursor-pointer shadow-2xl z-20"
-                title="Putar Video Anime"
-              >
-                <Play className="w-8 h-8 sm:w-10 sm:h-10 fill-white translate-x-0.5" />
-              </button>
-            )}
-
-            {/* Bottom Custom Playback Bar (HLS Mode) */}
-            <div
-              className={`absolute bottom-3 sm:bottom-4 left-3 right-3 sm:left-4 sm:right-4 max-w-5xl mx-auto rounded-2xl liquid-glass-dense liquid-specular p-2.5 sm:p-3 z-30 transition-all duration-300 ${
-                showControls ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'
-              }`}
-            >
-              {/* Scrubber / Progress Bar */}
-              <div className="w-full mb-2">
-                <input
-                  type="range"
-                  min={0}
-                  max={duration || 100}
-                  step={0.5}
-                  value={currentTime}
-                  onChange={(e) => handleSeek(parseFloat(e.target.value))}
-                  className="w-full h-1.5 bg-white/20 rounded-full appearance-none cursor-pointer accent-[#FFB224]"
-                />
-              </div>
-
-              <div className="flex items-center justify-between gap-2 text-xs text-white">
-                {/* Left: Play/Pause, Volume, Time */}
-                <div className="flex items-center gap-1.5 sm:gap-3">
-                  <button
-                    onClick={togglePlay}
-                    className="w-7 h-7 sm:w-8 sm:h-8 rounded-full liquid-glass flex items-center justify-center text-white hover:bg-white/20 cursor-pointer"
-                  >
-                    {isPlaying ? <Pause className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-white" /> : <Play className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-white translate-x-0.5" />}
-                  </button>
-
-                  <button
-                    onClick={toggleMute}
-                    className="w-7 h-7 sm:w-8 sm:h-8 rounded-full liquid-glass flex items-center justify-center text-white/80 hover:text-white cursor-pointer"
-                  >
-                    {isMuted || volume === 0 ? <VolumeX className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : <Volume2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
-                  </button>
-
-                  <input
-                    type="range"
-                    min={0}
-                    max={1}
-                    step={0.05}
-                    value={isMuted ? 0 : volume}
-                    onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
-                    className="w-14 sm:w-20 h-1 bg-white/20 rounded-full appearance-none cursor-pointer accent-white hidden sm:block"
-                  />
-
-                  <div className="font-mono text-[10px] sm:text-[11px] text-white/80">
-                    <span>{formatTime(currentTime)}</span>
-                    <span className="text-white/40 mx-1">/</span>
-                    <span>{formatTime(duration)}</span>
-                  </div>
-                </div>
-
-                {/* Right: Badge, Subtitle & Fullscreen */}
-                <div className="flex items-center gap-1.5 sm:gap-2">
-                  <div className="hidden md:flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-[10px] text-emerald-300 font-semibold">
-                    <ShieldCheck className="w-3 h-3 text-emerald-400" />
-                    <span>HLS Tanpa Sandbox</span>
-                  </div>
-
-                  {availableSubtitles.length > 0 && (
-                    <div className="flex items-center gap-1 px-2 py-1 rounded-full liquid-glass text-xs">
-                      <Subtitles className="w-3.5 h-3.5 text-white/80" />
-                      <select
-                        value={selectedSubtitle}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setSelectedSubtitle(val);
-                          if (videoRef.current) {
-                            const tracks = videoRef.current.textTracks;
-                            for (let i = 0; i < tracks.length; i++) {
-                              tracks[i].mode = val === 'off' ? 'disabled' : (String(i) === val ? 'showing' : 'disabled');
-                            }
-                          }
-                        }}
-                        className="bg-transparent text-[10px] text-white focus:outline-none cursor-pointer"
-                      >
-                        <option value="off" className="bg-[#12141F] text-white">Sub: Nonaktif</option>
-                        {availableSubtitles.map((sub, idx) => (
-                          <option key={idx} value={String(idx)} className="bg-[#12141F] text-white">
-                            {sub.label || sub.language || `Sub ${idx + 1}`}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-
-                  <button
-                    onClick={toggleFullscreen}
-                    className="w-7 h-7 sm:w-8 sm:h-8 rounded-full liquid-glass flex items-center justify-center text-white/80 hover:text-white cursor-pointer"
-                  >
-                    {isFullscreen ? <Minimize className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : <Maximize className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/*
-          2. OFFICIAL FRAMEX EMBED (Untuk Film, Serial TV, atau Anime Mode Embed):
-          - BEBAS SANDBOX: Tidak menggunakan atribut 'sandbox' sama sekali
-          - Memiliki izin penuh: autoplay, fullscreen, picture-in-picture, encrypted-media
-          - referrerPolicy="origin" untuk otentikasi stream yang aman
-        */}
-        {isPlayable && (mediaType !== 'anime' || animePlayMode === 'embed') && (
+        {isPlayable && (
           <div className="relative w-full h-full">
             <iframe
               key={`${id}-${mediaType}-${seasonNum}-${episodeNum}-${safeServerIndex}-${iframeKey}-${animeAudio}`}
@@ -1409,27 +1066,13 @@ export const PlayerPage: React.FC = () => {
               height="100%"
               frameBorder="0"
               allowFullScreen
-              allow="autoplay; fullscreen; picture-in-picture; encrypted-media; accelerometer; gyroscope; clipboard-write"
+              allow="autoplay; fullscreen; picture-in-picture; encrypted-media; accelerometer; gyroscope; clipboard-write; web-share"
               referrerPolicy="origin"
               loading="eager"
               title={title?.title || 'Zhafx Stream Player'}
               onLoad={handleIframeLoad}
               className="w-full h-full border-0 absolute inset-0 z-10"
             />
-
-            {/* Quick Helper Floating Badge for Anime in Embed Mode */}
-            {mediaType === 'anime' && (
-              <div className="absolute top-16 right-4 z-30 hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full liquid-glass text-[11px] text-white/90 border border-white/20 shadow-lg">
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Sandbox Dinonaktifkan</span>
-                <button
-                  onClick={() => setAnimePlayMode('hls')}
-                  className="ml-1 text-emerald-300 font-bold hover:underline cursor-pointer"
-                >
-                  Pakai HLS Native
-                </button>
-              </div>
-            )}
           </div>
         )}
       </div>

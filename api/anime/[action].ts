@@ -64,27 +64,31 @@ export default async function handler(req: any, res: any) {
     });
   }
 
-  // Helper: Query AniList GraphQL to resolve anime title or external ID to AniList ID
+  // Helper: Query FrameX API directly to resolve anime title or ID (Strictly https://framextv.xyz, no AniList)
   const resolveAnimeId = async (targetId: string, searchTitle?: string): Promise<string | null> => {
     const searchKey = searchTitle || (isNaN(Number(targetId)) ? targetId : null);
-    if (!searchKey) return null;
-    try {
-      const query = `query ($search: String) {
-        Media(search: $search, type: ANIME) { id }
-      }`;
-      const r = await fetch('https://graphql.anilist.co', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-        body: JSON.stringify({ query, variables: { search: searchKey } }),
-        signal: AbortSignal.timeout(3500),
-      });
-      if (r.ok) {
-        const d = await r.json();
-        const resolved = d?.data?.Media?.id;
-        if (resolved) return String(resolved);
-      }
-    } catch {}
-    return null;
+    if (!searchKey) return targetId ? String(targetId) : null;
+    const backends = ['https://api.framextv.xyz', 'https://api.framextv.tech'];
+    for (const backend of backends) {
+      try {
+        const r = await fetch(`${backend}/api/search?q=${encodeURIComponent(searchKey)}&type=anime`, {
+          signal: AbortSignal.timeout(3000),
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+            'Referer': 'https://framextv.xyz/',
+            'Origin': 'https://framextv.xyz',
+          },
+        });
+        if (r.ok) {
+          const d = await r.json();
+          const items = Array.isArray(d) ? d : (d?.results || d?.titles || []);
+          if (items.length > 0 && items[0]?.id) {
+            return String(items[0].id);
+          }
+        }
+      } catch {}
+    }
+    return targetId ? String(targetId) : null;
   };
 
   // Helper: Probe single upstream provider
@@ -266,23 +270,69 @@ export default async function handler(req: any, res: any) {
       return res.status(400).json({ error: 'URL target tidak valid.' });
     }
 
-    try {
-      const origin = referer ? new URL(referer).origin : 'https://megaplay.buzz';
-      const reqHeaders: Record<string, string> = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-        'Referer': referer,
-        'Origin': origin,
-        'Accept': '*/*',
-      };
-      if (req.headers?.range) {
-        reqHeaders['Range'] = req.headers.range;
+    const origin = referer ? new URL(referer).origin : 'https://megaplay.buzz';
+    const reqHeaders: Record<string, string> = {
+      'User-Agent':
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+      'Referer': referer,
+      'Origin': origin,
+      'Accept': '*/*',
+    };
+    if (req.headers?.range) {
+      reqHeaders['Range'] = req.headers.range;
+    }
+
+    const candidates: Array<{ url: string; headers: Record<string, string> }> = [
+      { url: targetUrl, headers: reqHeaders },
+      {
+        url: `https://api.framextv.tech/anime/api/proxy?url=${encodeURIComponent(targetUrl)}&ref=${encodeURIComponent(referer)}`,
+        headers: {
+          'User-Agent': reqHeaders['User-Agent'],
+          'Referer': 'https://framextv.xyz/',
+          'Origin': 'https://framextv.xyz',
+          'Accept': '*/*',
+          ...(req.headers?.range ? { 'Range': req.headers.range } : {}),
+        },
+      },
+      {
+        url: `https://api.framextv.xyz/anime/api/proxy?url=${encodeURIComponent(targetUrl)}&ref=${encodeURIComponent(referer)}`,
+        headers: {
+          'User-Agent': reqHeaders['User-Agent'],
+          'Referer': 'https://framextv.xyz/',
+          'Origin': 'https://framextv.xyz',
+          'Accept': '*/*',
+          ...(req.headers?.range ? { 'Range': req.headers.range } : {}),
+        },
+      },
+    ];
+
+    let upstreamRes: any = null;
+    const isM3u8Candidate = targetUrl.includes('.m3u8');
+    const timeoutMs = isM3u8Candidate ? 5500 : 9000;
+
+    for (const cand of candidates) {
+      if (req.destroyed || res.writableEnded) return;
+      try {
+        const r = await fetch(cand.url, {
+          method: req.method === 'HEAD' ? 'HEAD' : 'GET',
+          headers: cand.headers,
+          signal: AbortSignal.timeout(timeoutMs),
+        });
+        if (r.ok || r.status === 206) {
+          upstreamRes = r;
+          break;
+        }
+      } catch {}
+    }
+
+    if (!upstreamRes) {
+      if (!res.headersSent && !res.writableEnded) {
+        return res.status(504).json({ error: 'Stream anime dialihkan ke pemutar embed.' });
       }
+      return;
+    }
 
-      const upstreamRes = await fetch(targetUrl, {
-        method: req.method === 'HEAD' ? 'HEAD' : 'GET',
-        headers: reqHeaders,
-      });
-
+    try {
       const contentType = upstreamRes.headers.get('content-type') || '';
       const isM3u8 =
         contentType.includes('mpegurl') ||
@@ -333,15 +383,16 @@ export default async function handler(req: any, res: any) {
       res.status(upstreamRes.status);
 
       if (upstreamRes.body) {
-        const { Readable } = await import('stream');
+        const { Readable, pipeline } = await import('stream');
         // @ts-ignore
-        Readable.fromWeb(upstreamRes.body).pipe(res);
+        const nodeStream = Readable.fromWeb(upstreamRes.body);
+        pipeline(nodeStream, res, () => {});
       } else {
         res.end();
       }
       return;
     } catch (err: any) {
-      if (!res.headersSent) {
+      if (!res.headersSent && !res.writableEnded) {
         return res.status(502).json({ error: 'Gagal memuat stream video anime.' });
       }
       return;

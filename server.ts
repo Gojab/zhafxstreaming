@@ -333,70 +333,35 @@ app.get('/api/anime/providers', async (_req: Request, res: Response) => {
   });
 });
 
-// Helper: Query AniList GraphQL to resolve anime title or external ID to AniList ID
+// Helper: Query FrameX API directly to resolve anime ID or title (Strictly https://framextv.xyz, no AniList)
 async function resolveAnimeId(id: string, title?: string): Promise<string | null> {
-  // 1. If explicit title provided, search AniList directly
-  if (title && title.trim()) {
-    try {
-      const query = `query ($search: String) { Media(search: $search, type: ANIME) { id } }`;
-      const res = await fetch('https://graphql.anilist.co', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-        body: JSON.stringify({ query, variables: { search: title.trim() } }),
-        signal: AbortSignal.timeout(3500),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        const resolvedId = data?.data?.Media?.id;
-        if (resolvedId) return String(resolvedId);
-      }
-    } catch {}
-  }
+  const backends = ['https://api.framextv.xyz', 'https://api.framextv.tech'];
+  const searchTerm = title && title.trim() ? title.trim() : (isNaN(Number(id)) ? id : null);
 
-  // 2. If non-numeric ID (slug or title string)
-  if (isNaN(Number(id))) {
-    try {
-      const query = `query ($search: String) { Media(search: $search, type: ANIME) { id } }`;
-      const res = await fetch('https://graphql.anilist.co', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-        body: JSON.stringify({ query, variables: { search: id } }),
-        signal: AbortSignal.timeout(3500),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        const resolvedId = data?.data?.Media?.id;
-        if (resolvedId) return String(resolvedId);
-      }
-    } catch {}
-  }
-
-  // 3. If numeric ID (likely TMDB ID), resolve title via TMDB/FrameX details first
-  try {
-    const detailsRes = await fetch(`https://api.framextv.tech/api/details?id=${encodeURIComponent(id)}&type=tv`, {
-      signal: AbortSignal.timeout(3000),
-    });
-    if (detailsRes.ok) {
-      const detailsData = await detailsRes.json();
-      const resolvedTitle = detailsData?.title || detailsData?.name;
-      if (resolvedTitle) {
-        const query = `query ($search: String) { Media(search: $search, type: ANIME) { id } }`;
-        const res = await fetch('https://graphql.anilist.co', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-          body: JSON.stringify({ query, variables: { search: resolvedTitle } }),
-          signal: AbortSignal.timeout(3500),
+  if (searchTerm) {
+    for (const backend of backends) {
+      try {
+        const res = await fetch(`${backend}/api/search?q=${encodeURIComponent(searchTerm)}&type=anime`, {
+          signal: AbortSignal.timeout(3000),
+          headers: {
+            'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+            'Referer': 'https://framextv.xyz/',
+            'Origin': 'https://framextv.xyz',
+          },
         });
         if (res.ok) {
           const data = await res.json();
-          const resolvedId = data?.data?.Media?.id;
-          if (resolvedId) return String(resolvedId);
+          const items = Array.isArray(data) ? data : (data?.results || data?.titles || []);
+          if (items.length > 0 && items[0]?.id) {
+            return String(items[0].id);
+          }
         }
-      }
+      } catch {}
     }
-  } catch {}
+  }
 
-  return null;
+  return id ? String(id) : null;
 }
 
 // Helper: Unwraps nested proxy URLs recursively to obtain the direct origin CDN URL and referer
@@ -592,7 +557,10 @@ app.get('/api/anime/stream', async (req: Request, res: Response) => {
 
 // Proxy and rewrite HLS Playlists (.m3u8) & video segments (.ts/.jpg/.mp4) directly from Origin CDNs
 app.all('/api/anime/proxy', async (req: Request, res: Response) => {
-  const rawTargetUrl = (req.query.url as string);
+  // If client already disconnected, exit immediately
+  if (req.destroyed || res.writableEnded) return;
+
+  const rawTargetUrl = req.query.url as string;
   const rawReferer = (req.query.ref as string) || 'https://megaplay.buzz/';
 
   if (!rawTargetUrl) {
@@ -606,24 +574,87 @@ app.all('/api/anime/proxy', async (req: Request, res: Response) => {
     return res.status(400).json({ error: 'URL target tidak valid.' });
   }
 
-  try {
-    const origin = referer ? new URL(referer).origin : 'https://megaplay.buzz';
-    const reqHeaders: Record<string, string> = {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-      'Referer': referer,
-      'Origin': origin,
-      'Accept': '*/*',
-    };
-    if (req.headers.range) {
-      reqHeaders['Range'] = req.headers.range;
+  const clientAbortController = new AbortController();
+  req.on('close', () => {
+    clientAbortController.abort();
+  });
+
+  const origin = referer ? new URL(referer).origin : 'https://megaplay.buzz';
+  const reqHeaders: Record<string, string> = {
+    'User-Agent':
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    'Referer': referer,
+    'Origin': origin,
+    'Accept': '*/*',
+  };
+  if (req.headers.range) {
+    reqHeaders['Range'] = req.headers.range;
+  }
+
+  // Multi-tier candidates: direct CDN -> primary FrameX proxy -> secondary FrameX proxy
+  const candidates: Array<{ url: string; headers: Record<string, string> }> = [
+    { url: targetUrl, headers: reqHeaders },
+    {
+      url: `https://api.framextv.tech/anime/api/proxy?url=${encodeURIComponent(targetUrl)}&ref=${encodeURIComponent(referer)}`,
+      headers: {
+        'User-Agent': reqHeaders['User-Agent'],
+        'Referer': 'https://framextv.xyz/',
+        'Origin': 'https://framextv.xyz',
+        'Accept': '*/*',
+        ...(req.headers.range ? { 'Range': req.headers.range } : {}),
+      },
+    },
+    {
+      url: `https://api.framextv.xyz/anime/api/proxy?url=${encodeURIComponent(targetUrl)}&ref=${encodeURIComponent(referer)}`,
+      headers: {
+        'User-Agent': reqHeaders['User-Agent'],
+        'Referer': 'https://framextv.xyz/',
+        'Origin': 'https://framextv.xyz',
+        'Accept': '*/*',
+        ...(req.headers.range ? { 'Range': req.headers.range } : {}),
+      },
+    },
+  ];
+
+  let upstreamRes: any = null;
+  const isM3u8Candidate = targetUrl.includes('.m3u8');
+  const timeoutPerAttempt = isM3u8Candidate ? 5500 : 9000;
+
+  for (const candidate of candidates) {
+    if (clientAbortController.signal.aborted || req.destroyed || res.writableEnded) {
+      return;
     }
+    try {
+      const attemptSignal = AbortSignal.any
+        ? AbortSignal.any([AbortSignal.timeout(timeoutPerAttempt), clientAbortController.signal])
+        : AbortSignal.timeout(timeoutPerAttempt);
 
-    const upstreamRes = await fetch(targetUrl, {
-      method: req.method === 'HEAD' ? 'HEAD' : 'GET',
-      headers: reqHeaders,
-      signal: AbortSignal.timeout(15000),
-    });
+      const r = await fetch(candidate.url, {
+        method: req.method === 'HEAD' ? 'HEAD' : 'GET',
+        headers: candidate.headers,
+        signal: attemptSignal,
+      });
 
+      if (r.ok || r.status === 206) {
+        upstreamRes = r;
+        break;
+      }
+    } catch {
+      // try next candidate upstream
+    }
+  }
+
+  if (!upstreamRes) {
+    if (!res.headersSent && !res.writableEnded && !req.destroyed) {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.status(504).json({
+        error: 'Stream anime saat ini dialihkan. Silakan gunakan pemutar mode embed.',
+      });
+    }
+    return;
+  }
+
+  try {
     const contentType = upstreamRes.headers.get('content-type') || '';
     const isM3u8 =
       contentType.includes('mpegurl') ||
@@ -639,12 +670,12 @@ app.all('/api/anime/proxy', async (req: Request, res: Response) => {
       const text = await upstreamRes.text();
       if (text.includes('#EXTM3U')) {
         const lines = text.split('\n');
-        const rewritten = lines.map((line) => {
+        const rewritten = lines.map((line: string) => {
           const trimmed = line.trim();
           if (!trimmed) return line;
           if (trimmed.startsWith('#')) {
             // Rewrite URI="..." in #EXT-X-KEY or #EXT-X-MAP
-            return line.replace(/URI=["']([^"']+)["']/g, (_match, uri) => {
+            return line.replace(/URI=["']([^"']+)["']/g, (_match: string, uri: string) => {
               try {
                 const absUrl = new URL(uri, targetUrl).href;
                 const { realUrl: finalUri } = extractRealUrl(absUrl, referer);
@@ -677,23 +708,30 @@ app.all('/api/anime/proxy', async (req: Request, res: Response) => {
     if (upstreamRes.headers.get('content-range')) {
       res.setHeader('Content-Range', upstreamRes.headers.get('content-range')!);
     }
-    const finalContentType = (contentType && (contentType.includes('mp4') || contentType.includes('webm')))
-      ? contentType
-      : 'video/MP2T';
+    const finalContentType =
+      contentType && (contentType.includes('mp4') || contentType.includes('webm'))
+        ? contentType
+        : 'video/MP2T';
     res.setHeader('Content-Type', finalContentType);
     res.status(upstreamRes.status);
 
     if (upstreamRes.body) {
-      const { Readable } = await import('stream');
+      const { Readable, pipeline } = await import('stream');
       // @ts-ignore
-      Readable.fromWeb(upstreamRes.body).pipe(res);
+      const nodeStream = Readable.fromWeb(upstreamRes.body);
+      pipeline(nodeStream, res, () => {
+        // Safe completion without uncaught pipe errors on client disconnect
+      });
     } else {
       res.end();
     }
   } catch (err: any) {
-    console.error('[Anime Proxy Error]:', err?.message || err);
+    if (req.destroyed || res.writableEnded || err?.name === 'AbortError') {
+      return;
+    }
+    console.warn('[Anime Proxy Notice]:', err?.message || err);
     if (!res.headersSent) {
-      res.status(502).json({ error: 'Gagal memuat stream video anime.' });
+      res.status(502).json({ error: 'Gagal memproses stream video anime.' });
     }
   }
 });
