@@ -902,15 +902,46 @@ export const api = {
       ];
     }
 
+    if (type === 'tv') {
+      try {
+        const url = `/api/providers?type=tv`;
+        const data = await fetchWithRetry<any>(url, { signal, ttlMs: 15 * 60 * 1000 });
+        if (data && Array.isArray(data.providers) && data.providers.length > 0) {
+          return [
+            { id: 'auto', name: '⚡ ZHAFX AUTO TV', tagline: 'Auto-Select Server Serial TV Terbaik' },
+            ...data.providers.map((p: any, idx: number) => ({
+              ...p,
+              name: `ZHAFX TV ENTITY ${String(idx + 1).padStart(3, '0')}`,
+            })),
+          ];
+        }
+      } catch {
+        // Fallback
+      }
+
+      return [
+        { id: 'auto', name: '⚡ ZHAFX AUTO TV', tagline: 'Auto-Select Server Serial TV Terbaik' },
+        { id: 'headhunter', name: 'ZHAFX TV ENTITY 001', tagline: 'VidLink TV Series Multi-Sub' },
+        { id: 'valkyrie', name: 'ZHAFX TV ENTITY 002', tagline: '4K Ultra TV Multi-Server' },
+        { id: 'miner', name: 'ZHAFX TV ENTITY 003', tagline: 'Movy Multi-City TV Series 4K' },
+        { id: 'super_barbarian', name: 'ZHAFX TV ENTITY 004', tagline: 'Direct Auto HLS TV Stream' },
+        { id: 'bowler', name: 'ZHAFX TV ENTITY 005', tagline: 'Multi-Language TV Episodes' },
+        { id: 'giant', name: 'ZHAFX TV ENTITY 006', tagline: 'Multi-Audio TV Stream Cepat' },
+        { id: 'lavahound', name: 'ZHAFX TV ENTITY 007', tagline: '4K Fast TV Series Stream' },
+        { id: 'hog_rider', name: 'ZHAFX TV ENTITY 008', tagline: '4K TV Server' },
+      ];
+    }
+
+    // Default: Movie (Film)
     try {
-      const url = `${CONFIG.API_BASE_URL}${CONFIG.ENDPOINTS.PROVIDERS}`;
+      const url = `/api/providers?type=movie`;
       const data = await fetchWithRetry<any>(url, { signal, ttlMs: 15 * 60 * 1000 });
       if (data && Array.isArray(data.providers) && data.providers.length > 0) {
         return [
-          { id: 'auto', name: '⚡ ZHAFX AUTO (Otomatis)', tagline: 'Auto-Select Server Terbaik' },
+          { id: 'auto', name: '⚡ ZHAFX AUTO FILM', tagline: 'Auto-Select Server Film Terbaik' },
           ...data.providers.map((p: any, idx: number) => ({
             ...p,
-            name: `ZHAFX ENTITY ${String(idx + 1).padStart(3, '0')}`,
+            name: `ZHAFX FILM ENTITY ${String(idx + 1).padStart(3, '0')}`,
           })),
         ];
       }
@@ -919,15 +950,16 @@ export const api = {
     }
 
     return [
-      { id: 'auto', name: '⚡ ZHAFX AUTO (Otomatis)', tagline: 'Auto-Select Server Terbaik' },
-      { id: 'miner', name: 'ZHAFX ENTITY 001', tagline: 'Server Cepat 4K / 1080p' },
-      { id: 'headhunter', name: 'ZHAFX ENTITY 002', tagline: 'VidLink Server Multi-Sub' },
-      { id: 'valkyrie', name: 'ZHAFX ENTITY 003', tagline: 'Multi-Server Stabil' },
-      { id: 'super_barbarian', name: 'ZHAFX ENTITY 004', tagline: 'Direct Auto HLS' },
-      { id: 'bowler', name: 'ZHAFX ENTITY 005', tagline: 'Multi-Bahasa' },
-      { id: 'goblin', name: 'ZHAFX ENTITY 006', tagline: 'Ultra Cloud 1080p' },
-      { id: 'pekka', name: 'ZHAFX ENTITY 007', tagline: 'High Bitrate HD' },
-      { id: 'healer', name: 'ZHAFX ENTITY 008', tagline: 'Cloud CDN Stream' },
+      { id: 'auto', name: '⚡ ZHAFX AUTO FILM', tagline: 'Auto-Select Server Film Terbaik' },
+      { id: 'miner', name: 'ZHAFX FILM ENTITY 001', tagline: 'Movy Multi-City 4K Server' },
+      { id: 'headhunter', name: 'ZHAFX FILM ENTITY 002', tagline: 'VidLink Server Multi-Sub' },
+      { id: 'valkyrie', name: 'ZHAFX FILM ENTITY 003', tagline: '4K Ultra Multi-Server' },
+      { id: 'titan', name: 'ZHAFX FILM ENTITY 004', tagline: 'Films365 Direct MP4 1080p Server' },
+      { id: 'hog_rider', name: 'ZHAFX FILM ENTITY 005', tagline: '4K Pilled Server' },
+      { id: 'lavahound', name: 'ZHAFX FILM ENTITY 006', tagline: '4K Fast Multi-Server Stream' },
+      { id: 'super_barbarian', name: 'ZHAFX FILM ENTITY 007', tagline: 'Direct Auto HLS Stream' },
+      { id: 'bowler', name: 'ZHAFX FILM ENTITY 008', tagline: 'Multi-Language' },
+      { id: 'giant', name: 'ZHAFX FILM ENTITY 009', tagline: 'Multi-Audio Direct Stream' },
     ];
   },
 

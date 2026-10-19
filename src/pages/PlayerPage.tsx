@@ -12,6 +12,8 @@ import {
   CheckCircle2,
   X,
   Tv,
+  Film,
+  Sparkles,
   Volume2,
   AlertTriangle,
 } from 'lucide-react';
@@ -23,54 +25,227 @@ export interface ServerOption {
   id: string;
   name: string;
   tagline: string;
-  type: 'anime_embed' | 'tv_embed' | 'movie_embed';
+  type: 'movie_embed' | 'tv_embed' | 'anime_embed';
   provider: string;
+  badge?: string;
   serverParam?: string;
 }
 
-// 6 Dedicated FrameX servers for anime with verified upstream provider mapping
+// =========================================================================
+// 1. Dedicated Servers Khusus FILM (Movie) — FrameX API Engine
+// =========================================================================
+export const MOVIE_SERVERS: ServerOption[] = [
+  {
+    id: 'server-movie-1',
+    name: 'Server Film 1 — Miner 4K',
+    tagline: 'Movy Multi-City 4K Server • Ultra HD',
+    type: 'movie_embed',
+    provider: 'miner',
+    badge: '4K ULTRA',
+  },
+  {
+    id: 'server-movie-2',
+    name: 'Server Film 2 — Headhunter HD',
+    tagline: 'VidLink Server Multi-Sub Kualitas Tinggi',
+    type: 'movie_embed',
+    provider: 'headhunter',
+    badge: 'HD MULTI-SUB',
+  },
+  {
+    id: 'server-movie-3',
+    name: 'Server Film 3 — Valkyrie 4K Ultra',
+    tagline: '4K Ultra Multi-Server Stabil & Cepat',
+    type: 'movie_embed',
+    provider: 'valkyrie',
+    badge: 'ULTRA STABIL',
+  },
+  {
+    id: 'server-movie-4',
+    name: 'Server Film 4 — Titan Direct',
+    tagline: 'Films365 Direct MP4 1080p Server',
+    type: 'movie_embed',
+    provider: 'titan',
+    badge: 'DIRECT 1080P',
+  },
+  {
+    id: 'server-movie-5',
+    name: 'Server Film 5 — Hog Rider 4K',
+    tagline: '4K Pilled Server Cadangan Super Cepat',
+    type: 'movie_embed',
+    provider: 'hog_rider',
+    badge: '4K FAST',
+  },
+  {
+    id: 'server-movie-6',
+    name: 'Server Film 6 — Lava Hound',
+    tagline: '4K Fast Multi-Server Stream',
+    type: 'movie_embed',
+    provider: 'lavahound',
+    badge: 'MULTI-CDN',
+  },
+  {
+    id: 'server-movie-7',
+    name: 'Server Film 7 — Super Barbarian',
+    tagline: 'Direct Auto HLS Stream Cadangan',
+    type: 'movie_embed',
+    provider: 'super_barbarian',
+    badge: 'AUTO HLS',
+  },
+  {
+    id: 'server-movie-8',
+    name: 'Server Film 8 — Bowler Multi-Lang',
+    tagline: 'Multi-Language Audio & Subtitle',
+    type: 'movie_embed',
+    provider: 'bowler',
+    badge: 'MULTI-LANG',
+  },
+  {
+    id: 'server-movie-9',
+    name: 'Server Film 9 — Giant Multi-Audio',
+    tagline: 'Multi-Audio Direct Stream',
+    type: 'movie_embed',
+    provider: 'giant',
+    badge: 'MULTI-AUDIO',
+  },
+];
+
+// =========================================================================
+// 2. Dedicated Servers Khusus SERIAL TV — FrameX API Engine
+// =========================================================================
+export const TV_SERVERS: ServerOption[] = [
+  {
+    id: 'server-tv-1',
+    name: 'Server TV 1 — Headhunter Series',
+    tagline: 'VidLink TV Series Multi-Sub & Episode Lengkap',
+    type: 'tv_embed',
+    provider: 'headhunter',
+    badge: 'SERIES UTAMA',
+  },
+  {
+    id: 'server-tv-2',
+    name: 'Server TV 2 — Valkyrie Series HD',
+    tagline: '4K Ultra TV Multi-Server Stabil & Cepat',
+    type: 'tv_embed',
+    provider: 'valkyrie',
+    badge: '4K ULTRA TV',
+  },
+  {
+    id: 'server-tv-3',
+    name: 'Server TV 3 — Miner Series 4K',
+    tagline: 'Movy Multi-City TV Series 4K Server',
+    type: 'tv_embed',
+    provider: 'miner',
+    badge: '4K SERIES',
+  },
+  {
+    id: 'server-tv-4',
+    name: 'Server TV 4 — Super Barbarian HLS',
+    tagline: 'Direct Auto HLS TV Series Stream',
+    type: 'tv_embed',
+    provider: 'super_barbarian',
+    badge: 'AUTO HLS TV',
+  },
+  {
+    id: 'server-tv-5',
+    name: 'Server TV 5 — Bowler Multi-Sub',
+    tagline: 'Multi-Language TV Episodes & Softsub',
+    type: 'tv_embed',
+    provider: 'bowler',
+    badge: 'MULTI-SUB',
+  },
+  {
+    id: 'server-tv-6',
+    name: 'Server TV 6 — Giant TV Stream',
+    tagline: 'Multi-Audio TV Stream Cepat',
+    type: 'tv_embed',
+    provider: 'giant',
+    badge: 'MULTI-AUDIO',
+  },
+  {
+    id: 'server-tv-7',
+    name: 'Server TV 7 — Lava Hound TV',
+    tagline: '4K Fast TV Series Multi-Server',
+    type: 'tv_embed',
+    provider: 'lavahound',
+    badge: 'FAST TV',
+  },
+  {
+    id: 'server-tv-8',
+    name: 'Server TV 8 — Hog Rider TV',
+    tagline: '4K TV Server Dedicated',
+    type: 'tv_embed',
+    provider: 'hog_rider',
+    badge: '4K BACKUP',
+  },
+];
+
+// =========================================================================
+// 3. Dedicated Servers Khusus ANIME — FrameX API Engine
+// =========================================================================
 export const ANIME_SERVERS: ServerOption[] = [
   {
-    id: 'server-1',
-    name: 'Server 1 — FrameX Cloud Utama',
-    tagline: 'Grand Warden • 1080p Ultra HD Fast Stream',
+    id: 'server-anime-1',
+    name: 'Server Anime 1 — Grand Warden Cloud',
+    tagline: 'Multi-Source Cloud • 1080p Ultra Fast',
     type: 'anime_embed',
     provider: 'grand_warden',
+    badge: 'CLOUD UTAMA',
   },
   {
-    id: 'server-2',
-    name: 'Server 2 — FrameX Wizard Dual Audio',
-    tagline: 'Wizard • Dual Audio & Softsub Cepat',
+    id: 'server-anime-2',
+    name: 'Server Anime 2 — Wizard Dual Audio',
+    tagline: 'Dual Audio & Softsub • Ultra Fast',
     type: 'anime_embed',
     provider: 'wizard',
+    badge: 'DUAL AUDIO',
   },
   {
-    id: 'server-3',
-    name: 'Server 3 — FrameX TV & Anime Mirror',
-    tagline: 'Super P.E.K.K.A • 1080p Ultra High Bitrate Multi-Source',
-    type: 'anime_embed',
-    provider: 'super_pekka',
-  },
-  {
-    id: 'server-4',
-    name: 'Server 4 — FrameX Valkyrie HD',
-    tagline: 'Valkyrie • FlixCloud HD Fast CDN',
+    id: 'server-anime-3',
+    name: 'Server Anime 3 — Valkyrie FlixCloud',
+    tagline: 'FlixCloud HD • Fast Stream',
     type: 'anime_embed',
     provider: 'valkyrie',
+    badge: 'FLIXCLOUD',
   },
   {
-    id: 'server-5',
-    name: 'Server 5 — FrameX Universal Stream',
-    tagline: 'Giant • Universal Multi-CDN Stream',
+    id: 'server-anime-4',
+    name: 'Server Anime 4 — Super PEKKA Ultra',
+    tagline: '1080p Ultra High Bitrate Multi-Source',
+    type: 'anime_embed',
+    provider: 'super_pekka',
+    badge: 'HIGH BITRATE',
+  },
+  {
+    id: 'server-anime-5',
+    name: 'Server Anime 5 — Giant Cloud',
+    tagline: 'Ultra High Speed Cloud Server',
     type: 'anime_embed',
     provider: 'giant',
+    badge: 'HIGH SPEED',
   },
   {
-    id: 'server-6',
-    name: 'Server 6 — FrameX Direct Path',
-    tagline: 'Goblin • Direct Fast Auto Stream',
+    id: 'server-anime-6',
+    name: 'Server Anime 6 — Archer Multi-Audio',
+    tagline: 'Multi-Audio & Fast Stream',
+    type: 'anime_embed',
+    provider: 'archer',
+    badge: 'MULTI-AUDIO',
+  },
+  {
+    id: 'server-anime-7',
+    name: 'Server Anime 7 — Goblin Direct',
+    tagline: 'Direct Fast Auto Stream',
     type: 'anime_embed',
     provider: 'goblin',
+    badge: 'DIRECT AUTO',
+  },
+  {
+    id: 'server-anime-8',
+    name: 'Server Anime 8 — Dragon VidNest',
+    tagline: 'VidNest Multi-Source Server',
+    type: 'anime_embed',
+    provider: 'dragon',
+    badge: 'VIDNEST',
   },
 ];
 
@@ -227,6 +402,22 @@ export const PlayerPage: React.FC = () => {
     return () => controller.abort();
   }, [id, mediaType, seasonNum, episodeNum, recordHistory, searchParams]);
 
+  // Resolve dedicated server list based on mediaType (Film / Serial TV / Anime)
+  const activeServerList: ServerOption[] =
+    mediaType === 'anime'
+      ? ANIME_SERVERS
+      : mediaType === 'tv'
+      ? TV_SERVERS
+      : MOVIE_SERVERS;
+
+  const safeServerIndex = currentServerIndex < activeServerList.length ? currentServerIndex : 0;
+  const activeServer = activeServerList[safeServerIndex] || activeServerList[0];
+
+  // Reset server index if out of range when mediaType changes
+  useEffect(() => {
+    setCurrentServerIndex(0);
+  }, [mediaType]);
+
   // Iframe loading management
   useEffect(() => {
     if (!isPlayable) {
@@ -245,7 +436,7 @@ export const PlayerPage: React.FC = () => {
         clearTimeout(timeoutRef.current);
       }
     };
-  }, [id, episodeNum, seasonNum, currentServerIndex, iframeKey, isPlayable, animeAudio]);
+  }, [id, episodeNum, seasonNum, safeServerIndex, iframeKey, isPlayable, animeAudio]);
 
   const handleIframeLoad = () => {
     setIsIframeLoading(false);
@@ -254,11 +445,11 @@ export const PlayerPage: React.FC = () => {
     }
   };
 
-  // Switch to next fallback server
+  // Switch to next dedicated fallback server for this specific media type
   const handleNextServer = () => {
-    const nextIdx = (currentServerIndex + 1) % ANIME_SERVERS.length;
+    const nextIdx = (safeServerIndex + 1) % activeServerList.length;
     setCurrentServerIndex(nextIdx);
-    setFailoverNotice(`Beralih ke ${ANIME_SERVERS[nextIdx].name}...`);
+    setFailoverNotice(`Beralih ke ${activeServerList[nextIdx].name}...`);
     setTimeout(() => setFailoverNotice(null), 3000);
     setIsIframeLoading(true);
     setIframeKey((k) => k + 1);
@@ -277,21 +468,20 @@ export const PlayerPage: React.FC = () => {
     const cleanId = String(id).trim();
     const validEp = Math.max(1, episodeNum);
     const validSeason = Math.max(1, seasonNum);
-    const activeServer = ANIME_SERVERS[currentServerIndex] || ANIME_SERVERS[0];
-
-    // Determine sub/dub provider variant
-    let targetProvider = activeServer.provider || 'grand_warden';
-    if (animeAudio === 'dub') {
-      if (targetProvider === 'grand_warden') targetProvider = 'grand_warden_dub';
-      else if (targetProvider === 'wizard') targetProvider = 'wizard_dub';
-      else if (targetProvider === 'valkyrie') targetProvider = 'valkyrie_dub';
-      else if (targetProvider === 'goblin') targetProvider = 'goblin_dub';
-    }
+    let targetProvider = activeServer.provider || 'miner';
 
     if (mediaType === 'anime') {
+      // Determine sub/dub provider variant
+      if (animeAudio === 'dub') {
+        if (targetProvider === 'grand_warden') targetProvider = 'grand_warden_dub';
+        else if (targetProvider === 'wizard') targetProvider = 'wizard_dub';
+        else if (targetProvider === 'valkyrie') targetProvider = 'valkyrie_dub';
+        else if (targetProvider === 'archer') targetProvider = 'archer_dub';
+        else if (targetProvider === 'goblin') targetProvider = 'goblin_dub';
+        else if (targetProvider === 'dragon') targetProvider = 'dragon_dub';
+      }
+
       // Official FrameX Anime Embed
-      // Path: /embed/anime/:id/:episode with full query params: ?id=&episode=&season=&type=anime&sub_type=&provider=&autoplay=1&muted=0&no_ads=1
-      // Both path and query params provided for maximum compatibility across FrameX player versions
       const baseUrl = `https://framextv.xyz/embed/anime/${encodeURIComponent(cleanId)}/${encodeURIComponent(String(validEp))}`;
       const url = new URL(baseUrl);
       url.searchParams.set('id', cleanId);
@@ -302,7 +492,6 @@ export const PlayerPage: React.FC = () => {
       url.searchParams.set('provider', targetProvider);
       url.searchParams.set('autoplay', '1');
       url.searchParams.set('muted', '0');
-      // CRITICAL: no_ads=1 prevents FrameX from injecting the rogue popup ad script (im.frshery.com)
       url.searchParams.set('no_ads', '1');
       if (title?.title) {
         url.searchParams.set('title', title.title.trim());
@@ -311,35 +500,32 @@ export const PlayerPage: React.FC = () => {
     }
 
     if (mediaType === 'tv') {
+      // Official FrameX TV Series Embed
       const baseUrl = `https://framextv.xyz/embed/tv/${encodeURIComponent(cleanId)}/${encodeURIComponent(String(validSeason))}/${encodeURIComponent(String(validEp))}`;
       const url = new URL(baseUrl);
       url.searchParams.set('id', cleanId);
       url.searchParams.set('season', String(validSeason));
       url.searchParams.set('episode', String(validEp));
       url.searchParams.set('type', 'tv');
+      url.searchParams.set('provider', targetProvider);
       url.searchParams.set('autoplay', '1');
       url.searchParams.set('muted', '0');
-      url.searchParams.set('no_ads', '1'); // CRITICAL: disables popup ads on TV series
-      if (activeServer.provider) {
-        url.searchParams.set('provider', activeServer.provider);
-      }
+      url.searchParams.set('no_ads', '1'); // Disables popup ads on TV series
       if (title?.title) {
         url.searchParams.set('title', title.title.trim());
       }
       return url.toString();
     }
 
-    // movie
+    // Official FrameX Movie Embed
     const baseUrl = `https://framextv.xyz/embed/movie/${encodeURIComponent(cleanId)}`;
     const url = new URL(baseUrl);
     url.searchParams.set('id', cleanId);
     url.searchParams.set('type', 'movie');
+    url.searchParams.set('provider', targetProvider);
     url.searchParams.set('autoplay', '1');
     url.searchParams.set('muted', '0');
-    url.searchParams.set('no_ads', '1'); // CRITICAL: disables popup ads on Movies
-    if (activeServer.provider) {
-      url.searchParams.set('provider', activeServer.provider);
-    }
+    url.searchParams.set('no_ads', '1'); // Disables popup ads on Movies
     if (title?.title) {
       url.searchParams.set('title', title.title.trim());
     }
@@ -510,13 +696,32 @@ export const PlayerPage: React.FC = () => {
               <h1 className="text-xs sm:text-sm font-bold text-white truncate leading-tight max-w-[130px] sm:max-w-[200px] md:max-w-xs">
                 {title?.title || 'Memuat Pemutar...'}
               </h1>
-              {(mediaType === 'tv' || mediaType === 'anime') && (
-                <div className="flex items-center gap-1.5 text-[10px] sm:text-[11px] text-white/80 font-medium truncate">
-                  <span>{mediaType === 'anime' ? 'FrameX Anime Stream' : `Musim ${seasonNum}`}</span>
-                  <span>•</span>
-                  <span>Episode {episodeNum}</span>
-                </div>
-              )}
+              <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                {mediaType === 'movie' && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/40 text-[#FFB224] text-[9px] sm:text-[10px] font-bold tracking-wide">
+                    <Film className="w-2.5 h-2.5" />
+                    PLAYER KHUSUS FILM
+                  </span>
+                )}
+                {mediaType === 'tv' && (
+                  <>
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 text-[9px] sm:text-[10px] font-bold tracking-wide">
+                      <Tv className="w-2.5 h-2.5" />
+                      PLAYER KHUSUS TV
+                    </span>
+                    <span className="text-[10px] text-white/70 font-medium">Musim {seasonNum} • Ep {episodeNum}</span>
+                  </>
+                )}
+                {mediaType === 'anime' && (
+                  <>
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-violet-500/20 border border-violet-500/40 text-violet-300 text-[9px] sm:text-[10px] font-bold tracking-wide">
+                      <Sparkles className="w-2.5 h-2.5" />
+                      PLAYER KHUSUS ANIME
+                    </span>
+                    <span className="text-[10px] text-white/70 font-medium">Ep {episodeNum}</span>
+                  </>
+                )}
+              </div>
             </div>
           </div>
 
@@ -565,7 +770,7 @@ export const PlayerPage: React.FC = () => {
                 }}
                 className={`px-2.5 py-1 rounded-full text-[10px] sm:text-[11px] font-bold border transition-all cursor-pointer ios-spring flex items-center gap-1 ${
                   animeAudio === 'sub'
-                    ? 'bg-white/20 border-white/40 text-white'
+                    ? 'bg-violet-500/30 border-violet-400 text-white shadow-sm'
                     : 'bg-white/10 border-white/20 text-white/70'
                 }`}
                 title="Pilih Audio: Sub (Jepang) atau Dub (Inggris)"
@@ -575,32 +780,44 @@ export const PlayerPage: React.FC = () => {
               </button>
             )}
 
-            {/* Dedicated "Ganti Server" Button (Requirement 3) */}
+            {/* Dedicated "Ganti Server" Button per mediaType */}
             <button
               onClick={handleNextServer}
-              className="px-2.5 sm:px-3 py-1 rounded-full text-[10px] sm:text-[11px] font-bold border transition-all cursor-pointer ios-spring flex items-center gap-1.5 bg-[#FFB224]/20 hover:bg-[#FFB224]/30 border-[#FFB224]/50 text-[#FFB224] shrink-0"
-              title="Ganti ke Server Cadangan Berikutnya"
+              className={`px-2.5 sm:px-3 py-1 rounded-full text-[10px] sm:text-[11px] font-bold border transition-all cursor-pointer ios-spring flex items-center gap-1.5 shrink-0 ${
+                mediaType === 'anime'
+                  ? 'bg-violet-500/20 hover:bg-violet-500/30 border-violet-500/50 text-violet-300'
+                  : mediaType === 'tv'
+                  ? 'bg-emerald-500/20 hover:bg-emerald-500/30 border-emerald-500/50 text-emerald-300'
+                  : 'bg-[#FFB224]/20 hover:bg-[#FFB224]/30 border-[#FFB224]/50 text-[#FFB224]'
+              }`}
+              title={`Ganti ke server cadangan ${mediaType === 'anime' ? 'anime' : mediaType === 'tv' ? 'serial TV' : 'film'} berikutnya`}
             >
               <Server className="w-3 h-3" />
-              <span>Ganti Server</span>
+              <span>
+                {mediaType === 'anime'
+                  ? 'Ganti Server Anime'
+                  : mediaType === 'tv'
+                  ? 'Ganti Server TV'
+                  : 'Ganti Server Film'}
+              </span>
             </button>
 
             {/* Server Selector Dropdown */}
             <div className="flex items-center gap-1 px-2 sm:px-2.5 py-1 rounded-full liquid-glass text-xs text-white">
               <select
-                value={currentServerIndex}
+                value={safeServerIndex}
                 onChange={(e) => {
                   const idx = parseInt(e.target.value, 10);
                   setCurrentServerIndex(idx);
                   setIsIframeLoading(true);
                   setIframeKey((k) => k + 1);
                 }}
-                aria-label="Pilih server stream"
-                className="bg-transparent text-[10px] sm:text-xs text-white font-medium focus:outline-none cursor-pointer max-w-[110px] sm:max-w-[170px] truncate"
+                aria-label={`Pilih server ${mediaType}`}
+                className="bg-transparent text-[10px] sm:text-xs text-white font-medium focus:outline-none cursor-pointer max-w-[120px] sm:max-w-[190px] truncate"
               >
-                {ANIME_SERVERS.map((s, idx) => (
+                {activeServerList.map((s, idx) => (
                   <option key={s.id} value={idx} className="bg-[#12141F] text-white">
-                    {s.name}
+                    {s.name} {s.badge ? `• ${s.badge}` : ''}
                   </option>
                 ))}
               </select>
@@ -771,7 +988,7 @@ export const PlayerPage: React.FC = () => {
           <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-[#06070B]/80 backdrop-blur-sm space-y-3 pointer-events-none px-4 text-center">
             <div className="w-11 h-11 border-3 border-white/20 border-t-[#FFB224] rounded-full animate-spin" />
             <span className="text-xs font-mono text-white/80 tracking-wider uppercase">
-              Menghubungkan ke {ANIME_SERVERS[currentServerIndex].name}...
+              Menghubungkan ke {activeServer.name}...
             </span>
           </div>
         )}
@@ -820,7 +1037,7 @@ export const PlayerPage: React.FC = () => {
         */}
         {isPlayable && (
           <iframe
-            key={`${id}-${mediaType}-${seasonNum}-${episodeNum}-${currentServerIndex}-${iframeKey}-${animeAudio}`}
+            key={`${id}-${mediaType}-${seasonNum}-${episodeNum}-${safeServerIndex}-${iframeKey}-${animeAudio}`}
             src={embedUrl}
             width="100%"
             height="100%"

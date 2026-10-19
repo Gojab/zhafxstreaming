@@ -204,10 +204,11 @@ export async function executeMultiModelChat(
   chatMessages.push({ role: 'user', content: userPrompt });
 
   // 1. Try Google Gemini SDK if API Key is available
-  if (geminiApiKey) {
+  const activeGeminiKey = geminiApiKey || process.env.GEMINI_API_KEY;
+  if (activeGeminiKey) {
     try {
       const ai = new GoogleGenAI({
-        apiKey: geminiApiKey,
+        apiKey: activeGeminiKey,
         httpOptions: {
           headers: {
             'User-Agent': 'aistudio-build',
