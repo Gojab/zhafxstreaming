@@ -182,12 +182,6 @@
       "userId": "usr_1792330640162_87a0bc5c",
       "createdAt": 1792423684036,
       "expiresAt": 1795015684036
-    },
-    {
-      "token": "db2f484aaf66915325776ff11563ea21b45f48c82266ab0806f244e9dbcecfa1",
-      "userId": "usr_1792330640162_87a0bc5c",
-      "createdAt": 1792423911513,
-      "expiresAt": 1795015911513
     }
   ],
   "otps": []

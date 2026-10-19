@@ -235,14 +235,25 @@ export const PlayerPage: React.FC = () => {
     }
 
     setIsIframeLoading(true);
+    setFailoverNotice(null);
 
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
     }
 
+    // Some embed providers never fire onError when their upstream is unavailable.
+    // Use a bounded watchdog so the player can recover instead of remaining stuck.
+    timeoutRef.current = window.setTimeout(() => {
+      setIsIframeLoading(false);
+      setFailoverNotice('Server pemutar tidak merespons. Mencoba server berikutnya...');
+      setCurrentServerIndex((index) => (index + 1) % ANIME_SERVERS.length);
+      setIframeKey((key) => key + 1);
+    }, 15000);
+
     return () => {
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
       }
     };
   }, [id, episodeNum, seasonNum, currentServerIndex, iframeKey, isPlayable, animeAudio]);
@@ -251,7 +262,19 @@ export const PlayerPage: React.FC = () => {
     setIsIframeLoading(false);
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
     }
+  };
+
+  const handleIframeError = () => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+    setIsIframeLoading(false);
+    setFailoverNotice('Server pemutar gagal dimuat. Mencoba server berikutnya...');
+    setCurrentServerIndex((index) => (index + 1) % ANIME_SERVERS.length);
+    setIframeKey((key) => key + 1);
   };
 
   // Switch to next fallback server
@@ -831,6 +854,7 @@ export const PlayerPage: React.FC = () => {
             loading="eager"
             title={title?.title || 'Zhafx Stream Player'}
             onLoad={handleIframeLoad}
+            onError={handleIframeError}
             className="w-full h-full border-0 absolute inset-0 z-10"
           />
         )}
