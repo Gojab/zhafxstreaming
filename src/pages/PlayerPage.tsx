@@ -23,16 +23,53 @@ export interface ServerOption {
   id: string;
   name: string;
   tagline: string;
+  type: 'anime_embed' | 'anime_provider' | 'tv_embed' | 'universal_embed';
+  provider?: string;
   serverParam?: string;
 }
 
-// 5 Dedicated FrameX servers for seamless cascading failover
+// 6 Dedicated FrameX servers for seamless cascading failover
 export const ANIME_SERVERS: ServerOption[] = [
-  { id: 'server-1', name: 'Server 1 (FrameX Cloud Utama)', tagline: 'Server Cepat 1080p Ultra HD', serverParam: undefined },
-  { id: 'server-2', name: 'Server 2 (FrameX Cadangan 1)', tagline: 'High Bitrate Multi-Server', serverParam: '2' },
-  { id: 'server-3', name: 'Server 3 (FrameX Cadangan 2)', tagline: 'Multi-Source Cloud CDN', serverParam: '3' },
-  { id: 'server-4', name: 'Server 4 (FrameX Direct)', tagline: 'Direct Fast Auto Stream', serverParam: '1' },
-  { id: 'server-5', name: 'Server 5 (FrameX Mirror)', tagline: 'Dual Audio & Fast CDN', serverParam: 'auto' },
+  {
+    id: 'server-1',
+    name: 'Server 1 (FrameX Cloud Utama)',
+    tagline: 'Grand Warden • 1080p Ultra HD',
+    type: 'anime_embed',
+    provider: 'grand_warden',
+  },
+  {
+    id: 'server-2',
+    name: 'Server 2 (FrameX Wizard Dual Audio)',
+    tagline: 'Dual Audio & Softsub Cepat',
+    type: 'anime_provider',
+    provider: 'wizard',
+  },
+  {
+    id: 'server-3',
+    name: 'Server 3 (FrameX TV & Anime Mirror)',
+    tagline: 'Multi-Source TV Mirror (TMDB/AniList)',
+    type: 'tv_embed',
+  },
+  {
+    id: 'server-4',
+    name: 'Server 4 (FrameX Valkyrie HD)',
+    tagline: 'FlixCloud HD Fast CDN',
+    type: 'anime_provider',
+    provider: 'valkyrie',
+  },
+  {
+    id: 'server-5',
+    name: 'Server 5 (FrameX Universal Stream)',
+    tagline: 'Universal Multi-CDN Direct',
+    type: 'universal_embed',
+  },
+  {
+    id: 'server-6',
+    name: 'Server 6 (FrameX Direct Path)',
+    tagline: 'Direct Path Anime Player',
+    type: 'anime_embed',
+    serverParam: '2',
+  },
 ];
 
 export const PlayerPage: React.FC = () => {
@@ -61,7 +98,7 @@ export const PlayerPage: React.FC = () => {
   const [currentServerIndex, setCurrentServerIndex] = useState(0);
   const [animeAudio, setAnimeAudio] = useState<'sub' | 'dub'>('sub');
 
-  // Iframe loading and 10s timeout state
+  // Iframe loading and timeout watchdog state
   const [isIframeLoading, setIsIframeLoading] = useState(true);
   const [isIframeTimedOut, setIsIframeTimedOut] = useState(false);
   const [iframeKey, setIframeKey] = useState(0);
@@ -204,11 +241,11 @@ export const PlayerPage: React.FC = () => {
       clearTimeout(timeoutRef.current);
     }
 
-    // Set 10s watchdog: if onLoad does not trigger within 10 seconds, show fallback error state
+    // Set 10s watchdog: if onLoad has not triggered within 10 seconds, activate timeout helper banner
     timeoutRef.current = setTimeout(() => {
       setIsIframeLoading(false);
       setIsIframeTimedOut(true);
-      console.warn('[Zhafx Player] Iframe load timed out after 10 seconds, activating fallback options.');
+      console.warn('[Zhafx Player] Iframe load timed out after 10 seconds, showing helper options.');
     }, 10000);
 
     return () => {
@@ -244,29 +281,42 @@ export const PlayerPage: React.FC = () => {
     setIframeKey((k) => k + 1);
   };
 
-  // Build clean FrameX Embed URL (Requirement 2: HTTPS only, encodeURIComponent, no localhost/vercel URLs)
+  // Build clean FrameX Embed URL (Requirement 2: HTTPS only, encodeURIComponent, full parameter passing)
   const buildEmbedUrl = (): string => {
     if (!isPlayable) return '';
 
     const cleanId = encodeURIComponent(String(id).trim());
     const ep = encodeURIComponent(String(Math.max(1, episodeNum)));
     const s = encodeURIComponent(String(Math.max(1, seasonNum)));
-    const activeServer = ANIME_SERVERS[currentServerIndex];
+    const activeServer = ANIME_SERVERS[currentServerIndex] || ANIME_SERVERS[0];
 
     const q = new URLSearchParams();
+    q.set('id', String(id).trim());
+    q.set('episode', String(Math.max(1, episodeNum)));
+    q.set('season', String(Math.max(1, seasonNum)));
+    q.set('type', mediaType === 'anime' ? 'anime' : mediaType);
+    q.set('sub_type', animeAudio || 'sub');
     q.set('autoplay', '1');
     q.set('muted', '0');
 
+    if (activeServer.provider) {
+      q.set('provider', activeServer.provider);
+    }
     if (activeServer.serverParam) {
       q.set('server', activeServer.serverParam);
     }
+    if (title?.title) {
+      q.set('title', title.title);
+    }
 
     if (mediaType === 'anime') {
-      if (animeAudio) {
-        q.set('sub_type', animeAudio);
-        q.set('audio', animeAudio);
+      if (activeServer.type === 'tv_embed') {
+        return `https://framextv.xyz/embed/tv/${cleanId}/${s}/${ep}?autoplay=1&muted=0${title?.title ? `&title=${encodeURIComponent(title.title)}` : ''}`;
       }
-      if (title?.title) q.set('title', title.title);
+      if (activeServer.type === 'universal_embed') {
+        return `https://framextv.xyz/embed/${cleanId}/${s}/${ep}?autoplay=1&muted=0${title?.title ? `&title=${encodeURIComponent(title.title)}` : ''}`;
+      }
+      // Official FrameX Anime embed: pass both path and complete query string so FrameX's ke() parser extracts id & episode
       return `https://framextv.xyz/embed/anime/${cleanId}/${ep}?${q.toString()}`;
     }
 
@@ -702,11 +752,11 @@ export const PlayerPage: React.FC = () => {
           </div>
         )}
 
-        {/* Loading Overlay */}
+        {/* Loading Overlay (Non-blocking backdrop spinner) */}
         {isIframeLoading && isPlayable && !isIframeTimedOut && (
-          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-[#06070B] space-y-3 pointer-events-none px-4 text-center">
+          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-[#06070B]/80 backdrop-blur-sm space-y-3 pointer-events-none px-4 text-center">
             <div className="w-11 h-11 border-3 border-white/20 border-t-[#FFB224] rounded-full animate-spin" />
-            <span className="text-xs font-mono text-white/60 tracking-wider uppercase">
+            <span className="text-xs font-mono text-white/80 tracking-wider uppercase">
               Menghubungkan ke {ANIME_SERVERS[currentServerIndex].name}...
             </span>
           </div>
@@ -747,30 +797,36 @@ export const PlayerPage: React.FC = () => {
           </div>
         )}
 
-        {/* 10-Second Timeout Fallback Error State (Requirement 3) */}
+        {/* 10-Second Timeout Fallback Helper Card (Requirement 3: Does NOT unmount the player) */}
         {isIframeTimedOut && isPlayable && (
-          <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-[#06070B] p-6 text-center space-y-3">
-            <div className="w-14 h-14 rounded-full bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400">
-              <AlertTriangle className="w-7 h-7" />
+          <div className="absolute top-20 sm:top-24 left-1/2 -translate-x-1/2 z-30 w-[92%] max-w-md p-4 rounded-2xl liquid-glass-dense border border-amber-500/40 text-center space-y-2.5 shadow-2xl backdrop-blur-xl animate-in-scale">
+            <div className="flex items-center justify-center gap-2 text-amber-400 font-bold text-xs sm:text-sm">
+              <AlertTriangle className="w-4 h-4 shrink-0" />
+              <span>Server sedang memuat atau lambat merespons</span>
             </div>
-            <h3 className="text-lg font-bold text-white">Server tidak merespons</h3>
-            <p className="text-xs text-white/60 max-w-md">
-              Pemutar belum selesai dimuat dalam 10 detik atau server sedang mengalami gangguan koneksi.
+            <p className="text-[11px] text-white/70 leading-snug">
+              Pemutar membutuhkan waktu lebih lama untuk memuat stream dari server ini. Anda dapat menunggu beberapa saat, coba lagi, atau beralih ke server cadangan.
             </p>
-            <div className="flex flex-wrap items-center justify-center gap-2.5 pt-2">
+            <div className="flex items-center justify-center gap-2 pt-1">
               <button
                 onClick={handleRetry}
-                className="px-5 py-2.5 rounded-full bg-white/10 hover:bg-white/20 text-white text-xs font-semibold cursor-pointer ios-spring flex items-center gap-1.5 border border-white/15"
+                className="px-3.5 py-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white text-[11px] font-semibold cursor-pointer ios-spring flex items-center gap-1.5 border border-white/15"
               >
-                <RotateCw className="w-3.5 h-3.5 text-white" />
+                <RotateCw className="w-3 h-3 text-white" />
                 <span>Coba lagi</span>
               </button>
               <button
                 onClick={handleNextServer}
-                className="px-5 py-2.5 rounded-full bg-[#FFB224] text-black text-xs font-bold hover:bg-[#FFA500] cursor-pointer shadow-lg ios-spring flex items-center gap-1.5"
+                className="px-4 py-1.5 rounded-full bg-[#FFB224] text-black text-[11px] font-bold hover:bg-[#FFA500] cursor-pointer shadow-lg ios-spring flex items-center gap-1.5"
               >
-                <Server className="w-4 h-4" />
-                <span>Ganti Server</span>
+                <Server className="w-3.5 h-3.5" />
+                <span>Ganti Server ({((currentServerIndex + 1) % ANIME_SERVERS.length) + 1}/{ANIME_SERVERS.length})</span>
+              </button>
+              <button
+                onClick={() => setIsIframeTimedOut(false)}
+                className="px-2.5 py-1.5 rounded-full bg-transparent text-white/50 hover:text-white text-[11px] cursor-pointer"
+              >
+                Tutup
               </button>
             </div>
           </div>
@@ -782,8 +838,9 @@ export const PlayerPage: React.FC = () => {
           - width="100%" height="100%" frameBorder="0" allowFullScreen
           - allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
           - referrerPolicy="origin" loading="lazy"
+          - Stays persistently mounted while isPlayable so playback never gets aborted prematurely
         */}
-        {isPlayable && !isIframeTimedOut && (
+        {isPlayable && (
           <iframe
             key={`${id}-${mediaType}-${seasonNum}-${episodeNum}-${currentServerIndex}-${iframeKey}-${animeAudio}`}
             src={embedUrl}
@@ -794,9 +851,9 @@ export const PlayerPage: React.FC = () => {
             allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
             referrerPolicy="origin"
             loading="lazy"
-            title={title?.title || 'Zhafx Anime Stream'}
+            title={title?.title || 'Zhafx Stream Player'}
             onLoad={handleIframeLoad}
-            className="w-full h-full border-0 absolute inset-0"
+            className="w-full h-full border-0 absolute inset-0 z-10"
           />
         )}
       </div>

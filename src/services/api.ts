@@ -1179,22 +1179,24 @@ export const api = {
     const ep = Math.max(1, Math.round(Number(episode) || 1));
     const s = Math.max(1, Math.round(Number(season) || 1));
 
-    // Official FrameX Anime embed player (https://framextv.xyz/embed/anime/:id/:episode)
+    // Official FrameX Anime embed player
     if (type === 'anime') {
       const q = new URLSearchParams();
+      q.set('id', String(id).trim());
+      q.set('episode', String(ep));
+      q.set('season', String(s));
+      q.set('type', 'anime');
+      q.set('sub_type', audio || 'sub');
       q.set('autoplay', autoplay ? '1' : '0');
       q.set('muted', muted ? '1' : '0');
       if (server && server !== 'auto' && server !== 'direct_stream' && server !== 'framex') {
+        q.set('provider', server);
         q.set('server', server);
-      }
-      if (audio) {
-        q.set('sub_type', audio);
-        q.set('audio', audio);
       }
       if (title) q.set('title', title);
       if (poster) q.set('poster', poster);
 
-      // Official FrameX Anime Embed URL format: https://framextv.xyz/embed/anime/:id/:episode
+      // Official FrameX Anime Embed URL format: https://framextv.xyz/embed/anime/:id/:episode?id=...&episode=...
       return `https://framextv.xyz/embed/anime/${cleanId}/${encodeURIComponent(String(ep))}?${q.toString()}`;
     }
 
