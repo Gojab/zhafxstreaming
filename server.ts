@@ -259,14 +259,15 @@ app.get('/api/providers', async (req: Request, res: Response) => {
   if (type === 'tv') {
     return res.json({
       providers: [
+        { id: 'miner', name: 'Miner XIX', tagline: 'Movy Multi-City TV Series 4K', category: 'tv', status: 'available' },
         { id: 'headhunter', name: 'Headhunter XXXI', tagline: 'VidLink TV Series Multi-Sub', category: 'tv', status: 'available' },
         { id: 'valkyrie', name: 'Valkyrie VI', tagline: '4K Ultra TV Multi-Server', category: 'tv', status: 'available' },
-        { id: 'miner', name: 'Miner XIX', tagline: 'Movy Multi-City TV Series 4K', category: 'tv', status: 'available' },
+        { id: 'titan', name: 'Titan VII', tagline: 'Films365 Direct MP4 1080p Server', category: 'tv', status: 'available' },
+        { id: 'hog_rider', name: 'Hog Rider XI', tagline: '4K TV Server', category: 'tv', status: 'available' },
+        { id: 'lavahound', name: 'Lava Hound XII', tagline: '4K Fast TV Series Stream', category: 'tv', status: 'available' },
         { id: 'super_barbarian', name: 'Super Barbarian XVI', tagline: 'Direct Auto HLS TV Stream', category: 'tv', status: 'available' },
         { id: 'bowler', name: 'Bowler XVIII', tagline: 'Multi-Language TV Episodes', category: 'tv', status: 'available' },
         { id: 'giant', name: 'Giant XI', tagline: 'Multi-Audio TV Stream Cepat', category: 'tv', status: 'available' },
-        { id: 'lavahound', name: 'Lava Hound XII', tagline: '4K Fast TV Series Stream', category: 'tv', status: 'available' },
-        { id: 'hog_rider', name: 'Hog Rider XI', tagline: '4K TV Server', category: 'tv', status: 'available' },
       ],
     });
   }

@@ -8,19 +8,32 @@ import {
   RotateCw,
   Maximize,
   Minimize,
-  ListOrdered,
-  CheckCircle2,
-  X,
-  Tv,
-  Film,
+  Star,
+  Bookmark,
+  BookmarkCheck,
+  Share2,
   Sparkles,
   Volume2,
-  AlertTriangle,
   ShieldCheck,
+  Film,
+  Tv,
+  Play,
+  Info,
+  AlertTriangle,
+  ChevronDown,
+  ChevronUp,
+  Clock,
+  Layers,
+  ListOrdered,
+  X,
 } from 'lucide-react';
 import { api } from '../services/api';
 import { Title, MediaType, Episode } from '../types';
 import { storage } from '../lib/storage';
+import { useMyList } from '../hooks/useMyList';
+import { useActiveMedia } from '../context/ActiveMediaContext';
+import { MediaRow } from '../components/MediaRow';
+import { SEOHead } from '../components/SEOHead';
 
 export interface ServerOption {
   id: string;
@@ -111,7 +124,8 @@ export const MOVIE_SERVERS: ServerOption[] = [
 ];
 
 // =========================================================================
-// 2. Dedicated Servers Khusus SERIAL TV — FrameX API Engine
+// 2. Dedicated Servers Khusus SERIAL TV — FrameX API Engine (Dimulai dari Miner 4K)
+// Mengikuti konfigurasi Film dengan Miner 4K di urutan pertama
 // =========================================================================
 export const TV_SERVERS: ServerOption[] = [
   {
@@ -156,7 +170,7 @@ export const TV_SERVERS: ServerOption[] = [
   },
   {
     id: 'server-tv-6',
-    name: 'Server TV 6 — Lava Hound TV',
+    name: 'Server TV 6 — Lava Hound',
     tagline: '4K Fast TV Series Multi-Server Stream',
     type: 'tv_embed',
     provider: 'lavahound',
@@ -164,23 +178,23 @@ export const TV_SERVERS: ServerOption[] = [
   },
   {
     id: 'server-tv-7',
-    name: 'Server TV 7 — Super Barbarian HLS',
+    name: 'Server TV 7 — Super Barbarian',
     tagline: 'Direct Auto HLS TV Series Stream',
     type: 'tv_embed',
     provider: 'super_barbarian',
-    badge: 'AUTO HLS TV',
+    badge: 'AUTO HLS',
   },
   {
     id: 'server-tv-8',
-    name: 'Server TV 8 — Bowler Multi-Sub',
+    name: 'Server TV 8 — Bowler Multi-Lang',
     tagline: 'Multi-Language TV Episodes & Softsub',
     type: 'tv_embed',
     provider: 'bowler',
-    badge: 'MULTI-SUB',
+    badge: 'MULTI-LANG',
   },
   {
     id: 'server-tv-9',
-    name: 'Server TV 9 — Giant TV Stream',
+    name: 'Server TV 9 — Giant Multi-Audio',
     tagline: 'Multi-Audio TV Stream Cepat',
     type: 'tv_embed',
     provider: 'giant',
@@ -189,12 +203,12 @@ export const TV_SERVERS: ServerOption[] = [
 ];
 
 // =========================================================================
-// 3. Dedicated Servers Khusus ANIME — FrameX API Engine
+// 3. Dedicated Servers Khusus ANIME — FrameX API Engine (100% Bebas Sandbox)
 // =========================================================================
 export const ANIME_SERVERS: ServerOption[] = [
   {
     id: 'server-anime-1',
-    name: 'Server Anime 1 — Grand Warden Cloud',
+    name: 'Server Anime 1 — Grand Warden',
     tagline: 'Multi-Source Cloud • 1080p Ultra Fast',
     type: 'anime_embed',
     provider: 'grand_warden',
@@ -258,7 +272,11 @@ export const ANIME_SERVERS: ServerOption[] = [
   },
 ];
 
-export const PlayerPage: React.FC = () => {
+interface PlayerPageProps {
+  onOpenAIWithContext?: (title: Title) => void;
+}
+
+export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) => {
   const { type: rawType, id, season: rawSeason, episode: rawEpisode } = useParams<{
     type?: string;
     id?: string;
@@ -290,20 +308,20 @@ export const PlayerPage: React.FC = () => {
   const [failoverNotice, setFailoverNotice] = useState<string | null>(null);
   const timeoutRef = useRef<any>(null);
 
-  // UI state
+  // Fullscreen state
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [isCssFullscreen, setIsCssFullscreen] = useState(false);
-  const [showControls, setShowControls] = useState(true);
-  const controlsTimeoutRef = useRef<any>(null);
+  const [isOverviewExpanded, setIsOverviewExpanded] = useState(false);
+  const [episodeViewMode, setEpisodeViewMode] = useState<'visual' | 'grid'>('visual');
+  const [selectedSeason, setSelectedSeason] = useState<number>(seasonNum);
+  const [episodesList, setEpisodesList] = useState<Episode[]>([]);
+  const [showShareToast, setShowShareToast] = useState(false);
+  const [isTipDismissed, setIsTipDismissed] = useState(false);
 
-  // Episode Drawer
-  const [drawerEpisodes, setDrawerEpisodes] = useState<Episode[]>([]);
-  const [isEpisodeDrawerOpen, setIsEpisodeDrawerOpen] = useState(false);
-  const [drawerTab, setDrawerTab] = useState<'thumbnails' | 'grid'>('thumbnails');
-
+  const { isSaved, toggle } = useMyList();
+  const { setActiveMedia } = useActiveMedia();
   const playerContainerRef = useRef<HTMLDivElement | null>(null);
 
-  // Comprehensive anti-ad and anti-popup protection
+  // Anti-popup guard
   useEffect(() => {
     const originalOpen = window.open;
     window.open = function (...args: any[]) {
@@ -390,14 +408,17 @@ export const PlayerPage: React.FC = () => {
 
         setTitle(finalTitle);
         recordHistory(finalTitle);
+        if (finalTitle.backdrop || finalTitle.poster) {
+          setActiveMedia(finalTitle.backdrop || finalTitle.poster, finalTitle.title);
+        }
 
         if (mediaType === 'tv') {
-          api.getSeasonEpisodes(id, seasonNum, controller.signal)
-            .then((eps) => setDrawerEpisodes(eps))
+          api.getSeasonEpisodes(id, selectedSeason, controller.signal)
+            .then((eps) => setEpisodesList(eps))
             .catch(() => {});
         } else if (mediaType === 'anime') {
           api.getAnimeEpisodes(id, controller.signal)
-            .then((eps) => setDrawerEpisodes(eps))
+            .then((eps) => setEpisodesList(eps))
             .catch(() => {});
         }
       } catch (err: any) {
@@ -409,7 +430,7 @@ export const PlayerPage: React.FC = () => {
 
     fetchInitData();
     return () => controller.abort();
-  }, [id, mediaType, seasonNum, episodeNum, recordHistory, searchParams]);
+  }, [id, mediaType, seasonNum, episodeNum, selectedSeason, recordHistory, searchParams, setActiveMedia]);
 
   // Resolve dedicated server list based on mediaType (Film / Serial TV / Anime)
   const activeServerList: ServerOption[] =
@@ -464,14 +485,6 @@ export const PlayerPage: React.FC = () => {
     setIframeKey((k) => k + 1);
   };
 
-  // Retry loading current server
-  const handleRetry = () => {
-    setIsIframeLoading(true);
-    setIframeKey((k) => k + 1);
-  };
-
-
-
   // Build clean FrameX Embed URL (HTTPS only, URL and URLSearchParams, no double encoding, no_ads=1)
   const buildEmbedUrl = (): string => {
     if (!isPlayable) return '';
@@ -492,14 +505,15 @@ export const PlayerPage: React.FC = () => {
         else if (targetProvider === 'dragon') targetProvider = 'dragon_dub';
       }
 
-      // Official FrameX Anime Embed
+      // Official FrameX Anime Embed (https://framextv.xyz/) - 100% Sandbox Free
       const baseUrl = `https://framextv.xyz/embed/anime/${encodeURIComponent(cleanId)}/${encodeURIComponent(String(validEp))}`;
       const url = new URL(baseUrl);
       url.searchParams.set('id', cleanId);
       url.searchParams.set('episode', String(validEp));
-      url.searchParams.set('season', String(validSeason));
+      url.searchParams.set('season', '1');
       url.searchParams.set('type', 'anime');
       url.searchParams.set('sub_type', animeAudio);
+      url.searchParams.set('audio', animeAudio);
       url.searchParams.set('provider', targetProvider);
       url.searchParams.set('autoplay', '1');
       url.searchParams.set('muted', '0');
@@ -511,7 +525,7 @@ export const PlayerPage: React.FC = () => {
     }
 
     if (mediaType === 'tv') {
-      // Official FrameX TV Series Embed
+      // Official FrameX TV Series Embed (https://framextv.xyz/) - Dimulai dari Miner 4K
       const baseUrl = `https://framextv.xyz/embed/tv/${encodeURIComponent(cleanId)}/${encodeURIComponent(String(validSeason))}/${encodeURIComponent(String(validEp))}`;
       const url = new URL(baseUrl);
       url.searchParams.set('id', cleanId);
@@ -528,7 +542,7 @@ export const PlayerPage: React.FC = () => {
       return url.toString();
     }
 
-    // Official FrameX Movie Embed
+    // Official FrameX Movie Embed (https://framextv.xyz/)
     const baseUrl = `https://framextv.xyz/embed/movie/${encodeURIComponent(cleanId)}`;
     const url = new URL(baseUrl);
     url.searchParams.set('id', cleanId);
@@ -545,7 +559,7 @@ export const PlayerPage: React.FC = () => {
 
   const embedUrl = buildEmbedUrl();
 
-  // Handle Fullscreen tracking (Native + CSS Fallback)
+  // Fullscreen tracking
   useEffect(() => {
     const handleFsChange = () => {
       const isNativeFs = !!(
@@ -554,102 +568,50 @@ export const PlayerPage: React.FC = () => {
         (document as any).mozFullScreenElement ||
         (document as any).msFullscreenElement
       );
-      setIsFullscreen(isNativeFs || isCssFullscreen);
+      setIsFullscreen(isNativeFs);
     };
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isCssFullscreen) {
-        setIsCssFullscreen(false);
+      if (e.key === 'Escape' && isFullscreen) {
         setIsFullscreen(false);
       }
     };
 
     document.addEventListener('fullscreenchange', handleFsChange);
     document.addEventListener('webkitfullscreenchange', handleFsChange);
-    document.addEventListener('mozfullscreenchange', handleFsChange);
-    document.addEventListener('MSFullscreenChange', handleFsChange);
     window.addEventListener('keydown', handleKeyDown);
 
     return () => {
       document.removeEventListener('fullscreenchange', handleFsChange);
       document.removeEventListener('webkitfullscreenchange', handleFsChange);
-      document.removeEventListener('mozfullscreenchange', handleFsChange);
-      document.removeEventListener('MSFullscreenChange', handleFsChange);
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isCssFullscreen]);
+  }, [isFullscreen]);
 
-  // Controls auto-hide timer
-  const resetControlsTimeout = useCallback(() => {
-    setShowControls(true);
-    if (controlsTimeoutRef.current) {
-      clearTimeout(controlsTimeoutRef.current);
-    }
-    controlsTimeoutRef.current = setTimeout(() => {
-      setShowControls(false);
-    }, 4500);
-  }, []);
+  const toggleFullscreen = async () => {
+    if (!playerContainerRef.current) return;
 
-  useEffect(() => {
-    return () => {
-      if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
-    };
-  }, []);
-
-  const toggleFullscreen = () => {
-    const isCurrentlyFs =
-      !!(
-        document.fullscreenElement ||
-        (document as any).webkitFullscreenElement ||
-        (document as any).mozFullScreenElement ||
-        (document as any).msFullscreenElement
-      ) || isCssFullscreen;
-
-    if (isCurrentlyFs) {
-      setIsCssFullscreen(false);
-      setIsFullscreen(false);
+    if (!isFullscreen) {
       try {
-        if (document.exitFullscreen) {
-          document.exitFullscreen().catch(() => {});
-        } else if ((document as any).webkitExitFullscreen) {
-          (document as any).webkitExitFullscreen();
+        if (playerContainerRef.current.requestFullscreen) {
+          await playerContainerRef.current.requestFullscreen();
+        } else if ((playerContainerRef.current as any).webkitRequestFullscreen) {
+          await (playerContainerRef.current as any).webkitRequestFullscreen();
         }
+        setIsFullscreen(true);
       } catch {
-        // ignore
-      }
-    } else {
-      const container = playerContainerRef.current;
-      if (!container) return;
-
-      const reqFs =
-        container.requestFullscreen ||
-        (container as any).webkitRequestFullscreen ||
-        (container as any).mozRequestFullScreen ||
-        (container as any).msRequestFullscreen;
-
-      if (reqFs) {
-        try {
-          const promise = reqFs.call(container);
-          if (promise && typeof promise.then === 'function') {
-            promise
-              .then(() => setIsFullscreen(true))
-              .catch(() => {
-                setIsCssFullscreen(true);
-                setIsFullscreen(true);
-              });
-          } else {
-            setIsFullscreen(true);
-          }
-        } catch {
-          setIsCssFullscreen(true);
-          setIsFullscreen(true);
-        }
-      } else {
-        setIsCssFullscreen(true);
         setIsFullscreen(true);
       }
+    } else {
+      try {
+        if (document.exitFullscreen) {
+          await document.exitFullscreen();
+        } else if ((document as any).webkitExitFullscreen) {
+          await (document as any).webkitExitFullscreen();
+        }
+      } catch {}
+      setIsFullscreen(false);
     }
-    resetControlsTimeout();
   };
 
   const totalEpisodes =
@@ -660,8 +622,11 @@ export const PlayerPage: React.FC = () => {
   const hasPrevEpisode = episodeNum > 1;
   const hasNextEpisode = (mediaType === 'tv' || mediaType === 'anime') && episodeNum < totalEpisodes;
 
+  const currentEpisodeObj = episodesList.find((e) => e.number === episodeNum);
+  const nextEpisodeObj = episodesList.find((e) => e.number === episodeNum + 1);
+  const nextEpisodeTitle = nextEpisodeObj?.name || (hasNextEpisode ? `Episode ${episodeNum + 1}` : null);
+
   const navigateEpisode = (targetEp: number) => {
-    setIsEpisodeDrawerOpen(false);
     setIsIframeLoading(true);
     if (mediaType === 'tv') {
       navigate(`/watch/tv/${id}/${seasonNum}/${targetEp}`);
@@ -670,395 +635,154 @@ export const PlayerPage: React.FC = () => {
     }
   };
 
+  const handleShare = () => {
+    try {
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(window.location.href);
+        setShowShareToast(true);
+        setTimeout(() => setShowShareToast(false), 2500);
+      }
+    } catch {}
+  };
+
   return (
-    <div
-      ref={playerContainerRef}
-      onMouseMove={resetControlsTimeout}
-      onTouchStart={resetControlsTimeout}
-      className={`min-h-screen w-full bg-[#06070B] flex flex-col relative select-none overflow-hidden ${
-        isCssFullscreen ? 'fixed inset-0 z-[99999] w-screen h-screen !m-0 !p-0' : ''
-      }`}
-    >
-      {/* Sleek Top Navigation Header */}
-      <header
-        className={`fixed top-2 sm:top-4 left-2 right-2 sm:left-4 sm:right-4 max-w-7xl mx-auto z-40 transition-all duration-300 pointer-events-none ${
-          showControls ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'
-        }`}
-      >
-        <div className="min-h-12 sm:min-h-14 px-3 sm:px-4 py-1.5 rounded-[20px] sm:rounded-full liquid-glass-dense liquid-specular flex items-center justify-between gap-1.5 sm:gap-3 shadow-2xl pointer-events-auto border border-white/20 flex-wrap sm:flex-nowrap">
-          {/* Left: Back & Media Info */}
-          <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
-            <button
-              onClick={() => {
-                if (window.history.length > 1) {
-                  navigate(-1);
-                } else {
-                  navigate(`/detail/${mediaType}/${id}`);
-                }
-              }}
-              className="w-8 h-8 sm:w-9 sm:h-9 rounded-full liquid-glass flex items-center justify-center text-white/80 hover:text-white hover:bg-white/[0.18] cursor-pointer ios-spring shrink-0"
-              title="Kembali"
-              aria-label="Kembali"
-            >
-              <ArrowLeft className="w-4 h-4" />
-            </button>
-
-            <div className="min-w-0">
-              <h1 className="text-xs sm:text-sm font-bold text-white truncate leading-tight max-w-[130px] sm:max-w-[200px] md:max-w-xs">
-                {title?.title || 'Memuat Pemutar...'}
-              </h1>
-              <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                {mediaType === 'movie' && (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/40 text-[#FFB224] text-[9px] sm:text-[10px] font-bold tracking-wide">
-                    <Film className="w-2.5 h-2.5" />
-                    PLAYER KHUSUS FILM
-                  </span>
-                )}
-                {mediaType === 'tv' && (
-                  <>
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 text-[9px] sm:text-[10px] font-bold tracking-wide">
-                      <Tv className="w-2.5 h-2.5" />
-                      PLAYER KHUSUS TV
-                    </span>
-                    <span className="text-[10px] text-white/70 font-medium">Musim {seasonNum} • Ep {episodeNum}</span>
-                  </>
-                )}
-                {mediaType === 'anime' && (
-                  <>
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-violet-500/20 border border-violet-500/40 text-violet-300 text-[9px] sm:text-[10px] font-bold tracking-wide">
-                      <Sparkles className="w-2.5 h-2.5" />
-                      PLAYER KHUSUS ANIME
-                    </span>
-                    <span className="text-[10px] text-white/70 font-medium">Ep {episodeNum}</span>
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Right: Controls & Server Switcher */}
-          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-            {/* Episode Quick Switcher for TV / Anime */}
-            {(mediaType === 'tv' || mediaType === 'anime') && (
-              <div className="flex items-center gap-0.5 sm:gap-1 bg-white/[0.06] border border-white/10 rounded-full p-0.5">
-                <button
-                  onClick={() => navigateEpisode(episodeNum - 1)}
-                  disabled={!hasPrevEpisode}
-                  title="Episode Sebelumnya"
-                  aria-label="Episode Sebelumnya"
-                  className="w-7 h-7 rounded-full flex items-center justify-center text-white/80 hover:text-white disabled:opacity-25 disabled:pointer-events-none ios-spring cursor-pointer"
-                >
-                  <ChevronLeft className="w-3.5 h-3.5" />
-                </button>
-
-                <button
-                  onClick={() => setIsEpisodeDrawerOpen(!isEpisodeDrawerOpen)}
-                  className="px-2 sm:px-2.5 py-1 rounded-full bg-white/[0.12] hover:bg-white/[0.2] text-[10px] sm:text-[11px] font-bold text-white flex items-center gap-1 cursor-pointer ios-spring"
-                  title="Buka daftar episode"
-                >
-                  <ListOrdered className="w-3 h-3 text-white" />
-                  <span>Ep {episodeNum}</span>
-                </button>
-
-                <button
-                  onClick={() => navigateEpisode(episodeNum + 1)}
-                  disabled={!hasNextEpisode}
-                  title="Episode Berikutnya"
-                  aria-label="Episode Berikutnya"
-                  className="w-7 h-7 rounded-full flex items-center justify-center text-white/80 hover:text-white disabled:opacity-25 disabled:pointer-events-none ios-spring cursor-pointer"
-                >
-                  <ChevronRight className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            )}
-
-            {/* Anime Sandbox Disabled Indicator */}
-            {mediaType === 'anime' && (
-              <div
-                className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] sm:text-[11px] font-bold bg-emerald-500/20 border border-emerald-400 text-emerald-300 shadow-sm"
-                title="Pemutar Resmi FrameX (100% Sandbox Dinonaktifkan)"
-              >
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Sandbox Nonaktif</span>
-              </div>
-            )}
-
-            {/* Anime Audio Sub / Dub Selector */}
-            {mediaType === 'anime' && (
-              <button
-                onClick={() => {
-                  const nextAudio = animeAudio === 'sub' ? 'dub' : 'sub';
-                  setAnimeAudio(nextAudio);
-                }}
-                className={`px-2.5 py-1 rounded-full text-[10px] sm:text-[11px] font-bold border transition-all cursor-pointer ios-spring flex items-center gap-1 ${
-                  animeAudio === 'sub'
-                    ? 'bg-violet-500/30 border-violet-400 text-white shadow-sm'
-                    : 'bg-white/10 border-white/20 text-white/70'
-                }`}
-                title="Pilih Audio: Sub (Jepang) atau Dub (Inggris)"
-              >
-                <Volume2 className="w-3 h-3 text-white" />
-                <span>{animeAudio === 'sub' ? 'SUB' : 'DUB'}</span>
-              </button>
-            )}
-
-            {/* Dedicated "Ganti Server" Button per mediaType */}
-            <button
-              onClick={handleNextServer}
-              className={`px-2.5 sm:px-3 py-1 rounded-full text-[10px] sm:text-[11px] font-bold border transition-all cursor-pointer ios-spring flex items-center gap-1.5 shrink-0 ${
-                mediaType === 'anime'
-                  ? 'bg-violet-500/20 hover:bg-violet-500/30 border-violet-500/50 text-violet-300'
-                  : mediaType === 'tv'
-                  ? 'bg-emerald-500/20 hover:bg-emerald-500/30 border-emerald-500/50 text-emerald-300'
-                  : 'bg-[#FFB224]/20 hover:bg-[#FFB224]/30 border-[#FFB224]/50 text-[#FFB224]'
-              }`}
-              title={`Ganti ke server cadangan ${mediaType === 'anime' ? 'anime' : mediaType === 'tv' ? 'serial TV' : 'film'} berikutnya`}
-            >
-              <Server className="w-3 h-3" />
-              <span>
-                {mediaType === 'anime'
-                  ? 'Ganti Server Anime'
-                  : mediaType === 'tv'
-                  ? 'Ganti Server TV'
-                  : 'Ganti Server Film'}
-              </span>
-            </button>
-
-            {/* Server Selector Dropdown */}
-            <div className="flex items-center gap-1 px-2 sm:px-2.5 py-1 rounded-full liquid-glass text-xs text-white">
-              <select
-                value={safeServerIndex}
-                onChange={(e) => {
-                  const idx = parseInt(e.target.value, 10);
-                  setCurrentServerIndex(idx);
-                  setIsIframeLoading(true);
-                  setIframeKey((k) => k + 1);
-                }}
-                aria-label={`Pilih server ${mediaType}`}
-                className="bg-transparent text-[10px] sm:text-xs text-white font-medium focus:outline-none cursor-pointer max-w-[120px] sm:max-w-[190px] truncate"
-              >
-                {activeServerList.map((s, idx) => (
-                  <option key={s.id} value={idx} className="bg-[#12141F] text-white">
-                    {s.name} {s.badge ? `• ${s.badge}` : ''}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Reload Stream Button */}
-            <button
-              onClick={handleRetry}
-              title="Muat ulang pemutar"
-              aria-label="Muat ulang pemutar"
-              className="w-7 h-7 sm:w-8 sm:h-8 rounded-full liquid-glass flex items-center justify-center text-white/80 hover:text-white hover:bg-white/[0.18] transition-all cursor-pointer ios-spring"
-            >
-              <RotateCw className="w-3.5 h-3.5" />
-            </button>
-
-            {/* Fullscreen Button */}
-            <button
-              onClick={toggleFullscreen}
-              title={isFullscreen ? 'Keluar Layar Penuh' : 'Layar Penuh'}
-              aria-label={isFullscreen ? 'Keluar Layar Penuh' : 'Layar Penuh'}
-              className="w-7 h-7 sm:w-8 sm:h-8 rounded-full liquid-glass flex items-center justify-center text-white/80 hover:text-white hover:bg-white/[0.18] transition-all cursor-pointer ios-spring"
-            >
-              {isFullscreen ? <Minimize className="w-3.5 h-3.5" /> : <Maximize className="w-3.5 h-3.5" />}
-            </button>
-          </div>
-        </div>
-      </header>
-
-      {/* SERIES EPISODE SELECTION DRAWER */}
-      {isEpisodeDrawerOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5">
-          <div
-            className="fixed inset-0 bg-black/85 backdrop-blur-xl transition-opacity"
-            onClick={() => setIsEpisodeDrawerOpen(false)}
-          />
-          <div className="relative w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-[32px] liquid-glass-dense liquid-specular p-5 sm:p-6 space-y-4 z-10 border border-white/20 shadow-2xl text-white">
-            <div className="flex items-center justify-between pb-3 border-b border-white/10">
-              <div className="flex items-center gap-2.5">
-                <Tv className="w-4 h-4 text-[#FFB224]" />
-                <div>
-                  <h3 className="text-sm sm:text-base font-bold text-white">
-                    Pilih Episode ({mediaType === 'anime' ? 'Anime HD' : `Musim ${seasonNum}`})
-                  </h3>
-                  <p className="text-[11px] text-white/50">
-                    Lihat cuplikan visual thumbnail setiap episode
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <div className="flex p-0.5 rounded-full bg-white/10 border border-white/10 text-xs">
-                  <button
-                    onClick={() => setDrawerTab('thumbnails')}
-                    className={`px-2.5 py-1 rounded-full transition-all cursor-pointer ${
-                      drawerTab === 'thumbnails' ? 'bg-[#FFB224] text-black font-bold' : 'text-white/70'
-                    }`}
-                  >
-                    Visual
-                  </button>
-                  <button
-                    onClick={() => setDrawerTab('grid')}
-                    className={`px-2.5 py-1 rounded-full transition-all cursor-pointer ${
-                      drawerTab === 'grid' ? 'bg-[#FFB224] text-black font-bold' : 'text-white/70'
-                    }`}
-                  >
-                    Angka
-                  </button>
-                </div>
-
-                <button
-                  onClick={() => setIsEpisodeDrawerOpen(false)}
-                  className="w-8 h-8 rounded-full liquid-glass flex items-center justify-center text-white/70 hover:text-white cursor-pointer ios-spring"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-
-            {drawerTab === 'thumbnails' ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[60vh] overflow-y-auto pr-1">
-                {Array.from({ length: totalEpisodes }, (_, i) => i + 1).map((ep) => {
-                  const isCurrent = ep === episodeNum;
-                  const matchingEp = drawerEpisodes.find((e) => e.number === ep);
-                  const epThumb = matchingEp?.still || matchingEp?.stillPath || title?.backdrop || title?.poster;
-
-                  return (
-                    <button
-                      key={ep}
-                      onClick={() => navigateEpisode(ep)}
-                      className={`flex items-center gap-3 p-2.5 rounded-[18px] border text-left transition-all cursor-pointer ios-spring group ${
-                        isCurrent
-                          ? 'bg-[#FFB224]/15 border-[#FFB224] shadow-lg'
-                          : 'bg-white/[0.04] hover:bg-white/[0.08] border-white/10'
-                      }`}
-                    >
-                      <div className="relative w-28 aspect-video shrink-0 rounded-[10px] overflow-hidden bg-black/40 border border-white/10">
-                        <img
-                          src={epThumb}
-                          alt={`Ep ${ep}`}
-                          loading="lazy"
-                          onError={(e) => {
-                            (e.currentTarget as HTMLImageElement).src =
-                              title?.backdrop || title?.poster || '';
-                          }}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                        />
-                        <div className="absolute top-1 left-1 px-1.5 py-0.5 rounded bg-black/80 text-[10px] font-bold text-white">
-                          Ep {ep}
-                        </div>
-                        {isCurrent && (
-                          <div className="absolute inset-0 bg-[#FFB224]/30 flex items-center justify-center">
-                            <CheckCircle2 className="w-5 h-5 text-black" />
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="flex-1 min-w-0">
-                        <h4 className="text-xs font-bold text-white group-hover:text-[#FFB224] line-clamp-1">
-                          {matchingEp?.name || `Episode ${ep}`}
-                        </h4>
-                        {matchingEp?.overview && (
-                          <p className="text-[10px] text-white/50 line-clamp-2 mt-0.5 leading-snug">
-                            {matchingEp.overview}
-                          </p>
-                        )}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2 max-h-[60vh] overflow-y-auto pr-1">
-                {Array.from({ length: totalEpisodes }, (_, i) => i + 1).map((ep) => {
-                  const isCurrent = ep === episodeNum;
-                  return (
-                    <button
-                      key={ep}
-                      onClick={() => navigateEpisode(ep)}
-                      className={`py-3 px-2 rounded-[16px] text-xs font-semibold flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ios-spring ${
-                        isCurrent
-                          ? 'bg-[#FFB224] text-black font-bold shadow-lg scale-105'
-                          : 'bg-white/[0.06] hover:bg-white/[0.14] border border-white/10 text-white'
-                      }`}
-                    >
-                      <span>Ep {ep}</span>
-                      {isCurrent && <CheckCircle2 className="w-3 h-3 text-black" />}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
+    <div className="min-h-screen bg-[#06070B] text-white flex flex-col relative pb-20">
+      {/* Dynamic SEO Meta */}
+      {title && (
+        <SEOHead
+          title={`Nonton ${title.title} ${mediaType === 'tv' ? `Musim ${seasonNum} Ep ${episodeNum}` : mediaType === 'anime' ? `Episode ${episodeNum}` : ''}`}
+          description={title.overview || `Streaming ${title.title} kualitas 4K Ultra HD di Zhafx.`}
+          ogType="video.movie"
+        />
       )}
 
-      {/* Main Viewport Container */}
-      <div className="relative flex-1 w-full h-screen bg-black flex items-center justify-center overflow-hidden">
+      {/* Breadcrumb & Top Bar Above Player */}
+      <div className="w-full max-w-5xl mx-auto px-3 sm:px-6 pt-4 pb-2.5 flex items-center justify-between gap-3 text-xs text-white/70">
+        <div className="flex items-center gap-2 min-w-0">
+          <button
+            onClick={() => {
+              if (window.history.length > 1) {
+                navigate(-1);
+              } else {
+                navigate(`/detail/${mediaType}/${id}`);
+              }
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/15 text-white font-medium cursor-pointer transition-all active:scale-95 shrink-0"
+            title="Kembali"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Kembali</span>
+          </button>
+
+          <span className="text-white/30 hidden sm:inline">/</span>
+
+          <span
+            className="truncate text-white/60 hover:text-white cursor-pointer hidden sm:inline"
+            onClick={() => navigate('/explore')}
+          >
+            {mediaType === 'movie' ? 'Film' : mediaType === 'tv' ? 'Serial TV' : 'Anime'}
+          </span>
+
+          <span className="text-white/30 hidden sm:inline">/</span>
+
+          <span className="truncate text-white font-semibold">
+            {title?.title || 'Memuat Pemutar...'}
+          </span>
+
+          {(mediaType === 'tv' || mediaType === 'anime') && (
+            <span className="px-2 py-0.5 rounded-full bg-white/10 text-[10px] font-bold text-white shrink-0">
+              {mediaType === 'tv' ? `S${seasonNum} E${episodeNum}` : `Ep ${episodeNum}`}
+            </span>
+          )}
+        </div>
+
+        {/* Right Top Actions */}
+        <div className="flex items-center gap-2 shrink-0">
+          {title && (
+            <button
+              onClick={() =>
+                toggle({
+                  id: title.id,
+                  type: title.type,
+                  title: title.title,
+                  poster: title.poster,
+                  year: title.year,
+                  rating: title.rating,
+                })
+              }
+              className={`p-2 rounded-full bg-white/10 hover:bg-white/15 cursor-pointer transition-all ${
+                isSaved(title.id) ? 'text-[#FFB224]' : 'text-white/80'
+              }`}
+              title={isSaved(title.id) ? 'Hapus dari Daftar Saya' : 'Simpan ke Daftar Saya'}
+            >
+              {isSaved(title.id) ? <BookmarkCheck className="w-3.5 h-3.5" /> : <Bookmark className="w-3.5 h-3.5" />}
+            </button>
+          )}
+
+          <button
+            onClick={handleShare}
+            className="p-2 rounded-full bg-white/10 hover:bg-white/15 text-white/80 hover:text-white cursor-pointer transition-all relative"
+            title="Bagikan Tayangan"
+          >
+            <Share2 className="w-3.5 h-3.5" />
+            {showShareToast && (
+              <span className="absolute -bottom-8 right-0 bg-[#FFB224] text-black text-[10px] font-bold px-2 py-0.5 rounded-md whitespace-nowrap shadow-lg">
+                Tautan disalin!
+              </span>
+            )}
+          </button>
+
+          {title && onOpenAIWithContext && (
+            <button
+              onClick={() => onOpenAIWithContext(title)}
+              className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/10 text-white font-semibold text-xs hover:bg-white/15 cursor-pointer transition-all"
+            >
+              <Sparkles className="w-3 h-3 text-[#FFB224]" />
+              <span>Tanya AI</span>
+            </button>
+          )}
+
+          <button
+            onClick={toggleFullscreen}
+            className="p-2 rounded-full bg-white/10 hover:bg-white/15 text-white/80 hover:text-white cursor-pointer transition-all"
+            title={isFullscreen ? 'Keluar Layar Penuh' : 'Layar Penuh'}
+          >
+            {isFullscreen ? <Minimize className="w-3.5 h-3.5" /> : <Maximize className="w-3.5 h-3.5" />}
+          </button>
+        </div>
+      </div>
+
+      {/* =========================================================================
+          THE PLAYER CONTAINER ("Kotak Sudut Tumpul", Tidak Langsung Fullscreen)
+          ========================================================================= */}
+      <div className="w-full max-w-5xl mx-auto px-3 sm:px-6 relative">
+        {/* Soft Ambient Glow Behind the Player Box */}
+        {title?.backdrop && !isFullscreen && (
+          <div
+            className="absolute -inset-4 sm:-inset-6 bg-cover bg-center rounded-[36px] blur-3xl opacity-20 -z-10 pointer-events-none transition-all duration-700"
+            style={{ backgroundImage: `url(${title.backdrop})` }}
+          />
+        )}
+
         {/* Failover Toast Notice */}
         {failoverNotice && (
-          <div className="absolute top-16 left-1/2 -translate-x-1/2 z-40 px-4 py-2 rounded-full liquid-glass border border-amber-500/40 text-amber-300 text-[11px] sm:text-xs font-semibold flex items-center gap-2 shadow-2xl backdrop-blur-md animate-fade-in pointer-events-none">
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-40 px-4 py-1.5 rounded-full bg-zinc-900/90 border border-amber-500/40 text-amber-300 text-xs font-semibold flex items-center gap-2 shadow-2xl backdrop-blur-md pointer-events-none animate-fade-in">
             <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
             <span>{failoverNotice}</span>
           </div>
         )}
 
-        {/* Loading Overlay (Non-blocking backdrop spinner) */}
-        {isIframeLoading && isPlayable && (
-          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-[#06070B]/80 backdrop-blur-sm space-y-3 pointer-events-none px-4 text-center">
-            <div className="w-11 h-11 border-3 border-white/20 border-t-[#FFB224] rounded-full animate-spin" />
-            <span className="text-xs font-mono text-white/80 tracking-wider uppercase">
-              Menghubungkan ke {activeServer.name}...
-            </span>
-          </div>
-        )}
-
-        {/* Validation Error: Episode Not Available */}
-        {!isPlayable && (
-          <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-[#06070B] p-6 text-center space-y-3">
-            <div className="w-14 h-14 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-white/80">
-              <AlertTriangle className="w-7 h-7 text-[#FFB224]" />
-            </div>
-            <h3 className="text-lg font-bold text-white">Episode belum tersedia</h3>
-            <p className="text-xs text-white/60 max-w-md">
-              Tayangan atau episode yang Anda tuju belum tersedia atau ID tidak valid.
-            </p>
-            <div className="flex items-center gap-3 pt-2">
-              <button
-                onClick={() => {
-                  if (window.history.length > 1) {
-                    navigate(-1);
-                  } else {
-                    navigate(`/detail/${mediaType}/${id || ''}`);
-                  }
-                }}
-                className="px-5 py-2.5 rounded-full bg-[#FFB224] text-black text-xs font-bold hover:bg-[#FFA500] cursor-pointer shadow-lg ios-spring"
-              >
-                Kembali
-              </button>
-              {drawerEpisodes.length > 0 && (
-                <button
-                  onClick={() => setIsEpisodeDrawerOpen(true)}
-                  className="px-4 py-2.5 rounded-full liquid-glass text-white text-xs font-semibold hover:bg-white/10 cursor-pointer ios-spring"
-                >
-                  Pilih Episode Lain
-                </button>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/*
-          OFFICIAL FRAMEX PLAYER (Khusus Film, Serial TV, & Anime):
-          - BEBAS SANDBOX: Atribut 'sandbox' sepenuhnya dinonaktifkan (tidak ada sandbox)
-          - Menggunakan API & Embed Resmi dari https://framextv.xyz/
-          - Izin penuh: autoplay, fullscreen, picture-in-picture, encrypted-media, accelerometer, gyroscope, clipboard-write, web-share
-          - referrerPolicy="origin"
-        */}
-        {isPlayable && (
-          <div className="relative w-full h-full">
+        {/* Video Box with Rounded Corners (Kotak Sudut Tumpul, 16:9 Aspect Video) */}
+        <div
+          ref={playerContainerRef}
+          className={`relative w-full aspect-video bg-black transition-all duration-300 ${
+            isFullscreen
+              ? 'fixed inset-0 z-[99999] w-screen h-screen m-0 p-0 rounded-none border-0'
+              : 'rounded-2xl sm:rounded-3xl overflow-hidden border border-white/10 sm:border-white/15 shadow-[0_20px_50px_rgba(0,0,0,0.85)]'
+          }`}
+        >
+          {/* Iframe Pemutar Resmi FrameX (100% Bebas Sandbox) */}
+          {isPlayable ? (
             <iframe
               key={`${id}-${mediaType}-${seasonNum}-${episodeNum}-${safeServerIndex}-${iframeKey}-${animeAudio}`}
               src={embedUrl}
@@ -1071,7 +795,522 @@ export const PlayerPage: React.FC = () => {
               loading="eager"
               title={title?.title || 'Zhafx Stream Player'}
               onLoad={handleIframeLoad}
-              className="w-full h-full border-0 absolute inset-0 z-10"
+              className="w-full h-full border-0 absolute inset-0 z-10 bg-black"
+            />
+          ) : (
+            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center p-6 text-center space-y-3 bg-[#0E1017]">
+              <AlertTriangle className="w-10 h-10 text-[#FFB224]" />
+              <h3 className="text-base font-bold text-white">Episode Tidak Tersedia</h3>
+              <p className="text-xs text-white/60 max-w-sm">
+                Tayangan atau episode yang Anda pilih tidak valid atau belum dirilis.
+              </p>
+              <button
+                onClick={() => navigate(`/detail/${mediaType}/${id || ''}`)}
+                className="px-4 py-2 rounded-full bg-[#FFB224] text-black text-xs font-bold hover:bg-[#FFA500] cursor-pointer"
+              >
+                Kembali ke Detail
+              </button>
+            </div>
+          )}
+
+          {/* Loading Indicator Spinner */}
+          {isIframeLoading && isPlayable && (
+            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-[#06070B]/85 backdrop-blur-sm space-y-3 pointer-events-none">
+              <div className="w-10 h-10 border-3 border-white/20 border-t-[#FFB224] rounded-full animate-spin" />
+              <span className="text-xs font-mono text-white/80 tracking-wider">
+                Menghubungkan ke {activeServer.name}...
+              </span>
+            </div>
+          )}
+
+          {/* Fullscreen Close / Exit Button */}
+          {isFullscreen && (
+            <div className="absolute top-4 right-4 z-40">
+              <button
+                onClick={toggleFullscreen}
+                className="p-3 rounded-full bg-black/75 hover:bg-black/95 text-white cursor-pointer shadow-2xl border border-white/20"
+                title="Keluar Layar Penuh (Esc)"
+              >
+                <Minimize className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* =========================================================================
+          KETERANGAN DI BAWAH PLAYER (SEPERTI PADA FRAMEXTV)
+          ========================================================================= */}
+      <div className="w-full max-w-5xl mx-auto px-3 sm:px-6 pt-4 space-y-4">
+        {/* 1. Server Tip Banner (FrameX Style) */}
+        {!isTipDismissed && (
+          <aside className="px-3.5 py-2.5 rounded-xl bg-zinc-900/90 border border-amber-500/25 backdrop-blur-md shadow-lg flex items-center justify-between gap-2.5 text-xs text-zinc-300 animate-in fade-in">
+            <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
+              <div className="relative flex items-center justify-center shrink-0">
+                <span className="animate-ping absolute inline-flex h-2 w-2 rounded-full bg-amber-400 opacity-60" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
+              </div>
+              <p className="leading-snug">
+                <span className="font-semibold text-white">Buffering atau lambat memuat?</span>{' '}
+                <span className="text-zinc-400 hidden sm:inline">Ganti server streaming melalui tombol server di bawah ini.</span>
+                <span className="text-zinc-400 sm:hidden">Ganti server di bawah ini.</span>
+              </p>
+            </div>
+            <button
+              onClick={() => setIsTipDismissed(true)}
+              className="p-1 text-zinc-400 hover:text-white rounded-lg transition-colors shrink-0 cursor-pointer"
+              title="Tutup tips"
+              aria-label="Tutup tips"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </aside>
+        )}
+
+        {/* 2. Episode Quick Navigator Bar (Khusus Serial TV & Anime - FrameX WatchPage style) */}
+        {(mediaType === 'tv' || mediaType === 'anime') && (
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 sm:p-3.5 rounded-2xl bg-zinc-950/70 border border-white/[0.08] shadow-md">
+            <div className="flex items-center justify-between sm:justify-start gap-2 w-full sm:w-auto">
+              <button
+                onClick={() => navigateEpisode(episodeNum - 1)}
+                disabled={!hasPrevEpisode}
+                className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1 px-3 py-2 min-h-[38px] rounded-xl bg-zinc-900/80 hover:bg-zinc-800 border border-white/[0.08] text-xs font-semibold text-zinc-200 hover:text-white disabled:opacity-25 disabled:pointer-events-none cursor-pointer transition-all active:scale-95"
+                title="Episode Sebelumnya"
+              >
+                <ChevronLeft className="w-4 h-4 text-zinc-400" />
+                <span>Sebelumnya</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  const el = document.getElementById('episode-browser-section');
+                  if (el) el.scrollIntoView({ behavior: 'smooth' });
+                }}
+                className="flex-2 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3.5 py-2 min-h-[38px] rounded-xl bg-zinc-900/80 hover:bg-zinc-800 border border-white/[0.1] text-xs font-bold text-white transition-all active:scale-95 cursor-pointer"
+                title="Buka daftar episode"
+              >
+                <ListOrdered className="w-3.5 h-3.5 text-[#FFB224] shrink-0" />
+                <span>
+                  {mediaType === 'tv'
+                    ? `Musim ${seasonNum} • Ep ${episodeNum}`
+                    : `Episode ${episodeNum}${totalEpisodes ? ` dari ${totalEpisodes}` : ''}`}
+                </span>
+              </button>
+
+              <button
+                onClick={() => navigateEpisode(episodeNum + 1)}
+                disabled={!hasNextEpisode}
+                className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1 px-3.5 py-2 min-h-[38px] rounded-xl bg-white hover:bg-zinc-200 text-black text-xs font-bold disabled:opacity-25 disabled:pointer-events-none cursor-pointer transition-all active:scale-95 shadow-sm"
+                title="Episode Berikutnya"
+              >
+                <span>Berikutnya</span>
+                <ChevronRight className="w-4 h-4 text-black" />
+              </button>
+            </div>
+
+            {nextEpisodeTitle && (
+              <div className="hidden md:flex items-center gap-2 text-xs font-mono text-zinc-400 truncate max-w-xs">
+                <span className="text-zinc-600">•</span>
+                <span className="text-[11px] uppercase tracking-wider text-zinc-500 font-bold">Berikutnya:</span>
+                <span className="text-zinc-300 truncate">{nextEpisodeTitle}</span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 3. Header Information & Actions (Keterangan FrameX Style) */}
+        <div className="p-5 sm:p-6 rounded-2xl sm:rounded-3xl bg-zinc-950/80 border border-white/[0.08] shadow-xl space-y-4">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-white/[0.06]">
+            <div className="space-y-1.5 min-w-0">
+              <button
+                onClick={() => navigate(`/detail/${mediaType}/${id}`)}
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-white/60 hover:text-[#FFB224] transition-colors cursor-pointer group"
+              >
+                <ArrowLeft className="w-3 h-3 group-hover:-translate-x-0.5 transition-transform" />
+                <span className="font-semibold truncate">{title?.title || 'Detail Tayangan'}</span>
+              </button>
+
+              <h1 className="text-xl sm:text-2xl md:text-3xl font-extrabold text-white tracking-tight leading-tight">
+                {mediaType === 'tv'
+                  ? `Musim ${seasonNum} · Episode ${episodeNum}${currentEpisodeObj?.name ? ` — ${currentEpisodeObj.name}` : ''}`
+                  : mediaType === 'anime'
+                  ? `Episode ${episodeNum}${totalEpisodes ? ` dari ${totalEpisodes}` : ''}${currentEpisodeObj?.name ? ` — ${currentEpisodeObj.name}` : ''}`
+                  : title?.title || 'Memuat Film...'}
+              </h1>
+
+              {/* Badges and metadata */}
+              <div className="flex flex-wrap items-center gap-2 pt-1 text-xs text-white/70">
+                <span className="px-2.5 py-0.5 rounded-full bg-white/10 text-white font-medium text-[11px]">
+                  {title?.year || '2024'}
+                </span>
+
+                <span className="px-2.5 py-0.5 rounded-full bg-[#FFB224]/15 border border-[#FFB224]/30 text-[#FFB224] font-bold text-[11px] flex items-center gap-1">
+                  <Star className="w-3 h-3 fill-[#FFB224]" />
+                  {title?.rating || '8.5'}
+                </span>
+
+                {mediaType === 'movie' && (
+                  <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-[#FFB224] font-bold text-[10px] border border-amber-500/30">
+                    FILM 4K
+                  </span>
+                )}
+                {mediaType === 'tv' && (
+                  <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-bold text-[10px] border border-emerald-500/30">
+                    SERIAL TV HD
+                  </span>
+                )}
+                {mediaType === 'anime' && (
+                  <span className="px-2.5 py-0.5 rounded-full bg-violet-500/20 text-violet-300 font-bold text-[10px] border border-violet-500/30">
+                    ANIME HD
+                  </span>
+                )}
+
+                <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-semibold text-[10px] flex items-center gap-1">
+                  <ShieldCheck className="w-3 h-3 text-emerald-400" />
+                  100% Bebas Sandbox
+                </span>
+
+                {title?.genres && title.genres.length > 0 && (
+                  <>
+                    <span className="text-white/30 hidden sm:inline">•</span>
+                    <span className="text-white/60 hidden sm:inline">{title.genres.slice(0, 3).join(' / ')}</span>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Quick Actions (Save, Share, Refresh) */}
+            <div className="flex items-center gap-2 self-start md:self-center shrink-0">
+              {title && (
+                <button
+                  onClick={() =>
+                    toggle({
+                      id: title.id,
+                      type: title.type,
+                      title: title.title,
+                      poster: title.poster,
+                      year: title.year,
+                      rating: title.rating,
+                    })
+                  }
+                  className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-semibold cursor-pointer border transition-all ${
+                    isSaved(title.id)
+                      ? 'bg-[#FFB224] text-black border-[#FFB224]'
+                      : 'bg-white/10 text-white border-white/15 hover:bg-white/20'
+                  }`}
+                >
+                  {isSaved(title.id) ? <BookmarkCheck className="w-3.5 h-3.5" /> : <Bookmark className="w-3.5 h-3.5" />}
+                  <span>{isSaved(title.id) ? 'Tersimpan' : 'Simpan'}</span>
+                </button>
+              )}
+
+              <button
+                onClick={handleShare}
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-white/10 hover:bg-white/20 border border-white/15 text-white text-xs font-semibold cursor-pointer transition-all"
+              >
+                <Share2 className="w-3.5 h-3.5" />
+                <span>Bagikan</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setIsIframeLoading(true);
+                  setIframeKey((k) => k + 1);
+                }}
+                className="p-2 rounded-full bg-white/10 hover:bg-white/20 border border-white/15 text-white/80 hover:text-white cursor-pointer transition-all"
+                title="Muat ulang pemutar"
+              >
+                <RotateCw className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+
+          {/* Synopsis / Description with expander */}
+          <div>
+            <p className={`text-xs sm:text-sm text-white/80 leading-relaxed ${isOverviewExpanded ? '' : 'line-clamp-3'}`}>
+              {currentEpisodeObj?.overview || title?.overview || 'Sinopsis belum tersedia untuk episode ini.'}
+            </p>
+            {(currentEpisodeObj?.overview || title?.overview) && (
+              <button
+                onClick={() => setIsOverviewExpanded(!isOverviewExpanded)}
+                className="text-xs font-bold text-[#FFB224] hover:underline mt-1.5 inline-flex items-center gap-1 cursor-pointer"
+              >
+                <span>{isOverviewExpanded ? 'Tampilkan Lebih Sedikit' : 'Selengkapnya'}</span>
+                {isOverviewExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+              </button>
+            )}
+          </div>
+
+          {/* 4. Pilihan Server Streaming (FrameX TV Engine) */}
+          <div className="pt-2">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                <Server className="w-3.5 h-3.5 text-[#FFB224]" />
+                Pilihan Server Streaming (FrameX TV Engine):
+              </span>
+
+              {/* Anime Sub/Dub Selector */}
+              {mediaType === 'anime' && (
+                <div className="flex items-center p-0.5 rounded-full bg-white/10 border border-white/15 text-[11px]">
+                  <button
+                    onClick={() => setAnimeAudio('sub')}
+                    className={`px-2.5 py-1 rounded-full font-bold transition-all cursor-pointer ${
+                      animeAudio === 'sub' ? 'bg-[#FFB224] text-black' : 'text-white/70 hover:text-white'
+                    }`}
+                  >
+                    SUB (Jepang)
+                  </button>
+                  <button
+                    onClick={() => setAnimeAudio('dub')}
+                    className={`px-2.5 py-1 rounded-full font-bold transition-all cursor-pointer ${
+                      animeAudio === 'dub' ? 'bg-[#FFB224] text-black' : 'text-white/70 hover:text-white'
+                    }`}
+                  >
+                    DUB (Inggris)
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Horizontal Server Pills */}
+            <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
+              {activeServerList.map((server, idx) => {
+                const isActive = idx === safeServerIndex;
+                return (
+                  <button
+                    key={server.id}
+                    onClick={() => {
+                      setCurrentServerIndex(idx);
+                      setIsIframeLoading(true);
+                      setIframeKey((k) => k + 1);
+                    }}
+                    className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
+                      isActive
+                        ? 'bg-[#FFB224] text-black shadow-lg scale-105'
+                        : 'bg-white/10 hover:bg-white/20 text-white/80 hover:text-white border border-white/15'
+                    }`}
+                  >
+                    <span>{server.name}</span>
+                    {server.badge && (
+                      <span
+                        className={`text-[9px] px-1.5 py-0.5 rounded-full ${
+                          isActive ? 'bg-black/20 text-black' : 'bg-white/15 text-white/70'
+                        }`}
+                      >
+                        {server.badge}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-[11px] text-white/40 mt-1">
+              Tips: Jika pemutar buffering atau lambat, ganti server di atas untuk menghubungkan ke jalur CDN cadangan.
+            </p>
+          </div>
+        </div>
+
+        {/* 5. Episode Browser (Khusus Serial TV & Anime) */}
+        {(mediaType === 'tv' || mediaType === 'anime') && (
+          <div
+            id="episode-browser-section"
+            className="p-5 sm:p-6 rounded-2xl sm:rounded-3xl bg-zinc-950/80 border border-white/[0.08] shadow-xl space-y-4"
+          >
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-white/[0.06]">
+              <div className="flex items-center gap-2.5">
+                <ListOrdered className="w-4 h-4 text-[#FFB224]" />
+                <h3 className="text-base font-bold text-white">
+                  Daftar Episode {mediaType === 'tv' ? `(Musim ${seasonNum})` : 'Anime'}
+                </h3>
+                <span className="text-xs text-white/40 font-mono">
+                  {episodesList.length || totalEpisodes} Episode
+                </span>
+              </div>
+
+              {/* View mode toggle */}
+              <div className="flex items-center gap-2">
+                <div className="flex p-0.5 rounded-full bg-white/10 border border-white/15 text-[11px]">
+                  <button
+                    onClick={() => setEpisodeViewMode('visual')}
+                    className={`px-2.5 py-1 rounded-full font-bold transition-all cursor-pointer ${
+                      episodeViewMode === 'visual' ? 'bg-[#FFB224] text-black' : 'text-white/70'
+                    }`}
+                  >
+                    Visual
+                  </button>
+                  <button
+                    onClick={() => setEpisodeViewMode('grid')}
+                    className={`px-2.5 py-1 rounded-full font-bold transition-all cursor-pointer ${
+                      episodeViewMode === 'grid' ? 'bg-[#FFB224] text-black' : 'text-white/70'
+                    }`}
+                  >
+                    Nomor
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Episode Content */}
+            {episodeViewMode === 'visual' ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 max-h-[460px] overflow-y-auto pr-1">
+                {Array.from({ length: episodesList.length || totalEpisodes }, (_, i) => i + 1).map((ep) => {
+                  const isCurrent = ep === episodeNum;
+                  const matchingEp = episodesList.find((e) => e.number === ep);
+                  const epThumb = matchingEp?.still || matchingEp?.stillPath || title?.backdrop || title?.poster;
+
+                  return (
+                    <button
+                      key={ep}
+                      onClick={() => navigateEpisode(ep)}
+                      className={`flex items-start gap-3 p-2.5 rounded-2xl border text-left transition-all cursor-pointer group relative overflow-hidden ${
+                        isCurrent
+                          ? 'bg-[#FFB224]/15 border-[#FFB224] shadow-lg scale-[1.01]'
+                          : 'bg-white/[0.04] border-white/10 hover:bg-white/[0.08] hover:border-white/20'
+                      }`}
+                    >
+                      {/* Thumbnail Container */}
+                      <div className="w-24 sm:w-28 aspect-video rounded-xl overflow-hidden bg-black/40 shrink-0 relative">
+                        {epThumb ? (
+                          <img
+                            src={epThumb}
+                            alt={`Ep ${ep}`}
+                            loading="lazy"
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-white/30 text-xs font-mono">
+                            Ep {ep}
+                          </div>
+                        )}
+
+                        <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Play className="w-4 h-4 fill-white text-white" />
+                        </div>
+
+                        <span className="absolute bottom-1 left-1 px-1.5 py-0.5 rounded bg-black/80 font-mono text-[9px] font-bold text-white">
+                          Ep {ep}
+                        </span>
+                      </div>
+
+                      {/* Episode Details */}
+                      <div className="flex-1 min-w-0 py-0.5">
+                        <div className="flex items-center justify-between gap-1">
+                          <h4 className={`text-xs font-bold truncate ${isCurrent ? 'text-[#FFB224]' : 'text-white'}`}>
+                            {matchingEp?.name || `Episode ${ep}`}
+                          </h4>
+                          {isCurrent && (
+                            <span className="px-1.5 py-0.5 rounded bg-[#FFB224] text-black text-[9px] font-extrabold uppercase shrink-0">
+                              Sedang Diputar
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-white/50 line-clamp-2 mt-1 leading-relaxed">
+                          {matchingEp?.overview || 'Klik untuk memutar episode ini secara instan.'}
+                        </p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              /* Grid View (Quick Numbers) */
+              <div className="grid grid-cols-6 sm:grid-cols-10 md:grid-cols-12 gap-2 max-h-[300px] overflow-y-auto pr-1">
+                {Array.from({ length: episodesList.length || totalEpisodes }, (_, i) => i + 1).map((ep) => {
+                  const isCurrent = ep === episodeNum;
+                  return (
+                    <button
+                      key={ep}
+                      onClick={() => navigateEpisode(ep)}
+                      className={`h-10 rounded-xl font-mono text-xs font-bold transition-all cursor-pointer flex items-center justify-center ${
+                        isCurrent
+                          ? 'bg-[#FFB224] text-black shadow-lg scale-105'
+                          : 'bg-white/10 hover:bg-white/20 text-white/80 hover:text-white border border-white/10'
+                      }`}
+                      title={`Episode ${ep}`}
+                    >
+                      {ep}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 6. Sinopsis & Informasi Detail */}
+        {title && (
+          <div className="p-5 sm:p-6 rounded-2xl sm:rounded-3xl bg-zinc-950/80 border border-white/[0.08] shadow-xl space-y-4">
+            <div className="flex items-center gap-2">
+              <Info className="w-4 h-4 text-[#FFB224]" />
+              <h3 className="text-base font-bold text-white">Sinopsis & Keterangan Lengkap</h3>
+            </div>
+
+            {/* Overview / Storyline */}
+            <div>
+              <p className={`text-xs sm:text-sm text-white/80 leading-relaxed ${isOverviewExpanded ? '' : 'line-clamp-3'}`}>
+                {title.overview || 'Sinopsis resmi untuk tayangan ini belum tersedia.'}
+              </p>
+              {title.overview && title.overview.length > 200 && (
+                <button
+                  onClick={() => setIsOverviewExpanded(!isOverviewExpanded)}
+                  className="text-xs font-bold text-[#FFB224] hover:underline mt-1.5 flex items-center gap-1 cursor-pointer"
+                >
+                  <span>{isOverviewExpanded ? 'Tampilkan Lebih Sedikit' : 'Selengkapnya'}</span>
+                  {isOverviewExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                </button>
+              )}
+            </div>
+
+            {/* Genres Tag Pills */}
+            {title.genres && title.genres.length > 0 && (
+              <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                <span className="text-xs text-white/50 mr-1">Genre:</span>
+                {title.genres.map((g) => (
+                  <span
+                    key={g}
+                    className="px-2.5 py-1 rounded-full bg-white/10 text-white/80 text-[11px] font-medium border border-white/10"
+                  >
+                    {g}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {/* Cast Members */}
+            {title.cast && title.cast.length > 0 && (
+              <div className="pt-2">
+                <h4 className="text-xs font-bold text-white/60 mb-2.5">Pemeran Utama:</h4>
+                <div className="flex items-center gap-3 overflow-x-auto pb-2 scrollbar-none">
+                  {title.cast.slice(0, 10).map((c) => (
+                    <div
+                      key={c.id}
+                      className="flex items-center gap-2 bg-white/[0.04] p-1.5 pr-3 rounded-full border border-white/10 shrink-0"
+                    >
+                      {c.profile ? (
+                        <img src={c.profile} alt={c.name} className="w-8 h-8 rounded-full object-cover" />
+                      ) : (
+                        <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-[10px] font-bold text-white">
+                          {c.name.slice(0, 1)}
+                        </div>
+                      )}
+                      <div className="text-left">
+                        <p className="text-xs font-bold text-white truncate max-w-[100px]">{c.name}</p>
+                        <p className="text-[10px] text-white/50 truncate max-w-[100px]">{c.character || 'Pemeran'}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 7. Rekomendasi Tayangan Serupa (More Like This) */}
+        {title && title.similar && title.similar.length > 0 && (
+          <div className="pt-4">
+            <MediaRow
+              title="Rekomendasi Tayangan Serupa"
+              items={title.similar}
             />
           </div>
         )}

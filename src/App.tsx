@@ -82,7 +82,7 @@ function AppLayout() {
   }, []);
 
   // Hide Navbar, BottomNav, and Footer in player mode for true cinematic fullscreen
-  const isPlayerMode = location.pathname.startsWith('/watch');
+  const isPlayerMode = false;
 
   const handleOpenAIWithContext = (title: Title) => {
     setAiContextTitle(title);
@@ -115,8 +115,14 @@ function AppLayout() {
             path="/detail/:type/:id"
             element={<DetailPage onOpenAIWithContext={handleOpenAIWithContext} />}
           />
-          <Route path="/watch/:type/:id" element={<PlayerPage />} />
-          <Route path="/watch/:type/:id/:season/:episode" element={<PlayerPage />} />
+          <Route
+            path="/watch/:type/:id"
+            element={<PlayerPage onOpenAIWithContext={handleOpenAIWithContext} />}
+          />
+          <Route
+            path="/watch/:type/:id/:season/:episode"
+            element={<PlayerPage onOpenAIWithContext={handleOpenAIWithContext} />}
+          />
           <Route path="/history" element={<HistoryPage />} />
           <Route path="/my-list" element={<MyListPage />} />
           <Route path="*" element={<NotFoundPage />} />
