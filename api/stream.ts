@@ -17,7 +17,7 @@ export default async function handler(req: any, res: any) {
     return res.status(400).json({ success: false, error: 'ID tayangan wajib diisi.' });
   }
 
-  const backends = ['https://api.framextv.tech', 'https://api.framextv.xyz'];
+  const backends = ['https://api.framextv.xyz', 'https://api.framextv.tech'];
   const q = new URLSearchParams();
   q.set('id', id);
   q.set('type', type);
@@ -25,33 +25,31 @@ export default async function handler(req: any, res: any) {
   if (episode) q.set('episode', episode);
   if (provider && provider !== 'auto') q.set('provider', provider);
 
-  for (const backend of backends) {
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 7500);
-
-      const upstreamRes = await fetch(`${backend}/api/stream?${q.toString()}`, {
-        signal: controller.signal,
-        headers: {
-          'User-Agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-          'Referer': 'https://framextv.xyz/',
-          'Origin': 'https://framextv.xyz',
-          'Accept': 'application/json, text/plain, */*',
-        },
-      });
-      clearTimeout(timeoutId);
-
-      if (upstreamRes.ok) {
-        const data = await upstreamRes.json();
-        if (data && data.success && Array.isArray(data.sources) && data.sources.length > 0) {
-          return res.status(200).json(data);
-        }
-      }
-    } catch {
-      // try next backend
+  const fetchBackend = async (backend: string) => {
+    const upstreamRes = await fetch(`${backend}/api/stream?${q.toString()}`, {
+      signal: AbortSignal.timeout(6000),
+      headers: {
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Referer': 'https://framextv.xyz/',
+        'Origin': 'https://framextv.xyz',
+        'Accept': 'application/json, text/plain, */*',
+      },
+    });
+    if (!upstreamRes.ok) throw new Error(`HTTP ${upstreamRes.status}`);
+    const data = await upstreamRes.json();
+    if (data && data.success && Array.isArray(data.sources) && data.sources.length > 0) {
+      return data;
     }
-  }
+    throw new Error('No sources found');
+  };
+
+  try {
+    const winnerData = await Promise.any(backends.map(b => fetchBackend(b)));
+    if (winnerData) {
+      return res.status(200).json(winnerData);
+    }
+  } catch {}
 
   return res.status(404).json({
     success: false,

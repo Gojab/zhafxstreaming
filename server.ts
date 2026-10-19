@@ -354,7 +354,7 @@ async function probeSingleProvider(
   episode: string,
   prov: string,
   audio: string,
-  timeoutMs = 3500
+  timeoutMs = 2800
 ): Promise<any> {
   const q = new URLSearchParams();
   q.set('id', targetId);
@@ -395,35 +395,35 @@ async function probeMultiProviders(
 
   // 1. If user specifically selected a provider, probe it first across backends
   if (preferredProvider && preferredProvider !== 'auto' && preferredProvider !== 'direct_stream') {
-    for (const b of backends) {
-      try {
-        const directData = await probeSingleProvider(b, targetId, episode, preferredProvider, audio, 3800);
-        if (directData) return directData;
-      } catch {}
-    }
-  }
-
-  // 2. Cascading Fast Parallel Probe across remaining priority servers in chunks of 2
-  const candidateList = priorityList.filter(p => p !== preferredProvider);
-  for (let i = 0; i < candidateList.length; i += 2) {
-    const chunk = candidateList.slice(i, i + 2);
     try {
       const winner = await Promise.any(
-        chunk.map(p => probeSingleProvider(backends[0], targetId, episode, p, audio, 3500))
+        backends.map(b => probeSingleProvider(b, targetId, episode, preferredProvider, audio, 3000))
       );
-      if (winner) return winner;
-    } catch {
-      // Chunk failed, continue to next server pair
-    }
-  }
-
-  // 3. Fallback to secondary backend
-  for (const p of candidateList.slice(0, 3)) {
-    try {
-      const winner = await probeSingleProvider(backends[1], targetId, episode, p, audio, 3500);
       if (winner) return winner;
     } catch {}
   }
+
+  // 2. Fast Parallel Probe across candidate servers (Batches of 4)
+  const candidateList = priorityList.filter(p => p !== preferredProvider);
+  for (let i = 0; i < candidateList.length; i += 4) {
+    const chunk = candidateList.slice(i, i + 4);
+    try {
+      const winner = await Promise.any(
+        chunk.map(p => probeSingleProvider(backends[0], targetId, episode, p, audio, 2800))
+      );
+      if (winner) return winner;
+    } catch {
+      // Chunk failed, continue to next server batch
+    }
+  }
+
+  // 3. Fallback to secondary backend in parallel
+  try {
+    const winner = await Promise.any(
+      candidateList.slice(0, 4).map(p => probeSingleProvider(backends[1], targetId, episode, p, audio, 2800))
+    );
+    if (winner) return winner;
+  } catch {}
 
   return null;
 }
@@ -440,12 +440,16 @@ app.get('/api/anime/stream', async (req: Request, res: Response) => {
     return res.status(400).json({ success: false, error: 'ID anime wajib diisi.' });
   }
 
+  // If title is available or ID looks non-AniList, start resolving AniList ID concurrently
+  const shouldResolveTitle = Boolean(title && title.trim()) || isNaN(Number(id)) || Number(id) > 250000;
+  const resolvePromise = shouldResolveTitle ? resolveAnimeId(id, title) : Promise.resolve(null);
+
   // Phase 1: Probe with requested ID
   let finalData = await probeMultiProviders(id, episode, audio, provider);
 
-  // Phase 2: If no sources found with raw ID, attempt AniList ID resolution via title or TMDB lookup
+  // Phase 2: If no sources found with raw ID, try resolved AniList ID
   if (!finalData) {
-    const resolvedId = await resolveAnimeId(id, title);
+    const resolvedId = await resolvePromise;
     if (resolvedId && resolvedId !== id) {
       finalData = await probeMultiProviders(resolvedId, episode, audio, provider);
     }
@@ -558,19 +562,19 @@ app.all('/api/anime/proxy', async (req: Request, res: Response) => {
     if (isM3u8) {
       const text = await upstreamRes.text();
       if (text.includes('#EXTM3U')) {
-        const lines = text.split('\n');
+        const lines = text.split(/\r?\n/);
         const rewritten = lines.map((line) => {
           const trimmed = line.trim();
-          if (!trimmed) return line;
+          if (!trimmed) return '';
           if (trimmed.startsWith('#')) {
             // Rewrite URI="..." in #EXT-X-KEY or #EXT-X-MAP
-            return line.replace(/URI=["']([^"']+)["']/g, (_match, uri) => {
+            return trimmed.replace(/URI=["']([^"']+)["']/g, (_match, uri) => {
               try {
                 const absUrl = new URL(uri, targetUrl).href;
                 const { realUrl: finalUri } = extractRealUrl(absUrl, referer);
                 return `URI="/api/anime/proxy?url=${encodeURIComponent(finalUri)}&ref=${encodeURIComponent(referer)}"`;
               } catch {
-                return line;
+                return trimmed;
               }
             });
           }
@@ -580,9 +584,9 @@ app.all('/api/anime/proxy', async (req: Request, res: Response) => {
             const { realUrl: finalSegUrl } = extractRealUrl(absUrl, referer);
             return `/api/anime/proxy?url=${encodeURIComponent(finalSegUrl)}&ref=${encodeURIComponent(referer)}`;
           } catch {
-            return line;
+            return trimmed;
           }
-        });
+        }).filter(Boolean);
 
         res.setHeader('Content-Type', 'application/vnd.apple.mpegurl; charset=utf-8');
         res.status(upstreamRes.status);
@@ -681,7 +685,7 @@ app.get('/api/stream', async (req: Request, res: Response) => {
     return res.status(400).json({ success: false, error: 'ID tayangan wajib diisi.' });
   }
 
-  const backends = ['https://api.framextv.tech', 'https://api.framextv.xyz'];
+  const backends = ['https://api.framextv.xyz', 'https://api.framextv.tech'];
   const q = new URLSearchParams();
   q.set('id', id);
   q.set('type', type);
@@ -689,33 +693,31 @@ app.get('/api/stream', async (req: Request, res: Response) => {
   if (episode) q.set('episode', episode);
   if (provider && provider !== 'auto') q.set('provider', provider);
 
-  for (const backend of backends) {
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 7500);
-
-      const upstreamRes = await fetch(`${backend}/api/stream?${q.toString()}`, {
-        signal: controller.signal,
-        headers: {
-          'User-Agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-          'Referer': 'https://framextv.xyz/',
-          'Origin': 'https://framextv.xyz',
-          'Accept': 'application/json, text/plain, */*',
-        },
-      });
-      clearTimeout(timeoutId);
-
-      if (upstreamRes.ok) {
-        const data = await upstreamRes.json();
-        if (data && data.success && Array.isArray(data.sources) && data.sources.length > 0) {
-          return res.status(200).json(data);
-        }
-      }
-    } catch {
-      // try next backend
+  const fetchBackend = async (backend: string) => {
+    const upstreamRes = await fetch(`${backend}/api/stream?${q.toString()}`, {
+      signal: AbortSignal.timeout(6000),
+      headers: {
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Referer': 'https://framextv.xyz/',
+        'Origin': 'https://framextv.xyz',
+        'Accept': 'application/json, text/plain, */*',
+      },
+    });
+    if (!upstreamRes.ok) throw new Error(`HTTP ${upstreamRes.status}`);
+    const data = await upstreamRes.json();
+    if (data && data.success && Array.isArray(data.sources) && data.sources.length > 0) {
+      return data;
     }
-  }
+    throw new Error('No sources found');
+  };
+
+  try {
+    const winnerData = await Promise.any(backends.map(b => fetchBackend(b)));
+    if (winnerData) {
+      return res.status(200).json(winnerData);
+    }
+  } catch {}
 
   return res.status(404).json({
     success: false,

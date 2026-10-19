@@ -94,7 +94,7 @@ export default async function handler(req: any, res: any) {
     episode: string,
     prov: string,
     audio: string,
-    timeoutMs = 3500
+    timeoutMs = 2800
   ): Promise<any> => {
     const q = new URLSearchParams();
     q.set('id', targetId);
@@ -135,35 +135,35 @@ export default async function handler(req: any, res: any) {
 
     // 1. Try specifically selected provider first
     if (preferredProvider && preferredProvider !== 'auto' && preferredProvider !== 'direct_stream') {
-      for (const b of backends) {
-        try {
-          const directData = await probeSingleProvider(b, targetId, episode, preferredProvider, audio, 3800);
-          if (directData) return directData;
-        } catch {}
-      }
-    }
-
-    // 2. Cascading Fast Parallel Probe across candidate servers in chunks of 2
-    const candidateList = priorityList.filter(p => p !== preferredProvider);
-    for (let i = 0; i < candidateList.length; i += 2) {
-      const chunk = candidateList.slice(i, i + 2);
       try {
         const winner = await Promise.any(
-          chunk.map(p => probeSingleProvider(backends[0], targetId, episode, p, audio, 3500))
+          backends.map(b => probeSingleProvider(b, targetId, episode, preferredProvider, audio, 3000))
         );
-        if (winner) return winner;
-      } catch {
-        // Chunk failed, continue to next pair
-      }
-    }
-
-    // 3. Fallback to secondary backend
-    for (const p of candidateList.slice(0, 3)) {
-      try {
-        const winner = await probeSingleProvider(backends[1], targetId, episode, p, audio, 3500);
         if (winner) return winner;
       } catch {}
     }
+
+    // 2. Fast Parallel Probe across candidate servers (Batches of 4)
+    const candidateList = priorityList.filter(p => p !== preferredProvider);
+    for (let i = 0; i < candidateList.length; i += 4) {
+      const chunk = candidateList.slice(i, i + 4);
+      try {
+        const winner = await Promise.any(
+          chunk.map(p => probeSingleProvider(backends[0], targetId, episode, p, audio, 2800))
+        );
+        if (winner) return winner;
+      } catch {
+        // Chunk failed, continue to next batch
+      }
+    }
+
+    // 3. Fallback to secondary backend in parallel
+    try {
+      const winner = await Promise.any(
+        candidateList.slice(0, 4).map(p => probeSingleProvider(backends[1], targetId, episode, p, audio, 2800))
+      );
+      if (winner) return winner;
+    } catch {}
 
     return null;
   };
@@ -180,12 +180,15 @@ export default async function handler(req: any, res: any) {
       return res.status(400).json({ success: false, error: 'ID anime wajib diisi.' });
     }
 
+    const shouldResolveTitle = Boolean(title && title.trim()) || isNaN(Number(id)) || Number(id) > 250000;
+    const resolvePromise = shouldResolveTitle ? resolveAnimeId(id, title) : Promise.resolve(null);
+
     // Phase 1: Probe with requested ID
     let finalData = await probeMultiProviders(id, episode, audio, provider);
 
-    // Phase 2: If no sources found with raw ID, attempt AniList ID resolution via title or non-numeric ID
+    // Phase 2: If no sources found with raw ID, try resolved AniList ID
     if (!finalData) {
-      const resolvedId = await resolveAnimeId(id, title);
+      const resolvedId = await resolvePromise;
       if (resolvedId && resolvedId !== id) {
         finalData = await probeMultiProviders(resolvedId, episode, audio, provider);
       }
