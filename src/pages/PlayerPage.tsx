@@ -100,9 +100,8 @@ export const PlayerPage: React.FC = () => {
   const [currentServerIndex, setCurrentServerIndex] = useState(0);
   const [animeAudio, setAnimeAudio] = useState<'sub' | 'dub'>('sub');
 
-  // Iframe loading and timeout watchdog state
+  // Iframe loading and watchdog state
   const [isIframeLoading, setIsIframeLoading] = useState(true);
-  const [isIframeTimedOut, setIsIframeTimedOut] = useState(false);
   const [iframeKey, setIframeKey] = useState(0);
   const [failoverNotice, setFailoverNotice] = useState<string | null>(null);
   const timeoutRef = useRef<any>(null);
@@ -228,26 +227,18 @@ export const PlayerPage: React.FC = () => {
     return () => controller.abort();
   }, [id, mediaType, seasonNum, episodeNum, recordHistory, searchParams]);
 
-  // Persistent Iframe Watchdog: Displays non-intrusive helper banner if loading takes longer than 15s without unmounting iframe
+  // Iframe loading management
   useEffect(() => {
     if (!isPlayable) {
       setIsIframeLoading(false);
-      setIsIframeTimedOut(false);
       return;
     }
 
     setIsIframeLoading(true);
-    setIsIframeTimedOut(false);
 
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
     }
-
-    // Set 15s watchdog: does NOT destroy iframe, only shows assistant helper card
-    timeoutRef.current = setTimeout(() => {
-      setIsIframeTimedOut(true);
-      console.warn('[Zhafx Player] Server taking longer than 15 seconds to respond. Player remains mounted while helper is shown.');
-    }, 15000);
 
     return () => {
       if (timeoutRef.current) {
@@ -257,9 +248,10 @@ export const PlayerPage: React.FC = () => {
   }, [id, episodeNum, seasonNum, currentServerIndex, iframeKey, isPlayable, animeAudio]);
 
   const handleIframeLoad = () => {
-    // Note: onLoad indicates document loaded, not video playback finished buffering.
-    // Dismiss the heavy loading screen gently, leaving helper timer running if stream is slow.
     setIsIframeLoading(false);
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
   };
 
   // Switch to next fallback server
@@ -269,14 +261,12 @@ export const PlayerPage: React.FC = () => {
     setFailoverNotice(`Beralih ke ${ANIME_SERVERS[nextIdx].name}...`);
     setTimeout(() => setFailoverNotice(null), 3000);
     setIsIframeLoading(true);
-    setIsIframeTimedOut(false);
     setIframeKey((k) => k + 1);
   };
 
   // Retry loading current server
   const handleRetry = () => {
     setIsIframeLoading(true);
-    setIsIframeTimedOut(false);
     setIframeKey((k) => k + 1);
   };
 
@@ -476,7 +466,6 @@ export const PlayerPage: React.FC = () => {
   const navigateEpisode = (targetEp: number) => {
     setIsEpisodeDrawerOpen(false);
     setIsIframeLoading(true);
-    setIsIframeTimedOut(false);
     if (mediaType === 'tv') {
       navigate(`/watch/tv/${id}/${seasonNum}/${targetEp}`);
     } else if (mediaType === 'anime') {
@@ -604,7 +593,6 @@ export const PlayerPage: React.FC = () => {
                   const idx = parseInt(e.target.value, 10);
                   setCurrentServerIndex(idx);
                   setIsIframeLoading(true);
-                  setIsIframeTimedOut(false);
                   setIframeKey((k) => k + 1);
                 }}
                 aria-label="Pilih server stream"
@@ -779,7 +767,7 @@ export const PlayerPage: React.FC = () => {
         )}
 
         {/* Loading Overlay (Non-blocking backdrop spinner) */}
-        {isIframeLoading && isPlayable && !isIframeTimedOut && (
+        {isIframeLoading && isPlayable && (
           <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-[#06070B]/80 backdrop-blur-sm space-y-3 pointer-events-none px-4 text-center">
             <div className="w-11 h-11 border-3 border-white/20 border-t-[#FFB224] rounded-full animate-spin" />
             <span className="text-xs font-mono text-white/80 tracking-wider uppercase">
@@ -788,7 +776,7 @@ export const PlayerPage: React.FC = () => {
           </div>
         )}
 
-        {/* Validation Error: Episode Not Available (Requirement 2) */}
+        {/* Validation Error: Episode Not Available */}
         {!isPlayable && (
           <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-[#06070B] p-6 text-center space-y-3">
             <div className="w-14 h-14 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-white/80">
@@ -819,41 +807,6 @@ export const PlayerPage: React.FC = () => {
                   Pilih Episode Lain
                 </button>
               )}
-            </div>
-          </div>
-        )}
-
-        {/* Persistent Timeout Helper Card (Does NOT unmount the player iframe) */}
-        {isIframeTimedOut && isPlayable && (
-          <div className="absolute top-20 sm:top-24 left-1/2 -translate-x-1/2 z-30 w-[92%] max-w-md p-4 rounded-2xl liquid-glass-dense border border-amber-500/40 text-center space-y-2.5 shadow-2xl backdrop-blur-xl animate-in-scale">
-            <div className="flex items-center justify-center gap-2 text-amber-400 font-bold text-xs sm:text-sm">
-              <AlertTriangle className="w-4 h-4 shrink-0" />
-              <span>Server sedang memuat atau lambat merespons</span>
-            </div>
-            <p className="text-[11px] text-white/70 leading-snug">
-              Pemutar membutuhkan waktu lebih lama untuk memuat stream dari server ini. Pemutar tetap aktif di latar belakang. Anda dapat menunggu, coba lagi, atau beralih ke server cadangan.
-            </p>
-            <div className="flex items-center justify-center gap-2 pt-1">
-              <button
-                onClick={handleRetry}
-                className="px-3.5 py-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white text-[11px] font-semibold cursor-pointer ios-spring flex items-center gap-1.5 border border-white/15"
-              >
-                <RotateCw className="w-3 h-3 text-white" />
-                <span>Coba lagi</span>
-              </button>
-              <button
-                onClick={handleNextServer}
-                className="px-4 py-1.5 rounded-full bg-[#FFB224] text-black text-[11px] font-bold hover:bg-[#FFA500] cursor-pointer shadow-lg ios-spring flex items-center gap-1.5"
-              >
-                <Server className="w-3.5 h-3.5" />
-                <span>Ganti Server ({((currentServerIndex + 1) % ANIME_SERVERS.length) + 1}/{ANIME_SERVERS.length})</span>
-              </button>
-              <button
-                onClick={() => setIsIframeTimedOut(false)}
-                className="px-2.5 py-1.5 rounded-full bg-transparent text-white/50 hover:text-white text-[11px] cursor-pointer"
-              >
-                Tutup
-              </button>
             </div>
           </div>
         )}
