@@ -210,9 +210,13 @@ async function fetchWithRetry<T>(
       }
 
       try {
+        // Use the same-origin proxy for FrameX requests first. This avoids browser CORS
+        // and keeps every catalog request inside the approved framextv.xyz/api boundary.
         let requestUrl = url;
-        // If previous attempts failed due to CORS or network, use proxy
-        if (attempt > 0 && useProxyFallback) {
+        const isApprovedFrameXApi = /^https:\/\/framextv\.xyz\/api(?:\/|$)/.test(url);
+        if (useProxyFallback && isApprovedFrameXApi) {
+          requestUrl = `${CONFIG.PROXY_URL}?url=${encodeURIComponent(url)}`;
+        } else if (attempt > 0 && useProxyFallback) {
           requestUrl = `${CONFIG.PROXY_URL}?url=${encodeURIComponent(url)}`;
         }
 
@@ -436,83 +440,8 @@ export const api = {
       return { titles: [], page, totalPages: 1, totalResults: 0 };
     }
 
-    // Kept unreachable for backwards-compatible response mapping; all requests stay on FrameX.
-    try {
-      const anilistQuery = `query ($page: Int, $perPage: Int, $genre: String, $seasonYear: Int, $sort: [MediaSort]) {
-        Page(page: $page, perPage: $perPage) {
-          pageInfo {
-            total
-            lastPage
-            currentPage
-            hasNextPage
-          }
-          media(type: ANIME, genre: $genre, seasonYear: $seasonYear, sort: $sort) {
-            id
-            title { romaji english native }
-            coverImage { extraLarge large }
-            bannerImage
-            averageScore
-            seasonYear
-            startDate { year }
-            genres
-            description
-            episodes
-            status
-          }
-        }
-      }`;
-
-      const variables: Record<string, any> = {
-        page,
-        perPage: 24,
-        sort: [mappedSort],
-      };
-      if (params.genre && params.genre !== 'all') {
-        variables.genre = params.genre;
-      }
-      if (params.year) {
-        variables.seasonYear = params.year;
-      }
-
-      const aniRes = await fetch(CONFIG.ANILIST_GRAPHQL_URL || 'https://framextv.xyz/api/anime/details', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: anilistQuery, variables }),
-        signal,
-      });
-
-      if (aniRes.ok) {
-        const aniData = await aniRes.json();
-        const mediaList = aniData?.data?.Page?.media || [];
-        const pageInfo = aniData?.data?.Page?.pageInfo;
-
-        const titles: Title[] = mediaList.map((m: any) => ({
-          id: String(m.id),
-          type: 'anime',
-          title: m.title?.english || m.title?.romaji || m.title?.native || 'Anime',
-          originalTitle: m.title?.native || m.title?.romaji,
-          poster: m.coverImage?.extraLarge || m.coverImage?.large || CONFIG.PLACEHOLDER_POSTER,
-          backdrop: m.bannerImage || m.coverImage?.extraLarge || CONFIG.PLACEHOLDER_BACKDROP,
-          year: String(m.startDate?.year || m.seasonYear || '2024'),
-          rating: m.averageScore ? (m.averageScore / 10).toFixed(1) : '8.5',
-          overview: m.description ? m.description.replace(/<[^>]*>/g, '').trim() : 'Informasi sinopsis belum tersedia.',
-          genres: m.genres || ['Anime'],
-          numberOfEpisodes: m.episodes || 24,
-          status: m.status,
-        }));
-
-        return {
-          titles,
-          page: pageInfo?.currentPage || page,
-          totalPages: pageInfo?.lastPage || 1,
-          totalResults: pageInfo?.total || titles.length,
-        };
-      }
-    } catch (fallbackErr: any) {
-      console.error('[API] FrameX GraphQL fallback error:', fallbackErr?.message);
-    }
-
-    // Return empty list instead of crashing UI with 403
+    // FrameX is the only supported anime source. Keep the UI usable when its
+    // protection layer temporarily rejects a request instead of querying elsewhere.
     return {
       titles: [],
       page,
