@@ -5,6 +5,7 @@ import { Title } from '../types';
 import { useMyList } from '../hooks/useMyList';
 import { useActiveMedia } from '../context/ActiveMediaContext';
 import { storage } from '../lib/storage';
+import { optimizeTmdbImage } from '../lib/image';
 
 interface MediaCardProps {
   item: Title;
@@ -95,9 +96,12 @@ export const MediaCard: React.FC<MediaCardProps> = ({ item, className = '', show
         >
           {!imageError && item.poster ? (
             <img
-              src={item.poster}
+              src={optimizeTmdbImage(item.poster, 'w342')}
               alt={item.title}
+              width={342}
+              height={513}
               loading="lazy"
+              decoding="async"
               onError={() => setImageError(true)}
               className="w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-105 pointer-events-none"
             />
@@ -106,7 +110,7 @@ export const MediaCard: React.FC<MediaCardProps> = ({ item, className = '', show
               <span className="text-xl font-bold text-white/40 tracking-wider mb-1">
                 {getInitials(item.title)}
               </span>
-              <span className="text-[11px] text-white/50 line-clamp-2 px-1">
+              <span className="text-[11px] text-zinc-300 line-clamp-2 px-1">
                 {item.title}
               </span>
             </div>
@@ -125,7 +129,7 @@ export const MediaCard: React.FC<MediaCardProps> = ({ item, className = '', show
             ) : <span />}
 
             {showType && (
-              <span className="px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-md text-white/80 text-[10px] font-medium">
+              <span className="px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-md text-white/90 text-[10px] font-medium">
                 {typeLabel}
               </span>
             )}
@@ -134,40 +138,40 @@ export const MediaCard: React.FC<MediaCardProps> = ({ item, className = '', show
 
         {/* Action Overlay: container is strictly pointer-events-none so it NEVER blocks clicks on the poster */}
         <div className="hidden sm:flex absolute inset-0 z-20 flex-col justify-end p-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
-          <div className="flex items-center justify-center gap-2 mb-2 pointer-events-auto">
-            {/* Quick Play Glass Button */}
+          <div className="flex items-center justify-center gap-2.5 mb-2 pointer-events-auto">
+            {/* Quick Play Glass Button (min 44x44px target) */}
             <button
               type="button"
               onClick={handlePlay}
               aria-label={`Putar ${item.title}`}
               title="Putar sekarang"
-              className="w-10 h-10 rounded-full liquid-glass liquid-specular flex items-center justify-center text-white hover:bg-white/20 active:scale-90 transition-transform cursor-pointer ios-spring"
+              className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-full liquid-glass liquid-specular flex items-center justify-center text-white hover:bg-white/20 active:scale-90 transition-transform cursor-pointer ios-spring"
             >
               <Play className="w-4 h-4 fill-current ml-0.5 text-white" />
             </button>
 
-            {/* Quick Watchlist Glass Button */}
+            {/* Quick Watchlist Glass Button (min 44x44px target) */}
             <button
               type="button"
               onClick={handleToggleWatchlist}
               aria-label={saved ? `Hapus ${item.title} dari daftar` : `Tambah ${item.title} ke daftar`}
               title={saved ? 'Tersimpan di Daftar' : 'Tambah ke Daftar'}
-              className="w-9 h-9 rounded-full liquid-glass liquid-specular flex items-center justify-center text-white hover:bg-white/20 active:scale-90 transition-transform cursor-pointer ios-spring"
+              className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-full liquid-glass liquid-specular flex items-center justify-center text-white hover:bg-white/20 active:scale-90 transition-transform cursor-pointer ios-spring"
             >
               {saved ? (
                 <BookmarkCheck className="w-4 h-4 text-white" />
               ) : (
-                <Bookmark className="w-4 h-4 text-white/80" />
+                <Bookmark className="w-4 h-4 text-white/90" />
               )}
             </button>
 
-            {/* Detail Glass Button */}
+            {/* Detail Glass Button (min 44x44px target) */}
             <button
               type="button"
               onClick={handleInfo}
               aria-label={`Detail ${item.title}`}
               title="Lihat detail tayangan"
-              className="w-9 h-9 rounded-full liquid-glass liquid-specular flex items-center justify-center text-white/80 hover:text-white hover:bg-white/20 active:scale-90 transition-transform cursor-pointer ios-spring"
+              className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-full liquid-glass liquid-specular flex items-center justify-center text-white/90 hover:text-white hover:bg-white/20 active:scale-90 transition-transform cursor-pointer ios-spring"
             >
               <Info className="w-4 h-4" />
             </button>
@@ -180,12 +184,12 @@ export const MediaCard: React.FC<MediaCardProps> = ({ item, className = '', show
         <h3 className="text-xs sm:text-[13px] font-semibold text-white/95 group-hover/text:text-white line-clamp-1 transition-colors leading-snug">
           {item.title}
         </h3>
-        <div className="flex items-center gap-1.5 text-[11px] text-white/50 mt-0.5 font-medium">
+        <div className="flex items-center gap-1.5 text-[11px] text-zinc-300 mt-0.5 font-medium">
           <span>{item.year || 'N/A'}</span>
           {item.genres && item.genres.length > 0 && (
             <>
               <span>•</span>
-              <span className="line-clamp-1 text-white/40">{item.genres[0]}</span>
+              <span className="line-clamp-1 text-zinc-300">{item.genres[0]}</span>
             </>
           )}
         </div>

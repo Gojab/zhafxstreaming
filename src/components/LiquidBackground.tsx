@@ -6,6 +6,18 @@ export const LiquidBackground: React.FC = () => {
   const [currentPoster, setCurrentPoster] = useState<string>(activePoster);
   const [prevPoster, setPrevPoster] = useState<string | null>(null);
   const [isCrossfading, setIsCrossfading] = useState<boolean>(false);
+  const [isTabActive, setIsTabActive] = useState<boolean>(() =>
+    typeof document !== 'undefined' ? !document.hidden : true
+  );
+
+  // Pause heavy background animations when browser tab is inactive to eliminate CPU & TBT load
+  useEffect(() => {
+    const handleVisibility = () => {
+      setIsTabActive(!document.hidden);
+    };
+    document.addEventListener('visibilitychange', handleVisibility, { passive: true });
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, []);
 
   useEffect(() => {
     if (activePoster && activePoster !== currentPoster) {
@@ -22,6 +34,11 @@ export const LiquidBackground: React.FC = () => {
     }
   }, [activePoster, currentPoster]);
 
+  const animationStyle = {
+    animationPlayState: isTabActive ? 'running' : 'paused',
+    willChange: 'transform',
+  } as React.CSSProperties;
+
   return (
     <div
       aria-hidden="true"
@@ -37,6 +54,10 @@ export const LiquidBackground: React.FC = () => {
           <img
             src={prevPoster}
             alt=""
+            width={1280}
+            height={720}
+            loading="lazy"
+            decoding="async"
             className="w-full h-full object-cover scale-125 filter blur-[80px] sm:blur-[100px]"
           />
         </div>
@@ -51,14 +72,27 @@ export const LiquidBackground: React.FC = () => {
         <img
           src={currentPoster}
           alt=""
+          width={1280}
+          height={720}
+          loading="lazy"
+          decoding="async"
           className="w-full h-full object-cover scale-125 filter blur-[80px] sm:blur-[100px]"
         />
       </div>
 
-      {/* 3 Slow Moving Ambient Glass Luminous Blobs */}
-      <div className="absolute -top-32 -left-32 w-[520px] h-[520px] rounded-full bg-white/[0.04] filter blur-[100px] animate-blob-1 mix-blend-screen" />
-      <div className="absolute top-1/3 -right-36 w-[620px] h-[620px] rounded-full bg-white/[0.03] filter blur-[120px] animate-blob-2 mix-blend-screen" />
-      <div className="absolute -bottom-36 left-1/4 w-[500px] h-[500px] rounded-full bg-white/[0.025] filter blur-[95px] animate-blob-3 mix-blend-screen" />
+      {/* 3 Slow Moving Ambient Glass Luminous Blobs (Paused on inactive tab) */}
+      <div
+        style={animationStyle}
+        className="absolute -top-32 -left-32 w-[520px] h-[520px] rounded-full bg-white/[0.04] filter blur-[100px] animate-blob-1 mix-blend-screen"
+      />
+      <div
+        style={animationStyle}
+        className="absolute top-1/3 -right-36 w-[620px] h-[620px] rounded-full bg-white/[0.03] filter blur-[120px] animate-blob-2 mix-blend-screen"
+      />
+      <div
+        style={animationStyle}
+        className="absolute -bottom-36 left-1/4 w-[500px] h-[500px] rounded-full bg-white/[0.025] filter blur-[95px] animate-blob-3 mix-blend-screen"
+      />
 
       {/* Soft dark radial & vertical gradient for perfect typography legibility */}
       <div className="absolute inset-0 bg-radial from-transparent via-[#06070B]/40 to-[#06070B]/85" />

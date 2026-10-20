@@ -34,9 +34,13 @@ const PORT = parseInt(process.env.PORT || '3000', 10);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Set Referrer-Policy to origin for proper FrameX embed player support
+// Set Referrer-Policy and Permissions-Policy for proper FrameX embed player support and unrestricted fullscreen
 app.use((_req, res, next) => {
   res.setHeader('Referrer-Policy', 'origin');
+  res.setHeader(
+    'Permissions-Policy',
+    'fullscreen=*, autoplay=*, encrypted-media=*, picture-in-picture=*'
+  );
   next();
 });
 

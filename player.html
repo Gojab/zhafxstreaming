@@ -25,8 +25,11 @@
 
     var f = document.createElement('iframe');
     f.src = url.href;
-    f.allow = 'autoplay; fullscreen; picture-in-picture; encrypted-media; gyroscope; accelerometer';
+    f.allow = 'autoplay *; fullscreen *; picture-in-picture *; encrypted-media *; gyroscope *; accelerometer *; clipboard-write *; web-share *';
     f.allowFullscreen = true;
+    f.setAttribute('allowfullscreen', 'true');
+    f.setAttribute('webkitallowfullscreen', 'true');
+    f.setAttribute('mozallowfullscreen', 'true');
     f.referrerPolicy = 'origin';
     document.body.appendChild(f);
   })();

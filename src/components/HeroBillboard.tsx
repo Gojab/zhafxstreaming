@@ -6,6 +6,7 @@ import { Title } from '../types';
 import { useMyList } from '../hooks/useMyList';
 import { useActiveMedia } from '../context/ActiveMediaContext';
 import { storage } from '../lib/storage';
+import { optimizeTmdbImage } from '../lib/image';
 
 interface HeroBillboardProps {
   items: Title[];
@@ -110,8 +111,14 @@ export const HeroBillboard: React.FC<HeroBillboardProps> = ({ items }) => {
         >
           {/* Main Backdrop Artwork */}
           <img
-            src={current.backdrop || current.poster}
+            src={optimizeTmdbImage(current.backdrop || current.poster, 'w780')}
             alt={current.title}
+            width={780}
+            height={439}
+            loading={currentIndex === 0 ? 'eager' : 'lazy'}
+            // @ts-ignore
+            fetchPriority={currentIndex === 0 ? 'high' : 'auto'}
+            decoding="async"
             className="w-full h-full object-cover object-center"
           />
 
@@ -246,16 +253,21 @@ export const HeroBillboard: React.FC<HeroBillboardProps> = ({ items }) => {
 
       {/* Bottom Glass Navigation Indicator Pills */}
       {validItems.length > 1 && (
-        <div className="absolute bottom-6 right-5 sm:right-10 z-20 flex items-center gap-1.5 p-1 rounded-full liquid-glass backdrop-blur-md">
+        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 p-1 rounded-full liquid-glass backdrop-blur-md shadow-lg">
           {validItems.map((_, idx) => (
             <button
               key={idx}
+              type="button"
               onClick={() => setCurrentIndex(idx)}
-              aria-label={`Pilih slide ${idx + 1}`}
-              className={`h-2 transition-all duration-300 rounded-full cursor-pointer ios-spring ${
-                idx === currentIndex ? 'w-6 bg-white shadow-sm' : 'w-2 bg-white/30 hover:bg-white/60'
-              }`}
-            />
+              aria-label={`Pilih slide tayangan ${idx + 1}`}
+              className="min-h-[44px] min-w-[32px] p-2 flex items-center justify-center cursor-pointer ios-spring"
+            >
+              <span
+                className={`h-2 transition-all duration-300 rounded-full block ${
+                  idx === currentIndex ? 'w-6 bg-white shadow-sm' : 'w-2 bg-white/40 hover:bg-white/70'
+                }`}
+              />
+            </button>
           ))}
         </div>
       )}

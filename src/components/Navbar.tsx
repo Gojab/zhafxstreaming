@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Search, Sparkles, User as UserIcon, LogOut, Bookmark, History, ChevronDown } from 'lucide-react';
+import { Search, Sparkles, User as UserIcon, LogOut, Bookmark, History, ChevronDown, Clapperboard } from 'lucide-react';
 import { Logo } from './Logo';
 import { storage } from '../lib/storage';
 import { User } from '../types';
@@ -80,10 +80,10 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAI, onOpenFeatures, onOpen
   };
 
   const navLinkStyle = ({ isActive }: { isActive: boolean }) =>
-    `text-xs sm:text-[13px] font-medium transition-all px-3 py-1.5 rounded-full ios-spring ${
+    `text-xs sm:text-[13px] font-medium transition-all px-3.5 py-2 min-h-[44px] inline-flex items-center rounded-full ios-spring ${
       isActive
         ? 'text-white font-semibold liquid-glass-active shadow-sm'
-        : 'text-white/70 hover:text-white hover:bg-white/[0.06]'
+        : 'text-white/80 hover:text-white hover:bg-white/[0.06]'
     }`;
 
   return (
@@ -123,27 +123,27 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAI, onOpenFeatures, onOpen
         </div>
 
         {/* Right Action Buttons */}
-        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-          {/* Glass Search Button */}
+        <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
+          {/* Glass Search Button (min 44x44px) */}
           <button
             onClick={() => navigate('/search')}
             aria-label="Pencarian tayangan"
-            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-white/70 hover:text-white text-xs transition-all cursor-pointer h-9 ios-spring"
+            className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-full bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-white/80 hover:text-white text-xs transition-all cursor-pointer min-h-[44px] min-w-[44px] ios-spring"
           >
-            <Search className="w-3.5 h-3.5 text-white/80" />
+            <Search className="w-3.5 h-3.5 text-white" />
             <span className="hidden sm:inline text-[12px]">Cari</span>
-            <kbd className="hidden lg:inline-block px-1.5 py-0.2 rounded-full bg-white/10 text-[9px] text-white/60">
+            <kbd className="hidden lg:inline-block px-1.5 py-0.2 rounded-full bg-white/10 text-[9px] text-white/70">
               /
             </kbd>
           </button>
 
-          {/* Logo X (Features Modal) */}
+          {/* Logo X (Features Modal - min 44x44px) */}
           <button
             type="button"
             onClick={onOpenFeatures}
             aria-label="Fitur Utama X"
             title="Menu Fitur Zhafx X"
-            className="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-full bg-white/[0.08] hover:bg-white/[0.16] border border-white/20 text-white font-medium text-xs transition-all cursor-pointer h-9 ios-spring shadow-sm"
+            className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-full bg-white/[0.08] hover:bg-white/[0.16] border border-white/20 text-white font-medium text-xs transition-all cursor-pointer min-h-[44px] min-w-[44px] ios-spring shadow-sm"
           >
             <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 fill-none" stroke="currentColor">
               <path d="M5 5L19 19M19 5L5 19" strokeWidth="2.4" strokeLinecap="round" />
@@ -154,14 +154,26 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAI, onOpenFeatures, onOpen
             <span className="text-[12px] text-white font-bold">X</span>
           </button>
 
-          {/* Tanya AI Glass Pill */}
+          {/* Tanya AI Glass Pill (min 44x44px) */}
           <button
             onClick={onOpenAI}
-            className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/[0.08] hover:bg-white/[0.16] border border-white/15 text-white font-medium text-xs transition-all cursor-pointer h-9 ios-spring shadow-sm"
+            className="hidden sm:inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-full bg-white/[0.08] hover:bg-white/[0.16] border border-white/15 text-white font-medium text-xs transition-all cursor-pointer min-h-[44px] min-w-[44px] ios-spring shadow-sm"
             title="Buka Tanya Zhafx AI"
           >
             <Sparkles className="w-3.5 h-3.5 text-white" />
             <span className="text-[12px]">Tanya AI</span>
+          </button>
+
+          {/* Tombol Pemutar Intro Sinematik */}
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new Event('play-zhafx-intro'))}
+            aria-label="Putar Intro Sinematik"
+            title="Putar Intro Sinematik ZHAFX"
+            className="hidden sm:inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-full bg-white/[0.08] hover:bg-white/[0.16] border border-white/15 text-white font-medium text-xs transition-all cursor-pointer min-h-[44px] min-w-[44px] ios-spring shadow-sm"
+          >
+            <Clapperboard className="w-3.5 h-3.5 text-white" />
+            <span className="text-[12px] hidden lg:inline">Intro</span>
           </button>
 
           {/* Gmail / Google Login Button or User Profile Dropdown */}
@@ -169,7 +181,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAI, onOpenFeatures, onOpen
             <div className="relative" ref={profileMenuRef}>
               <button
                 onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
-                className="flex items-center gap-1.5 pl-2 pr-2.5 sm:px-3 py-1 rounded-full liquid-glass hover:bg-white/[0.16] border border-white/20 text-white text-xs transition-all cursor-pointer h-9 ios-spring"
+                className="flex items-center justify-center gap-1.5 pl-2.5 pr-3 py-1.5 rounded-full liquid-glass hover:bg-white/[0.16] border border-white/20 text-white text-xs transition-all cursor-pointer min-h-[44px] min-w-[44px] ios-spring"
               >
                 {user.avatar ? (
                   <img
@@ -221,6 +233,17 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAI, onOpenFeatures, onOpen
                     <span>Riwayat Nonton</span>
                   </button>
 
+                  <button
+                    onClick={() => {
+                      setIsProfileMenuOpen(false);
+                      window.dispatchEvent(new Event('play-zhafx-intro'));
+                    }}
+                    className="w-full px-3 py-2 rounded-xl text-left text-xs text-white/80 hover:text-white hover:bg-white/10 flex items-center gap-2 cursor-pointer transition-colors"
+                  >
+                    <Clapperboard className="w-3.5 h-3.5 text-white" />
+                    <span>Putar Intro Sinematik</span>
+                  </button>
+
                   <div className="pt-1 mt-1 border-t border-white/10">
                     <button
                       onClick={handleLogout}
@@ -236,7 +259,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAI, onOpenFeatures, onOpen
           ) : (
             <button
               onClick={onOpenAuth}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white hover:bg-zinc-100 text-[#06070B] font-bold text-xs shadow-md transition-all cursor-pointer h-9 ios-spring shrink-0"
+              className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-full bg-white hover:bg-zinc-100 text-[#06070B] font-bold text-xs shadow-md transition-all cursor-pointer min-h-[44px] min-w-[44px] ios-spring shrink-0"
               title="Masuk dengan Google atau Email"
             >
               <svg className="w-3.5 h-3.5" viewBox="0 0 24 24">

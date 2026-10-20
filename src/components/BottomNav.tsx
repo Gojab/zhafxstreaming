@@ -22,17 +22,17 @@ export const BottomNav: React.FC<BottomNavProps> = ({ onOpenAI, onOpenFeatures, 
   }, []);
 
   const navItemClass = ({ isActive }: { isActive: boolean }) =>
-    `flex flex-col items-center justify-center gap-0.5 px-3 py-1.5 rounded-full text-[10px] font-medium transition-all ios-spring ${
+    `flex flex-col items-center justify-center gap-0.5 px-3 py-1.5 min-h-[44px] min-w-[44px] rounded-full text-[10px] font-medium transition-all ios-spring ${
       isActive
         ? 'text-white font-semibold bg-white/[0.16] shadow-sm'
-        : 'text-white/60 hover:text-white active:scale-95'
+        : 'text-zinc-200 hover:text-white active:scale-95'
     }`;
 
   return (
     <div className="md:hidden fixed bottom-3 sm:bottom-5 left-3 right-3 z-40 flex justify-center pointer-events-none pb-[env(safe-area-inset-bottom)]">
       <nav
         aria-label="Navigasi Bawah Apple iOS"
-        className="w-full max-w-[400px] h-14 rounded-full liquid-glass-dense liquid-specular shadow-[0_12px_40px_rgba(0,0,0,0.65)] flex items-center justify-around px-2 pointer-events-auto border border-white/20"
+        className="w-full max-w-[400px] h-15 rounded-full liquid-glass-dense liquid-specular shadow-[0_12px_40px_rgba(0,0,0,0.65)] flex items-center justify-around px-2 pointer-events-auto border border-white/20"
       >
         {/* 1. Beranda */}
         <NavLink to="/" className={navItemClass}>
@@ -46,13 +46,13 @@ export const BottomNav: React.FC<BottomNavProps> = ({ onOpenAI, onOpenFeatures, 
           <span>Jelajahi</span>
         </NavLink>
 
-        {/* 3. Center: Tombol X */}
+        {/* 3. Center: Tombol X (min 44x44px) */}
         <button
           type="button"
           onClick={onOpenFeatures}
           aria-label="Fitur Utama X"
           title="X"
-          className="flex flex-col items-center justify-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-medium text-white active:scale-90 transition-transform ios-spring cursor-pointer"
+          className="flex flex-col items-center justify-center gap-0.5 px-2.5 py-1 min-h-[44px] min-w-[44px] rounded-full text-[10px] font-medium text-white active:scale-90 transition-transform ios-spring cursor-pointer"
         >
           <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-white/[0.14] to-white/[0.24] border border-white/30 flex items-center justify-center shadow-lg text-white">
             <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 fill-none" stroke="currentColor">
@@ -71,12 +71,12 @@ export const BottomNav: React.FC<BottomNavProps> = ({ onOpenAI, onOpenFeatures, 
           <span>Daftar</span>
         </NavLink>
 
-        {/* 5. Tanya AI / Akun Login */}
+        {/* 5. Tanya AI / Akun Login (min 44x44px) */}
         <button
           type="button"
           onClick={user ? onOpenFeatures : onOpenAuth}
           aria-label={user ? 'Akun Saya' : 'Masuk Google'}
-          className="flex flex-col items-center justify-center gap-0.5 px-2.5 py-1.5 rounded-full text-[10px] font-medium text-white/80 active:scale-90 transition-transform ios-spring cursor-pointer"
+          className="flex flex-col items-center justify-center gap-0.5 px-3 py-1.5 min-h-[44px] min-w-[44px] rounded-full text-[10px] font-medium text-zinc-200 hover:text-white active:scale-90 transition-transform ios-spring cursor-pointer"
         >
           {user ? (
             user.avatar ? (

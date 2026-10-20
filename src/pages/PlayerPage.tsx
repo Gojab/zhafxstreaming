@@ -320,6 +320,13 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
   const { isSaved, toggle } = useMyList();
   const { setActiveMedia } = useActiveMedia();
   const playerContainerRef = useRef<HTMLDivElement | null>(null);
+  const isNativeFsActive = useRef<boolean>(false);
+
+  // Dynamic import of hls.js on demand
+  const loadHls = async () => {
+    const { default: Hls } = await import('hls.js');
+    return Hls;
+  };
 
   // Anti-popup guard
   useEffect(() => {
@@ -460,6 +467,9 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
     }
+    timeoutRef.current = setTimeout(() => {
+      setIsIframeLoading(false);
+    }, 4000);
 
     return () => {
       if (timeoutRef.current) {
@@ -559,7 +569,7 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
 
   const embedUrl = buildEmbedUrl();
 
-  // Fullscreen tracking
+  // Fullscreen tracking & cross-browser synchronization
   useEffect(() => {
     const handleFsChange = () => {
       const isNativeFs = !!(
@@ -568,49 +578,102 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
         (document as any).mozFullScreenElement ||
         (document as any).msFullscreenElement
       );
-      setIsFullscreen(isNativeFs);
+      if (isNativeFs) {
+        isNativeFsActive.current = true;
+        setIsFullscreen(true);
+      } else if (isNativeFsActive.current) {
+        // Native fullscreen was exited via browser UI or Esc
+        isNativeFsActive.current = false;
+        setIsFullscreen(false);
+        document.body.style.overflow = '';
+      }
     };
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isFullscreen) {
+      if ((e.key === 'Escape' || e.key === 'Esc') && isFullscreen) {
+        if (document.fullscreenElement || (document as any).webkitFullscreenElement) {
+          try {
+            if (document.exitFullscreen) document.exitFullscreen();
+            else if ((document as any).webkitExitFullscreen) (document as any).webkitExitFullscreen();
+          } catch {}
+        }
+        isNativeFsActive.current = false;
         setIsFullscreen(false);
+        document.body.style.overflow = '';
+      } else if (
+        (e.key === 'f' || e.key === 'F') &&
+        document.activeElement?.tagName !== 'INPUT' &&
+        document.activeElement?.tagName !== 'TEXTAREA'
+      ) {
+        toggleFullscreen();
       }
     };
 
     document.addEventListener('fullscreenchange', handleFsChange);
     document.addEventListener('webkitfullscreenchange', handleFsChange);
+    document.addEventListener('mozfullscreenchange', handleFsChange);
+    document.addEventListener('MSFullscreenChange', handleFsChange);
     window.addEventListener('keydown', handleKeyDown);
 
     return () => {
+      document.body.style.overflow = '';
       document.removeEventListener('fullscreenchange', handleFsChange);
       document.removeEventListener('webkitfullscreenchange', handleFsChange);
+      document.removeEventListener('mozfullscreenchange', handleFsChange);
+      document.removeEventListener('MSFullscreenChange', handleFsChange);
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, [isFullscreen]);
 
   const toggleFullscreen = async () => {
-    if (!playerContainerRef.current) return;
+    const el = playerContainerRef.current as any;
+    if (!el) return;
 
     if (!isFullscreen) {
+      // 1. Enter fullscreen (immediate responsive CSS layout + lock background scroll)
+      setIsFullscreen(true);
+      document.body.style.overflow = 'hidden';
+
+      // 2. Attempt HTML5 native fullscreen if supported & permitted
       try {
-        if (playerContainerRef.current.requestFullscreen) {
-          await playerContainerRef.current.requestFullscreen();
-        } else if ((playerContainerRef.current as any).webkitRequestFullscreen) {
-          await (playerContainerRef.current as any).webkitRequestFullscreen();
+        if (el.requestFullscreen) {
+          await el.requestFullscreen();
+          isNativeFsActive.current = true;
+        } else if (el.webkitRequestFullscreen) {
+          await el.webkitRequestFullscreen();
+          isNativeFsActive.current = true;
+        } else if (el.mozRequestFullScreen) {
+          await el.mozRequestFullScreen();
+          isNativeFsActive.current = true;
+        } else if (el.msRequestFullscreen) {
+          await el.msRequestFullscreen();
+          isNativeFsActive.current = true;
         }
-        setIsFullscreen(true);
-      } catch {
-        setIsFullscreen(true);
+      } catch (err) {
+        // Graceful fallback to pure CSS fullscreen
+        console.warn('[Zhafx Player Fullscreen Fallback]:', err);
       }
     } else {
-      try {
-        if (document.exitFullscreen) {
-          await document.exitFullscreen();
-        } else if ((document as any).webkitExitFullscreen) {
-          await (document as any).webkitExitFullscreen();
-        }
-      } catch {}
+      // Exit fullscreen
+      isNativeFsActive.current = false;
       setIsFullscreen(false);
+      document.body.style.overflow = '';
+
+      try {
+        if (document.fullscreenElement || (document as any).webkitFullscreenElement) {
+          if (document.exitFullscreen) {
+            await document.exitFullscreen();
+          } else if ((document as any).webkitExitFullscreen) {
+            await (document as any).webkitExitFullscreen();
+          } else if ((document as any).mozCancelFullScreen) {
+            await (document as any).mozCancelFullScreen();
+          } else if ((document as any).msExitFullscreen) {
+            await (document as any).msExitFullscreen();
+          }
+        }
+      } catch (err) {
+        console.warn('[Zhafx Player Exit Fullscreen Fallback]:', err);
+      }
     }
   };
 
@@ -657,7 +720,7 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
       )}
 
       {/* Breadcrumb & Top Bar Above Player */}
-      <div className="w-full max-w-5xl mx-auto px-3 sm:px-6 pt-4 pb-2.5 flex items-center justify-between gap-3 text-xs text-white/70">
+      <div className="w-full max-w-5xl mx-auto px-3 sm:px-6 pt-20 sm:pt-24 md:pt-28 pb-3 flex items-center justify-between gap-3 text-xs text-white/70">
         <div className="flex items-center gap-2 min-w-0">
           <button
             onClick={() => {
@@ -743,11 +806,14 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
           )}
 
           <button
+            type="button"
             onClick={toggleFullscreen}
-            className="p-2 rounded-full bg-white/10 hover:bg-white/15 text-white/80 hover:text-white cursor-pointer transition-all"
-            title={isFullscreen ? 'Keluar Layar Penuh' : 'Layar Penuh'}
+            aria-label={isFullscreen ? 'Keluar dari Layar Penuh' : 'Buka Layar Penuh'}
+            className="flex items-center justify-center gap-1.5 px-3 py-2 min-h-[44px] min-w-[44px] rounded-full bg-white/10 hover:bg-white/20 text-white font-medium text-xs cursor-pointer transition-all active:scale-95 border border-white/15 shadow-sm shrink-0"
+            title={isFullscreen ? 'Keluar Layar Penuh' : 'Layar Penuh (F)'}
           >
-            {isFullscreen ? <Minimize className="w-3.5 h-3.5" /> : <Maximize className="w-3.5 h-3.5" />}
+            {isFullscreen ? <Minimize className="w-4 h-4 text-white" /> : <Maximize className="w-4 h-4 text-white" />}
+            <span className="hidden sm:inline">{isFullscreen ? 'Keluar' : 'Layar Penuh'}</span>
           </button>
         </div>
       </div>
@@ -755,7 +821,7 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
       {/* =========================================================================
           THE PLAYER CONTAINER ("Kotak Sudut Tumpul", Tidak Langsung Fullscreen)
           ========================================================================= */}
-      <div className="w-full max-w-5xl mx-auto px-3 sm:px-6 relative">
+      <div className="w-full max-w-5xl mx-auto px-3 sm:px-6 mt-1 sm:mt-2 relative">
         {/* Soft Ambient Glow Behind the Player Box */}
         {title?.backdrop && !isFullscreen && (
           <div
@@ -775,13 +841,13 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
         {/* Video Box with Rounded Corners (Kotak Sudut Tumpul, 16:9 Aspect Video) */}
         <div
           ref={playerContainerRef}
-          className={`relative w-full aspect-video bg-black transition-all duration-300 ${
+          className={`bg-black transition-all duration-300 ${
             isFullscreen
-              ? 'fixed inset-0 z-[99999] w-screen h-screen m-0 p-0 rounded-none border-0'
-              : 'rounded-2xl sm:rounded-3xl overflow-hidden border border-white/10 sm:border-white/15 shadow-[0_20px_50px_rgba(0,0,0,0.85)]'
+              ? 'fixed inset-0 z-[999999] w-full h-full m-0 p-0 rounded-none border-0'
+              : 'relative w-full aspect-video rounded-2xl sm:rounded-3xl overflow-hidden border border-white/10 sm:border-white/15 shadow-[0_20px_50px_rgba(0,0,0,0.85)]'
           }`}
         >
-          {/* Iframe Pemutar Resmi FrameX (100% Bebas Sandbox) */}
+          {/* Iframe Pemutar Resmi FrameX (100% Bebas Sandbox & Fullscreen Delegated) */}
           {isPlayable ? (
             <iframe
               key={`${id}-${mediaType}-${seasonNum}-${episodeNum}-${safeServerIndex}-${iframeKey}-${animeAudio}`}
@@ -789,8 +855,12 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
               width="100%"
               height="100%"
               frameBorder="0"
-              allowFullScreen
-              allow="autoplay; fullscreen; picture-in-picture; encrypted-media; accelerometer; gyroscope; clipboard-write; web-share"
+              allowFullScreen={true}
+              // @ts-ignore
+              webkitallowfullscreen="true"
+              // @ts-ignore
+              mozallowfullscreen="true"
+              allow="autoplay *; fullscreen *; picture-in-picture *; encrypted-media *; accelerometer *; gyroscope *; clipboard-write *; web-share *"
               referrerPolicy="origin"
               loading="eager"
               title={title?.title || 'Zhafx Stream Player'}
@@ -823,15 +893,32 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
             </div>
           )}
 
+          {/* Quick Floating Fullscreen Button on Video Player Container (Bottom-Right, min 44x44px) */}
+          {!isFullscreen && isPlayable && (
+            <div className="absolute bottom-3 right-3 z-30 pointer-events-auto">
+              <button
+                type="button"
+                onClick={toggleFullscreen}
+                aria-label="Layar Penuh"
+                title="Layar Penuh (F)"
+                className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-full bg-black/75 hover:bg-black/95 text-white flex items-center justify-center backdrop-blur-md cursor-pointer transition-all border border-white/25 hover:scale-105 active:scale-95 shadow-2xl"
+              >
+                <Maximize className="w-4 h-4 text-white" />
+              </button>
+            </div>
+          )}
+
           {/* Fullscreen Close / Exit Button */}
           {isFullscreen && (
-            <div className="absolute top-4 right-4 z-40">
+            <div className="absolute top-4 right-4 z-40 pointer-events-auto">
               <button
+                type="button"
                 onClick={toggleFullscreen}
-                className="p-3 rounded-full bg-black/75 hover:bg-black/95 text-white cursor-pointer shadow-2xl border border-white/20"
+                aria-label="Keluar Layar Penuh"
+                className="min-w-[44px] min-h-[44px] p-3 rounded-full bg-black/85 hover:bg-black text-white cursor-pointer shadow-2xl border border-white/30 flex items-center justify-center transition-all hover:scale-105 active:scale-95"
                 title="Keluar Layar Penuh (Esc)"
               >
-                <Minimize className="w-4 h-4" />
+                <Minimize className="w-5 h-5 text-white" />
               </button>
             </div>
           )}
