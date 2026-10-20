@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
 import {
-  Home,
   Bookmark,
   History,
   Sparkles,
@@ -38,40 +37,34 @@ export const BottomNav: React.FC<BottomNavProps> = ({ onOpenAI, onOpenFeatures, 
     <div className="md:hidden fixed bottom-3 sm:bottom-5 left-2 right-2 xs:left-3 xs:right-3 z-40 flex justify-center pointer-events-none pb-[env(safe-area-inset-bottom)]">
       <nav
         aria-label="Navigasi Bawah Apple iOS"
-        className="w-auto max-w-[95vw] h-15 rounded-full liquid-glass-dense liquid-specular shadow-[0_12px_40px_rgba(0,0,0,0.7)] flex items-center gap-0.5 xs:gap-1 px-2.5 pointer-events-auto border border-white/20 overflow-x-auto scrollbar-none scroll-smooth touch-pan-x select-none"
+        className="w-auto max-w-[95vw] h-15 rounded-full liquid-glass-dense shadow-[0_12px_40px_rgba(0,0,0,0.7)] flex items-center justify-between gap-1 xs:gap-2 px-3 pointer-events-auto border border-white/20 select-none"
       >
-        {/* 1. Beranda */}
-        <NavLink to="/" className={navItemClass}>
-          <Home className="w-4 h-4 stroke-[1.8]" />
-          <span>Beranda</span>
-        </NavLink>
-
-        {/* 2. Center: Tombol X Fitur Utama (Cuma X tanpa keterangan) */}
-        <button
-          type="button"
-          onClick={onOpenFeatures}
-          aria-label="X"
-          title="X"
-          className="flex items-center justify-center p-1 min-h-[44px] min-w-[44px] shrink-0 active:scale-90 transition-transform ios-spring cursor-pointer"
-        >
-          <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-white/[0.18] to-white/[0.28] border border-white/30 flex items-center justify-center shadow-lg text-white font-black text-sm">
-            <span className="leading-none">X</span>
-          </div>
-        </button>
-
-        {/* 6. Daftar Saya */}
+        {/* 1. Daftar Saya */}
         <NavLink to="/my-list" className={navItemClass}>
           <Bookmark className="w-4 h-4 stroke-[1.8]" />
           <span>Daftar</span>
         </NavLink>
 
-        {/* 7. Riwayat Nonton */}
+        {/* 3. Riwayat Nonton */}
         <NavLink to="/history" className={navItemClass}>
           <History className="w-4 h-4 stroke-[1.8]" />
           <span>Riwayat</span>
         </NavLink>
 
-        {/* 8. Tanya AI (min 44x44px) */}
+        {/* 4. Center: Tombol X Fitur Utama (Cuma X tanpa keterangan, di tengah) */}
+        <button
+          type="button"
+          onClick={onOpenFeatures}
+          aria-label="X"
+          title="X"
+          className="flex items-center justify-center p-1 min-h-[44px] min-w-[44px] shrink-0 active:scale-90 transition-transform ios-spring cursor-pointer mx-0.5"
+        >
+          <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-white/[0.22] to-white/[0.36] border border-white/40 flex items-center justify-center shadow-lg text-white font-black text-sm">
+            <span className="leading-none">X</span>
+          </div>
+        </button>
+
+        {/* 5. Tanya AI (min 44x44px) */}
         <button
           type="button"
           onClick={onOpenAI}
