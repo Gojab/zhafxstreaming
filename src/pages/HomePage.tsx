@@ -82,7 +82,7 @@ export const HomePage: React.FC = () => {
   // 1. Loading State
   if (isLoading) {
     return (
-      <div className="space-y-8 pb-12">
+      <div className="space-y-8 pb-12 pt-20 sm:pt-24 md:pt-28">
         <HeroSkeleton />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8 space-y-8">
           <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-4">
@@ -98,7 +98,7 @@ export const HomePage: React.FC = () => {
   // 2. Error State
   if (error) {
     return (
-      <div className="min-h-[60vh] flex flex-col items-center justify-center p-6 text-center">
+      <div className="min-h-[60vh] flex flex-col items-center justify-center p-6 pt-24 text-center">
         <div className="w-14 h-14 rounded-2xl bg-[#FF5C6C]/10 border border-[#FF5C6C]/30 text-[#FF5C6C] flex items-center justify-center mb-4">
           <AlertTriangle className="w-7 h-7" />
         </div>
@@ -120,7 +120,7 @@ export const HomePage: React.FC = () => {
   // 3. Empty State fallback
   if (!data || (!data.hero && data.trending.length === 0)) {
     return (
-      <div className="min-h-[50vh] flex flex-col items-center justify-center p-6 text-center">
+      <div className="min-h-[50vh] flex flex-col items-center justify-center p-6 pt-24 text-center">
         <p className="text-sm text-[#98A2C3] mb-4">Belum ada tayangan yang tersedia saat ini.</p>
         <button
           onClick={() => loadData()}
@@ -141,7 +141,7 @@ export const HomePage: React.FC = () => {
   ];
 
   return (
-    <div className="space-y-4 pb-12">
+    <div className="space-y-6 pb-16 pt-20 sm:pt-24 md:pt-28">
       <SEOHead
         title=""
         canonicalPath="/"

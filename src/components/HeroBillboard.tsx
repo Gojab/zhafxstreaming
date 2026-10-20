@@ -91,7 +91,7 @@ export const HeroBillboard: React.FC<HeroBillboardProps> = ({ items }) => {
 
   return (
     <section
-      className="relative w-full h-[70vh] sm:h-[80vh] min-h-[520px] max-h-[820px] overflow-hidden bg-transparent select-none pt-16 sm:pt-20"
+      className="relative w-full h-[65vh] sm:h-[75vh] min-h-[480px] max-h-[780px] overflow-hidden bg-transparent select-none"
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
       onFocus={() => setIsPaused(true)}
