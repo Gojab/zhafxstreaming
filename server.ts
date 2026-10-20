@@ -44,6 +44,12 @@ app.use((_req, res, next) => {
   next();
 });
 
+// Protect API routes from being indexed as duplicate or thin content
+app.use('/api', (_req, res, next) => {
+  res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+  next();
+});
+
 const DATA_DIR = path.resolve(__dirname, 'data');
 
 // --- Persistent Watch Progress Database ---
@@ -1664,8 +1670,49 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     app.use(express.static(path.resolve(__dirname, 'dist')));
-    app.get('*', (_req, res) => {
-      res.sendFile(path.resolve(__dirname, 'dist', 'index.html'));
+
+    let cachedHtml: string | null = null;
+    app.get('*', (req: Request, res: Response) => {
+      const indexPath = path.resolve(__dirname, 'dist', 'index.html');
+      if (!fs.existsSync(indexPath)) {
+        return res.status(404).send('Not Found');
+      }
+
+      if (!cachedHtml) {
+        try {
+          cachedHtml = fs.readFileSync(indexPath, 'utf-8');
+        } catch {
+          return res.sendFile(indexPath);
+        }
+      }
+
+      const cleanPath = req.path === '/' ? '/' : req.path.replace(/\/+$/, '');
+      const canonicalUrl = `https://zhafxstreaming.web.id${cleanPath === '/' ? '/' : cleanPath}`;
+
+      let pageTitle = 'Zhafx — Platform Streaming Film, Serial TV & Anime';
+      if (req.path.startsWith('/explore/anime')) {
+        pageTitle = 'Jelajahi Anime — Zhafx';
+      } else if (req.path.startsWith('/explore/tv')) {
+        pageTitle = 'Jelajahi Serial TV — Zhafx';
+      } else if (req.path.startsWith('/explore/movie')) {
+        pageTitle = 'Jelajahi Film — Zhafx';
+      } else if (req.path.startsWith('/explore')) {
+        pageTitle = 'Jelajahi Katalog Tayangan — Zhafx';
+      } else if (req.path.startsWith('/history')) {
+        pageTitle = 'Riwayat Menonton — Zhafx';
+      } else if (req.path.startsWith('/my-list')) {
+        pageTitle = 'Daftar Tontonan Saya — Zhafx';
+      }
+
+      const customizedHtml = cachedHtml
+        .replace(/<link rel="canonical" href="[^"]*"/, `<link rel="canonical" href="${canonicalUrl}"`)
+        .replace(/<meta property="og:url" content="[^"]*"/, `<meta property="og:url" content="${canonicalUrl}"`)
+        .replace(/<title>[^<]*<\/title>/, `<title>${pageTitle}</title>`)
+        .replace(/<meta property="og:title" content="[^"]*"/, `<meta property="og:title" content="${pageTitle}"`);
+
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.setHeader('X-Robots-Tag', 'index, follow');
+      res.send(customizedHtml);
     });
   }
 

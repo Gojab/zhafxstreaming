@@ -4,18 +4,37 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Zhafx — Platform Streaming Film, Serial TV & Anime</title>
-    <meta name="description" content="Platform streaming film, serial TV, dan anime modern dengan rekomendasi bertenaga AI." />
+    <meta
+      name="description"
+      content="Nonton ribuan film, serial TV, dan anime terbaru di Zhafx dengan kualitas sinematik, streaming cepat tanpa hambatan, dan rekomendasi cerdas bertenaga AI."
+    />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+    <meta name="googlebot" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />
     <meta name="referrer" content="origin" />
     <meta name="theme-color" content="#090A0E" />
     
-    <!-- Open Graph -->
-    <meta property="og:title" content="Zhafx — Platform Streaming Film, Serial TV & Anime" />
-    <meta property="og:description" content="Platform streaming film, serial TV, dan anime modern dengan rekomendasi bertenaga AI." />
+    <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Zhafx" />
+    <meta property="og:title" content="Zhafx — Platform Streaming Film, Serial TV & Anime" />
+    <meta
+      property="og:description"
+      content="Nonton ribuan film, serial TV, dan anime terbaru di Zhafx dengan kualitas sinematik, streaming cepat tanpa hambatan, dan rekomendasi cerdas bertenaga AI."
+    />
+    <meta property="og:url" content="https://zhafxstreaming.web.id/" />
+    <meta property="og:image" content="https://zhafxstreaming.web.id/assets/aistudio/Screenshot__129__8a97505d.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:locale" content="id_ID" />
+
+    <!-- Twitter Cards -->
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="Zhafx — Streaming Film, Serial TV & Anime" />
-    <meta name="twitter:description" content="Nonton ribuan film, serial TV, dan anime favoritmu dengan rekomendasi cerdas AI." />
+    <meta
+      name="twitter:description"
+      content="Nonton ribuan film, serial TV, dan anime favoritmu dengan pemutar modern dan rekomendasi cerdas bertenaga AI."
+    />
+    <meta name="twitter:image" content="https://zhafxstreaming.web.id/assets/aistudio/Screenshot__129__8a97505d.png" />
 
     <!-- Critical Resource Preconnects -->
     <link rel="preconnect" href="https://api.framextv.tech" crossorigin />
@@ -33,34 +52,153 @@
 
     <!-- Google Search Console Site Verification -->
     <meta name="google-site-verification" content="google4f8019285e68db73" />
-    <link rel="canonical" href="https://zhafxstreaming.web.id/" />
+    <link rel="canonical" href="https://zhafxstreaming.web.id/" id="canonical-url" />
 
     <!-- Schema.org Structured Data (JSON-LD) -->
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
-      "@type": "WebApplication",
-      "name": "Zhafx",
-      "url": "https://zhafxstreaming.web.id/",
-      "description": "Platform streaming film, serial TV, dan anime modern dengan rekomendasi bertenaga AI.",
-      "applicationCategory": "EntertainmentApplication",
-      "operatingSystem": "All",
-      "offers": {
-        "@type": "Offer",
-        "price": "0",
-        "priceCurrency": "IDR"
-      },
-      "potentialAction": {
-        "@type": "SearchAction",
-        "target": "https://zhafxstreaming.web.id/search?q={search_term_string}",
-        "query-input": "required name=search_term_string"
-      }
+      "@graph": [
+        {
+          "@type": "WebSite",
+          "@id": "https://zhafxstreaming.web.id/#website",
+          "url": "https://zhafxstreaming.web.id/",
+          "name": "Zhafx",
+          "description": "Platform streaming film, serial TV, dan anime modern dengan rekomendasi bertenaga AI.",
+          "inLanguage": "id-ID",
+          "potentialAction": {
+            "@type": "SearchAction",
+            "target": "https://zhafxstreaming.web.id/search?q={search_term_string}",
+            "query-input": "required name=search_term_string"
+          }
+        },
+        {
+          "@type": "Organization",
+          "@id": "https://zhafxstreaming.web.id/#organization",
+          "name": "Zhafx",
+          "url": "https://zhafxstreaming.web.id/",
+          "logo": {
+            "@type": "ImageObject",
+            "url": "https://zhafxstreaming.web.id/assets/aistudio/Screenshot__129__8a97505d.png"
+          }
+        },
+        {
+          "@type": "SiteNavigationElement",
+          "@id": "https://zhafxstreaming.web.id/#navigation",
+          "name": [
+            "Beranda",
+            "Film",
+            "Serial TV",
+            "Anime",
+            "Eksplorasi"
+          ],
+          "url": [
+            "https://zhafxstreaming.web.id/",
+            "https://zhafxstreaming.web.id/explore/movie",
+            "https://zhafxstreaming.web.id/explore/tv",
+            "https://zhafxstreaming.web.id/explore/anime",
+            "https://zhafxstreaming.web.id/explore"
+          ]
+        }
+      ]
     }
     </script>
-
   </head>
   <body class="bg-[#090A0E] text-[#F4F4F5] font-sans antialiased selection:bg-white/20 selection:text-white min-h-screen">
-    <div id="root"></div>
+    <div id="root">
+      <!-- Pre-rendered Semantic Shell for Search Engine Crawlers (Googlebot) & Instant FCP -->
+      <header class="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between border-b border-white/10">
+        <a href="/" class="text-xl font-bold tracking-tight text-white flex items-center gap-2">
+          <span>ZHAFX</span>
+        </a>
+        <nav class="flex items-center gap-4 text-xs sm:text-sm text-zinc-300">
+          <a href="/" class="hover:text-white">Beranda</a>
+          <a href="/explore/movie" class="hover:text-white">Film</a>
+          <a href="/explore/tv" class="hover:text-white">Serial TV</a>
+          <a href="/explore/anime" class="hover:text-white">Anime</a>
+          <a href="/explore" class="hover:text-white">Jelajah</a>
+        </nav>
+      </header>
+
+      <main class="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-8">
+        <section class="space-y-3">
+          <h1 class="text-3xl sm:text-4xl font-bold tracking-tight text-white">
+            Zhafx — Platform Streaming Film, Serial TV & Anime Modern
+          </h1>
+          <p class="text-zinc-300 max-w-2xl text-sm sm:text-base leading-relaxed">
+            Nonton ribuan judul film box office terbaru, serial TV populer lengkap dengan episode terbaru, dan anime pilihan dengan subtitle bahasa Indonesia berkualitas tinggi serta rekomendasi cerdas bertenaga AI.
+          </p>
+        </section>
+
+        <section class="space-y-4">
+          <h2 class="text-xl font-bold text-white">Kategori Tayangan Utama</h2>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <article class="p-4 rounded-2xl bg-white/[0.04] border border-white/10">
+              <h3 class="font-semibold text-white mb-1">
+                <a href="/explore/movie" class="hover:underline">Film Layar Lebar</a>
+              </h3>
+              <p class="text-xs text-zinc-400">
+                Koleksi film aksi, petualangan, fiksi ilmiah, horor, komedi, dan drama pilihan terbaik.
+              </p>
+            </article>
+            <article class="p-4 rounded-2xl bg-white/[0.04] border border-white/10">
+              <h3 class="font-semibold text-white mb-1">
+                <a href="/explore/tv" class="hover:underline">Serial Televisi Populer</a>
+              </h3>
+              <p class="text-xs text-zinc-400">
+                Serial TV drama, kriminal, komedi, dan fantasi dengan ketersediaan musim dan episode lengkap.
+              </p>
+            </article>
+            <article class="p-4 rounded-2xl bg-white/[0.04] border border-white/10">
+              <h3 class="font-semibold text-white mb-1">
+                <a href="/explore/anime" class="hover:underline">Serial & Film Anime</a>
+              </h3>
+              <p class="text-xs text-zinc-400">
+                Animasi Jepang terpopuler seperti Attack on Titan, Solo Leveling, Jujutsu Kaisen, dan Demon Slayer.
+              </p>
+            </article>
+          </div>
+        </section>
+
+        <section class="space-y-4">
+          <h2 class="text-xl font-bold text-white">Rekomendasi Tayangan Populer</h2>
+          <ul class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm text-zinc-300">
+            <li><a href="/detail/movie/693134" class="hover:text-white underline">Dune: Part Two (2024)</a></li>
+            <li><a href="/detail/movie/157336" class="hover:text-white underline">Interstellar (2014)</a></li>
+            <li><a href="/detail/movie/872585" class="hover:text-white underline">Oppenheimer (2023)</a></li>
+            <li><a href="/detail/tv/126308" class="hover:text-white underline">Shōgun (2024)</a></li>
+            <li><a href="/detail/anime/1429" class="hover:text-white underline">Attack on Titan</a></li>
+            <li><a href="/detail/anime/209867" class="hover:text-white underline">Solo Leveling</a></li>
+            <li><a href="/detail/anime/85937" class="hover:text-white underline">Demon Slayer</a></li>
+            <li><a href="/detail/movie/361743" class="hover:text-white underline">Top Gun: Maverick</a></li>
+          </ul>
+        </section>
+      </main>
+
+      <footer class="max-w-7xl mx-auto px-4 sm:px-6 py-6 border-t border-white/10 text-xs text-zinc-400 flex flex-wrap gap-4 justify-between">
+        <p>&copy; 2026 Zhafx. Platform Streaming Hiburan Modern.</p>
+        <div class="flex gap-4">
+          <a href="/explore" class="hover:text-white">Katalog</a>
+          <a href="/explore/movie" class="hover:text-white">Film</a>
+          <a href="/explore/tv" class="hover:text-white">Serial TV</a>
+          <a href="/explore/anime" class="hover:text-white">Anime</a>
+        </div>
+      </footer>
+    </div>
+
+    <!-- Fallback for search engine crawlers without JavaScript execution -->
+    <noscript>
+      <div style="padding: 24px; max-width: 800px; margin: 0 auto; color: #fff; font-family: sans-serif;">
+        <h2>Zhafx — Platform Streaming Film, Serial TV & Anime</h2>
+        <p>Akses ribuan katalog film, serial TV, dan anime gratis dengan rekomendasi cerdas AI.</p>
+        <ul>
+          <li><a href="/explore/movie" style="color: #60a5fa;">Katalog Film</a></li>
+          <li><a href="/explore/tv" style="color: #60a5fa;">Katalog Serial TV</a></li>
+          <li><a href="/explore/anime" style="color: #60a5fa;">Katalog Anime</a></li>
+        </ul>
+      </div>
+    </noscript>
+
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

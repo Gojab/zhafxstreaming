@@ -6,18 +6,21 @@ interface SEOHeadProps {
   description?: string;
   canonicalPath?: string;
   ogType?: string;
+  image?: string;
 }
 
 const BASE_CANONICAL_DOMAIN = 'https://zhafxstreaming.web.id';
 const DEFAULT_TITLE = 'Zhafx — Platform Streaming Film, Serial TV & Anime';
 const DEFAULT_DESC =
-  'Platform streaming film, serial TV, dan anime modern dengan rekomendasi bertenaga AI.';
+  'Nonton ribuan film, serial TV, dan anime terbaru di Zhafx dengan kualitas sinematik, streaming cepat tanpa hambatan, dan rekomendasi cerdas bertenaga AI.';
+const DEFAULT_IMAGE = 'https://zhafxstreaming.web.id/assets/aistudio/Screenshot__129__8a97505d.png';
 
 export const SEOHead: React.FC<SEOHeadProps> = ({
   title,
   description = DEFAULT_DESC,
   canonicalPath,
   ogType = 'website',
+  image = DEFAULT_IMAGE,
 }) => {
   const location = useLocation();
 
@@ -47,6 +50,10 @@ export const SEOHead: React.FC<SEOHeadProps> = ({
       el.setAttribute(attr, value);
     };
 
+    // Explicit Meta Robots & Googlebot Directives
+    setMeta('meta[name="robots"]', 'content', 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1');
+    setMeta('meta[name="googlebot"]', 'content', 'index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1');
+
     // Update Meta Description
     setMeta('meta[name="description"]', 'content', description);
 
@@ -55,10 +62,13 @@ export const SEOHead: React.FC<SEOHeadProps> = ({
     setMeta('meta[property="og:description"]', 'content', description);
     setMeta('meta[property="og:url"]', 'content', canonicalUrl);
     setMeta('meta[property="og:type"]', 'content', ogType);
+    setMeta('meta[property="og:image"]', 'content', image);
 
     // Update Twitter Cards
+    setMeta('meta[name="twitter:card"]', 'content', 'summary_large_image');
     setMeta('meta[name="twitter:title"]', 'content', finalTitle);
     setMeta('meta[name="twitter:description"]', 'content', description);
+    setMeta('meta[name="twitter:image"]', 'content', image);
 
     // Update or Insert Canonical Link
     let link = document.querySelector('link[rel="canonical"]') as HTMLLinkElement | null;
@@ -68,7 +78,7 @@ export const SEOHead: React.FC<SEOHeadProps> = ({
       document.head.appendChild(link);
     }
     link.setAttribute('href', canonicalUrl);
-  }, [title, description, canonicalPath, location.pathname, ogType]);
+  }, [title, description, canonicalPath, location.pathname, ogType, image]);
 
   return null;
 };

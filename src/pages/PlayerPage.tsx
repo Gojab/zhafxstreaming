@@ -715,6 +715,7 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
         <SEOHead
           title={`Nonton ${title.title} ${mediaType === 'tv' ? `Musim ${seasonNum} Ep ${episodeNum}` : mediaType === 'anime' ? `Episode ${episodeNum}` : ''}`}
           description={title.overview || `Streaming ${title.title} kualitas 4K Ultra HD di Zhafx.`}
+          canonicalPath={`/detail/${mediaType}/${id}`}
           ogType="video.movie"
         />
       )}

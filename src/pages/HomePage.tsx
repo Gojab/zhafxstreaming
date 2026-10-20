@@ -13,6 +13,121 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 
+const DEFAULT_HOME_DATA = {
+  hero: {
+    id: '693134',
+    type: 'movie' as const,
+    title: 'Dune: Part Two',
+    poster: 'https://image.tmdb.org/t/p/w500/1pdfLvkbY9ohJlCjQH2CZjjYVvJ.jpg',
+    backdrop: 'https://image.tmdb.org/t/p/original/xOMo8BRK7PfcJv9JCnx7s5hj0PX.jpg',
+    year: '2024',
+    rating: '8.2',
+    overview: 'Paul Atreides bersatu dengan Chani dan Fremen saat membalas dendam terhadap para konspirator yang menghancurkan keluarganya.',
+    genres: ['Fiksi Ilmiah', 'Petualangan'],
+  },
+  trending: [
+    {
+      id: '693134',
+      type: 'movie' as const,
+      title: 'Dune: Part Two',
+      poster: 'https://image.tmdb.org/t/p/w500/1pdfLvkbY9ohJlCjQH2CZjjYVvJ.jpg',
+      backdrop: 'https://image.tmdb.org/t/p/original/xOMo8BRK7PfcJv9JCnx7s5hj0PX.jpg',
+      year: '2024',
+      rating: '8.2',
+      overview: 'Paul Atreides membalas dendam terhadap konspirator penghancur keluarganya.',
+      genres: ['Fiksi Ilmiah'],
+    },
+    {
+      id: '157336',
+      type: 'movie' as const,
+      title: 'Interstellar',
+      poster: 'https://image.tmdb.org/t/p/w500/gEU2QniE6E77NI6lCU6MxlNBvIx.jpg',
+      year: '2014',
+      rating: '8.4',
+      overview: '',
+      genres: ['Fiksi Ilmiah'],
+    },
+    {
+      id: '872585',
+      type: 'movie' as const,
+      title: 'Oppenheimer',
+      poster: 'https://image.tmdb.org/t/p/w500/8Gxv8gSFCU0XGDykEGv7zR1n2ua.jpg',
+      year: '2023',
+      rating: '8.1',
+      overview: '',
+      genres: ['Drama'],
+    },
+    {
+      id: '126308',
+      type: 'tv' as const,
+      title: 'Shōgun',
+      poster: 'https://image.tmdb.org/t/p/w500/7O4iVfOMQmdCSxhOg1WNzG1AgYT.jpg',
+      year: '2024',
+      rating: '8.5',
+      overview: '',
+      genres: ['Drama'],
+    },
+    {
+      id: '209867',
+      type: 'anime' as const,
+      title: 'Solo Leveling',
+      poster: 'https://image.tmdb.org/t/p/w500/geCRueV3ElhRTr0xtJuPxJ8PGzp.jpg',
+      year: '2024',
+      rating: '8.6',
+      overview: '',
+      genres: ['Aksi'],
+    },
+    {
+      id: '1429',
+      type: 'anime' as const,
+      title: 'Attack on Titan',
+      poster: 'https://image.tmdb.org/t/p/w500/hTP1DtLGFamjfu8WqjnuQdP1n4i.jpg',
+      year: '2013',
+      rating: '8.7',
+      overview: '',
+      genres: ['Animasi'],
+    },
+    {
+      id: '85937',
+      type: 'anime' as const,
+      title: 'Demon Slayer: Kimetsu no Yaiba',
+      poster: 'https://image.tmdb.org/t/p/w500/xUfRZu2mi8jH6SzQEJGP6tjBuYj.jpg',
+      year: '2019',
+      rating: '8.7',
+      overview: '',
+      genres: ['Animasi'],
+    },
+    {
+      id: '361743',
+      type: 'movie' as const,
+      title: 'Top Gun: Maverick',
+      poster: 'https://image.tmdb.org/t/p/w500/62HCnUTziyWcpDaBO2i1DX17ljH.jpg',
+      year: '2022',
+      rating: '8.2',
+      overview: '',
+      genres: ['Aksi'],
+    },
+  ],
+  popularMovies: [
+    { id: '693134', type: 'movie' as const, title: 'Dune: Part Two', poster: 'https://image.tmdb.org/t/p/w500/1pdfLvkbY9ohJlCjQH2CZjjYVvJ.jpg', year: '2024', rating: '8.2', overview: '', genres: ['Fiksi Ilmiah'] },
+    { id: '157336', type: 'movie' as const, title: 'Interstellar', poster: 'https://image.tmdb.org/t/p/w500/gEU2QniE6E77NI6lCU6MxlNBvIx.jpg', year: '2014', rating: '8.4', overview: '', genres: ['Fiksi Ilmiah'] },
+    { id: '872585', type: 'movie' as const, title: 'Oppenheimer', poster: 'https://image.tmdb.org/t/p/w500/8Gxv8gSFCU0XGDykEGv7zR1n2ua.jpg', year: '2023', rating: '8.1', overview: '', genres: ['Drama'] },
+    { id: '361743', type: 'movie' as const, title: 'Top Gun: Maverick', poster: 'https://image.tmdb.org/t/p/w500/62HCnUTziyWcpDaBO2i1DX17ljH.jpg', year: '2022', rating: '8.2', overview: '', genres: ['Aksi'] },
+  ],
+  popularTv: [
+    { id: '126308', type: 'tv' as const, title: 'Shōgun', poster: 'https://image.tmdb.org/t/p/w500/7O4iVfOMQmdCSxhOg1WNzG1AgYT.jpg', year: '2024', rating: '8.5', overview: '', genres: ['Drama'] },
+    { id: '94997', type: 'tv' as const, title: 'House of the Dragon', poster: 'https://image.tmdb.org/t/p/w500/1X4h40fcB4WWUmIBK0auT4zRBAV.jpg', year: '2022', rating: '8.4', overview: '', genres: ['Fantasi'] },
+  ],
+  popularAnime: [
+    { id: '209867', type: 'anime' as const, title: 'Solo Leveling', poster: 'https://image.tmdb.org/t/p/w500/geCRueV3ElhRTr0xtJuPxJ8PGzp.jpg', year: '2024', rating: '8.6', overview: '', genres: ['Aksi'] },
+    { id: '1429', type: 'anime' as const, title: 'Attack on Titan', poster: 'https://image.tmdb.org/t/p/w500/hTP1DtLGFamjfu8WqjnuQdP1n4i.jpg', year: '2013', rating: '8.7', overview: '', genres: ['Animasi'] },
+    { id: '85937', type: 'anime' as const, title: 'Demon Slayer: Kimetsu no Yaiba', poster: 'https://image.tmdb.org/t/p/w500/xUfRZu2mi8jH6SzQEJGP6tjBuYj.jpg', year: '2019', rating: '8.7', overview: '', genres: ['Animasi'] },
+  ],
+  newReleases: [],
+  actionMovies: [],
+  scifiMovies: [],
+};
+
 export const HomePage: React.FC = () => {
   const [data, setData] = useState<{
     hero: Title | null;
@@ -23,9 +138,9 @@ export const HomePage: React.FC = () => {
     newReleases: Title[];
     actionMovies: Title[];
     scifiMovies: Title[];
-  } | null>(null);
+  } | null>(DEFAULT_HOME_DATA);
 
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isDonationOpen, setIsDonationOpen] = useState(false);
 
@@ -56,14 +171,17 @@ export const HomePage: React.FC = () => {
   };
 
   const loadData = async (signal?: AbortSignal) => {
-    setIsLoading(true);
     setError(null);
     try {
       const homeData = await api.getHome(signal);
-      setData(homeData);
+      if (homeData && (homeData.hero || homeData.trending?.length > 0)) {
+        setData(homeData);
+      }
     } catch (err: any) {
       if (err.name !== 'AbortError') {
-        setError(err.message || 'Gagal memuat katalog beranda.');
+        if (!data) {
+          setError(err.message || 'Gagal memuat katalog beranda.');
+        }
       }
     } finally {
       setIsLoading(false);
