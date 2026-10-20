@@ -137,21 +137,15 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAI, onOpenFeatures, onOpen
             </kbd>
           </button>
 
-          {/* Logo X (Features Modal - min 44x44px) */}
+          {/* Logo X (Features Modal - Single X) */}
           <button
             type="button"
             onClick={onOpenFeatures}
             aria-label="Fitur Utama X"
             title="Menu Fitur Zhafx X"
-            className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-full bg-white/[0.08] hover:bg-white/[0.16] border border-white/20 text-white font-medium text-xs transition-all cursor-pointer min-h-[44px] min-w-[44px] ios-spring shadow-sm"
+            className="flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-white/[0.08] hover:bg-white/[0.16] border border-white/20 text-white font-black text-sm transition-all cursor-pointer min-h-[36px] min-w-[36px] ios-spring shadow-sm"
           >
-            <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 fill-none" stroke="currentColor">
-              <path d="M5 5L19 19M19 5L5 19" strokeWidth="2.4" strokeLinecap="round" />
-              <circle cx="5" cy="5" r="1.8" fill="#FFFFFF" stroke="none" />
-              <circle cx="12" cy="12" r="2" fill="#FFFFFF" stroke="none" />
-              <circle cx="19" cy="19" r="1.8" fill="#FFFFFF" stroke="none" />
-            </svg>
-            <span className="text-[12px] text-white font-bold">X</span>
+            <span className="leading-none">X</span>
           </button>
 
           {/* Tanya AI Glass Pill (min 44x44px) */}

@@ -171,16 +171,20 @@ function AppLayout() {
         />
       )}
 
-      {/* Floating Apple Liquid Glass Tanya AI Pill (Desktop) */}
+      {/* Floating Apple Liquid Glass Tanya AI Button (Bottom-Right Corner) */}
       {!isPlayerMode && (
         <button
           onClick={handleOpenAI}
           title="Tanya Zhafx AI"
           aria-label="Buka Tanya Zhafx AI"
-          className="hidden md:flex fixed bottom-8 right-8 z-30 items-center gap-2 px-4 py-2.5 rounded-full liquid-glass liquid-specular text-white text-xs font-semibold shadow-2xl ios-spring cursor-pointer hover:bg-white/[0.14]"
+          className="fixed bottom-22 right-4 md:bottom-8 md:right-8 z-40 flex items-center gap-2 px-3.5 py-2.5 sm:px-4 sm:py-2.5 rounded-full liquid-glass-dense border border-white/25 text-white text-xs font-semibold shadow-[0_12px_36px_rgba(0,0,0,0.65)] hover:bg-white/[0.18] active:scale-95 transition-all ios-spring cursor-pointer group"
         >
-          <Sparkles className="w-3.5 h-3.5 text-white" />
-          <span>Tanya AI</span>
+          <span className="relative flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400" />
+          </span>
+          <Sparkles className="w-4 h-4 text-white group-hover:rotate-12 transition-transform duration-300" />
+          <span className="tracking-wide">Tanya AI</span>
         </button>
       )}
 

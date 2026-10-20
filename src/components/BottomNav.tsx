@@ -2,9 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
 import {
   Home,
-  Film,
-  Tv,
-  Clapperboard,
   Bookmark,
   History,
   Sparkles,
@@ -49,41 +46,17 @@ export const BottomNav: React.FC<BottomNavProps> = ({ onOpenAI, onOpenFeatures, 
           <span>Beranda</span>
         </NavLink>
 
-        {/* 2. Film */}
-        <NavLink to="/explore/movie" className={navItemClass}>
-          <Film className="w-4 h-4 stroke-[1.8]" />
-          <span>Film</span>
-        </NavLink>
-
-        {/* 3. Serial TV */}
-        <NavLink to="/explore/tv" className={navItemClass}>
-          <Tv className="w-4 h-4 stroke-[1.8]" />
-          <span>Serial TV</span>
-        </NavLink>
-
-        {/* 4. Anime */}
-        <NavLink to="/explore/anime" className={navItemClass}>
-          <Clapperboard className="w-4 h-4 stroke-[1.8]" />
-          <span>Anime</span>
-        </NavLink>
-
-        {/* 5. Center: Tombol X Fitur Utama (min 44x44px) */}
+        {/* 2. Center: Tombol X Fitur Utama (Cuma X tanpa keterangan) */}
         <button
           type="button"
           onClick={onOpenFeatures}
-          aria-label="Fitur Utama X"
+          aria-label="X"
           title="X"
-          className="flex flex-col items-center justify-center gap-0.5 px-2 py-1 min-h-[44px] min-w-[44px] shrink-0 rounded-full text-[10px] font-medium text-white active:scale-90 transition-transform ios-spring cursor-pointer"
+          className="flex items-center justify-center p-1 min-h-[44px] min-w-[44px] shrink-0 active:scale-90 transition-transform ios-spring cursor-pointer"
         >
-          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-white/[0.14] to-white/[0.24] border border-white/30 flex items-center justify-center shadow-lg text-white">
-            <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 fill-none" stroke="currentColor">
-              <path d="M5 5L19 19M19 5L5 19" strokeWidth="2.4" strokeLinecap="round" />
-              <circle cx="5" cy="5" r="1.8" fill="#FFFFFF" stroke="none" />
-              <circle cx="12" cy="12" r="2" fill="#FFFFFF" stroke="none" />
-              <circle cx="19" cy="19" r="1.8" fill="#FFFFFF" stroke="none" />
-            </svg>
+          <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-white/[0.18] to-white/[0.28] border border-white/30 flex items-center justify-center shadow-lg text-white font-black text-sm">
+            <span className="leading-none">X</span>
           </div>
-          <span className="text-[10px] text-white font-bold leading-none">X</span>
         </button>
 
         {/* 6. Daftar Saya */}
