@@ -1,31 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { NavLink } from 'react-router-dom';
 import {
   Bookmark,
   History,
   Sparkles,
-  User as UserIcon,
+  Home,
 } from 'lucide-react';
-import { storage } from '../lib/storage';
-import { User } from '../types';
 
 interface BottomNavProps {
   onOpenAI: () => void;
   onOpenFeatures: () => void;
-  onOpenAuth: () => void;
+  onOpenAuth?: () => void;
 }
 
-export const BottomNav: React.FC<BottomNavProps> = ({ onOpenAI, onOpenFeatures, onOpenAuth }) => {
-  const [user, setUser] = useState<User | null>(() => storage.getUser());
-
-  useEffect(() => {
-    const handleAuthChange = () => {
-      setUser(storage.getUser());
-    };
-    window.addEventListener('zhafx_auth_change', handleAuthChange);
-    return () => window.removeEventListener('zhafx_auth_change', handleAuthChange);
-  }, []);
-
+export const BottomNav: React.FC<BottomNavProps> = ({ onOpenAI, onOpenFeatures }) => {
   const navItemClass = ({ isActive }: { isActive: boolean }) =>
     `flex flex-col items-center justify-center gap-0.5 px-2.5 xs:px-3 py-1.5 min-h-[44px] min-w-[48px] xs:min-w-[52px] shrink-0 rounded-full text-[10px] font-medium transition-all ios-spring whitespace-nowrap ${
       isActive
@@ -45,13 +33,13 @@ export const BottomNav: React.FC<BottomNavProps> = ({ onOpenAI, onOpenFeatures, 
           <span>Daftar</span>
         </NavLink>
 
-        {/* 3. Riwayat Nonton */}
+        {/* 2. Riwayat Nonton */}
         <NavLink to="/history" className={navItemClass}>
           <History className="w-4 h-4 stroke-[1.8]" />
           <span>Riwayat</span>
         </NavLink>
 
-        {/* 4. Center: Tombol X Fitur Utama (Cuma X tanpa keterangan, di tengah) */}
+        {/* 3. Center: Tombol X Fitur Utama (Cuma X tanpa keterangan, di tengah) */}
         <button
           type="button"
           onClick={onOpenFeatures}
@@ -64,7 +52,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({ onOpenAI, onOpenFeatures, 
           </div>
         </button>
 
-        {/* 5. Tanya AI (min 44x44px) */}
+        {/* 4. Tanya AI */}
         <button
           type="button"
           onClick={onOpenAI}
@@ -77,35 +65,11 @@ export const BottomNav: React.FC<BottomNavProps> = ({ onOpenAI, onOpenFeatures, 
           <span>Tanya AI</span>
         </button>
 
-        {/* 9. Akun / Masuk (min 44x44px) */}
-        <button
-          type="button"
-          onClick={user ? onOpenFeatures : onOpenAuth}
-          aria-label={user ? 'Akun Saya' : 'Masuk Google'}
-          className="flex flex-col items-center justify-center gap-0.5 px-2.5 py-1.5 min-h-[44px] min-w-[48px] shrink-0 rounded-full text-[10px] font-medium text-zinc-200 hover:text-white active:scale-90 transition-transform ios-spring cursor-pointer whitespace-nowrap"
-        >
-          {user ? (
-            user.avatar ? (
-              <img
-                src={user.avatar}
-                alt={user.name || 'User'}
-                className="w-6 h-6 rounded-full object-cover border border-white/30 shadow-sm"
-                onError={(e) => {
-                  (e.currentTarget as HTMLElement).style.display = 'none';
-                }}
-              />
-            ) : (
-              <div className="w-6 h-6 rounded-full bg-white text-black font-bold text-[10px] flex items-center justify-center uppercase shadow-sm">
-                {user.name?.charAt(0) || 'U'}
-              </div>
-            )
-          ) : (
-            <div className="w-6 h-6 rounded-full bg-white/[0.12] border border-white/20 flex items-center justify-center shadow-inner text-white">
-              <UserIcon className="w-3.5 h-3.5" />
-            </div>
-          )}
-          <span>{user ? user.name?.split(' ')[0] : 'Masuk'}</span>
-        </button>
+        {/* 5. Home (menggantikan Masuk) */}
+        <NavLink to="/" end className={navItemClass}>
+          <Home className="w-4 h-4 stroke-[1.8]" />
+          <span>Home</span>
+        </NavLink>
       </nav>
     </div>
   );
