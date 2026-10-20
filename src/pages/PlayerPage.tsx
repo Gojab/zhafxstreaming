@@ -320,6 +320,7 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
   const { isSaved, toggle } = useMyList();
   const { setActiveMedia } = useActiveMedia();
   const playerContainerRef = useRef<HTMLDivElement | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
   const isNativeFsActive = useRef<boolean>(false);
 
   // Dynamic import of hls.js on demand
@@ -484,6 +485,58 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
       clearTimeout(timeoutRef.current);
     }
   };
+
+  // Anime uses the first-party stream proxy instead of a sandbox-sensitive embed iframe.
+  useEffect(() => {
+    if (mediaType !== 'anime' || !isPlayable || !videoRef.current) return;
+
+    const video = videoRef.current;
+    let hls: any = null;
+    const controller = new AbortController();
+    const provider = activeServer.provider;
+    const params = new URLSearchParams({
+      id: String(id),
+      episode: String(episodeNum),
+      audio: animeAudio,
+      provider,
+    });
+
+    setIsIframeLoading(true);
+    fetch(`/api/anime/stream?${params.toString()}`, { signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) throw new Error('Stream anime tidak tersedia');
+        return response.json();
+      })
+      .then(async (payload) => {
+        const streamUrl = payload?.sources?.[0]?.url;
+        if (!streamUrl || !videoRef.current) throw new Error('URL stream kosong');
+
+        if (video.canPlayType('application/vnd.apple.mpegurl')) {
+          video.src = streamUrl;
+        } else {
+          const Hls = await loadHls();
+          if (!Hls.isSupported()) throw new Error('Browser tidak mendukung HLS');
+          hls = new Hls({ enableWorker: true, lowLatencyMode: false });
+          hls.loadSource(streamUrl);
+          hls.attachMedia(video);
+        }
+        setIsIframeLoading(false);
+      })
+      .catch((error) => {
+        if (!controller.signal.aborted) {
+          console.warn('[Zhafx Anime Player] Stream error:', error?.message || error);
+          setIsIframeLoading(false);
+        }
+      });
+
+    return () => {
+      controller.abort();
+      hls?.destroy();
+      video.pause();
+      video.removeAttribute('src');
+      video.load();
+    };
+  }, [mediaType, isPlayable, id, episodeNum, animeAudio, activeServer.provider, iframeKey]);
 
   // Switch to next dedicated fallback server for this specific media type
   const handleNextServer = () => {
@@ -849,24 +902,37 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
         >
           {/* Iframe Pemutar Resmi FrameX (100% Bebas Sandbox & Fullscreen Delegated) */}
           {isPlayable ? (
-            <iframe
-              key={`${id}-${mediaType}-${seasonNum}-${episodeNum}-${safeServerIndex}-${iframeKey}-${animeAudio}`}
-              src={embedUrl}
-              width="100%"
-              height="100%"
-              frameBorder="0"
-              allowFullScreen={true}
-              // @ts-ignore
-              webkitallowfullscreen="true"
-              // @ts-ignore
-              mozallowfullscreen="true"
-              allow="autoplay *; fullscreen *; picture-in-picture *; encrypted-media *; accelerometer *; gyroscope *; clipboard-write *; web-share *"
-              referrerPolicy="origin"
-              loading="eager"
-              title={title?.title || 'Zhafx Stream Player'}
-              onLoad={handleIframeLoad}
-              className="w-full h-full border-0 absolute inset-0 z-10 bg-black"
-            />
+            mediaType === 'anime' ? (
+              <video
+                ref={videoRef}
+                controls
+                playsInline
+                autoPlay
+                className="w-full h-full border-0 absolute inset-0 z-10 bg-black object-contain"
+                title={title?.title || 'Zhafx Anime Player'}
+                onCanPlay={handleIframeLoad}
+                onError={() => setIsIframeLoading(false)}
+              />
+            ) : (
+              <iframe
+                key={`${id}-${mediaType}-${seasonNum}-${episodeNum}-${safeServerIndex}-${iframeKey}-${animeAudio}`}
+                src={embedUrl}
+                width="100%"
+                height="100%"
+                frameBorder="0"
+                allowFullScreen={true}
+                // @ts-ignore
+                webkitallowfullscreen="true"
+                // @ts-ignore
+                mozallowfullscreen="true"
+                allow="autoplay *; fullscreen *; picture-in-picture *; encrypted-media *; accelerometer *; gyroscope *; clipboard-write *; web-share *"
+                referrerPolicy="origin"
+                loading="eager"
+                title={title?.title || 'Zhafx Stream Player'}
+                onLoad={handleIframeLoad}
+                className="w-full h-full border-0 absolute inset-0 z-10 bg-black"
+              />
+            )
           ) : (
             <div className="absolute inset-0 z-20 flex flex-col items-center justify-center p-6 text-center space-y-3 bg-[#0E1017]">
               <AlertTriangle className="w-10 h-10 text-[#FFB224]" />
