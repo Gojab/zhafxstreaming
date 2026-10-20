@@ -343,11 +343,11 @@ export default async function handler(req: any, res: any) {
         const text = await upstreamRes.text();
         if (text.includes('#EXTM3U')) {
           const lines = text.split('\n');
-          const rewritten = lines.map((line) => {
+          const rewritten = lines.map((line: string) => {
             const trimmed = line.trim();
             if (!trimmed) return line;
             if (trimmed.startsWith('#')) {
-              return line.replace(/URI=["']([^"']+)["']/g, (_match, uri) => {
+              return line.replace(/URI=["']([^"']+)["']/g, (_match: string, uri: string) => {
                 try {
                   const absUrl = new URL(uri, targetUrl).href;
                   return `URI="/api/anime/proxy?url=${encodeURIComponent(absUrl)}&ref=${encodeURIComponent(referer)}"`;

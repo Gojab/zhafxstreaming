@@ -7,6 +7,8 @@
     "skipLibCheck": true,
     "allowJs": true,
     "isolatedModules": true,
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
     "paths": {
       "@/*": ["../*"]
     }

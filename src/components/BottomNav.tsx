@@ -144,4 +144,3 @@ export const BottomNav: React.FC<BottomNavProps> = ({ onOpenAI, onOpenFeatures, 
     </div>
   );
 };
-};
