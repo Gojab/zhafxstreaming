@@ -6,7 +6,7 @@ interface ActiveMediaContextType {
   setActiveMedia: (poster: string, title?: string) => void;
 }
 
-const DEFAULT_POSTER = 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=1280&q=80';
+const DEFAULT_POSTER = 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=300&q=60';
 
 const ActiveMediaContext = createContext<ActiveMediaContextType>({
   activePoster: DEFAULT_POSTER,

@@ -22,8 +22,22 @@ export default defineConfig(() => {
         output: {
           manualChunks: (id) => {
             if (id.includes('node_modules')) {
-              if (id.includes('react') || id.includes('react-dom') || id.includes('react-router-dom')) {
-                return 'vendor-react';
+              if (id.includes('lucide-react')) {
+                return 'vendor-icons';
+              }
+              if (
+                id.includes('react-markdown') ||
+                id.includes('micromark') ||
+                id.includes('remark') ||
+                id.includes('unified') ||
+                id.includes('unist') ||
+                id.includes('mdast') ||
+                id.includes('hast') ||
+                id.includes('vfile') ||
+                id.includes('bail') ||
+                id.includes('trough')
+              ) {
+                return 'vendor-markdown';
               }
               if (id.includes('hls.js')) {
                 return 'vendor-hls';
@@ -34,11 +48,14 @@ export default defineConfig(() => {
               if (id.includes('motion')) {
                 return 'vendor-motion';
               }
-              if (id.includes('lucide-react')) {
-                return 'vendor-icons';
-              }
-              if (id.includes('react-markdown')) {
-                return 'vendor-markdown';
+              if (
+                id.includes('react-dom') ||
+                id.includes('react-router') ||
+                id.includes('/react/') ||
+                id.endsWith('/react') ||
+                id.includes('use-sync-external-store')
+              ) {
+                return 'vendor-react';
               }
               return 'vendor-core';
             }

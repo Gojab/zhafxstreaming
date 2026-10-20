@@ -17,7 +17,11 @@
     <meta name="twitter:title" content="Zhafx — Streaming Film, Serial TV & Anime" />
     <meta name="twitter:description" content="Nonton ribuan film, serial TV, dan anime favoritmu dengan rekomendasi cerdas AI." />
 
-    <!-- Google Fonts: Non-blocking Preload (Plus Jakarta Sans 400..700, Unbounded 600..700) -->
+    <!-- Critical Resource Preconnects (API, Image CDN, and Google Fonts) -->
+    <link rel="preconnect" href="https://api.framextv.tech" crossorigin />
+    <link rel="dns-prefetch" href="https://api.framextv.tech" />
+    <link rel="preconnect" href="https://image.tmdb.org" crossorigin />
+    <link rel="dns-prefetch" href="https://image.tmdb.org" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -68,8 +72,6 @@
     }
     </script>
 
-    <!-- Google Identity Services -->
-    <script src="https://accounts.google.com/gsi/client" async defer></script>
   </head>
   <body class="bg-[#090A0E] text-[#F4F4F5] font-sans antialiased selection:bg-white/20 selection:text-white min-h-screen">
     <div id="root"></div>

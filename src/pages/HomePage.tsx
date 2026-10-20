@@ -82,7 +82,7 @@ export const HomePage: React.FC = () => {
   // 1. Loading State
   if (isLoading) {
     return (
-      <div className="space-y-8 pb-12 pt-20 sm:pt-24 md:pt-28">
+      <div className="space-y-8 pb-28 sm:pb-24 pt-20 sm:pt-24 md:pt-28">
         <HeroSkeleton />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8 space-y-8">
           <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-4">
@@ -141,7 +141,7 @@ export const HomePage: React.FC = () => {
   ];
 
   return (
-    <div className="space-y-6 pb-16 pt-20 sm:pt-24 md:pt-28">
+    <div className="pb-28 sm:pb-24 pt-20 sm:pt-24 md:pt-28">
       <SEOHead
         title=""
         canonicalPath="/"
@@ -150,7 +150,9 @@ export const HomePage: React.FC = () => {
       {/* Hero Billboard Carousel */}
       <HeroBillboard items={heroItems} />
 
-      {/* Continue Watching / Lanjutkan Menonton */}
+      {/* Katalog Tayangan (Trending sekarang & Kategori) */}
+      <div className="mt-6 sm:mt-12 space-y-7 sm:space-y-9">
+        {/* Continue Watching / Lanjutkan Menonton */}
       {historyTitles.length > 0 && (
         <MediaRow
           title="Lanjutkan Menonton"
@@ -226,6 +228,7 @@ export const HomePage: React.FC = () => {
           viewAllLink="/explore/movie?genre=878"
         />
       )}
+      </div>
     </div>
   );
 };

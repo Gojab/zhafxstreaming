@@ -1,0 +1,25 @@
+{
+  "$schema": "https://raw.githubusercontent.com/ards-project/ard-spec/main/spec/schemas/ai-catalog.schema.json",
+  "specVersion": "1.0",
+  "host": {
+    "identifier": "https://zhafxstreaming.web.id",
+    "displayName": "Zhafx Streaming",
+    "documentationUrl": "https://zhafxstreaming.web.id/llms.txt",
+    "logoUrl": "https://zhafxstreaming.web.id/favicon.ico"
+  },
+  "entries": [
+    {
+      "identifier": "zhafx-media-assistant",
+      "displayName": "Zhafx AI Assistant",
+      "type": "application/json",
+      "description": "Layanan asisten AI Zhafx untuk kurasi rekomendasi film, serial TV, dan anime berdasarkan preferensi pengguna.",
+      "url": "https://zhafxstreaming.web.id/api/ai/chat",
+      "representativeQueries": [
+        "Rekomendasi film aksi petualangan terbaru",
+        "Serial TV drama Korea dengan rating tinggi",
+        "Anime fantasi terbaik musim ini",
+        "Film fiksi ilmiah mirip Interstellar"
+      ]
+    }
+  ]
+}

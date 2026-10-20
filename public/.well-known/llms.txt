@@ -1,0 +1,21 @@
+# Zhafx Streaming
+
+> Platform streaming film, serial TV, dan anime modern dengan navigasi intuitif dan kurasi rekomendasi cerdas.
+
+## Layanan & Katalog Utama
+
+- [Beranda](https://zhafxstreaming.web.id/): Halaman utama menampilkan tayangan unggulan, rekomendasi trending mingguan, dan katalog pilihan.
+- [Katalog Film](https://zhafxstreaming.web.id/explore/movie): Eksplorasi koleksi film bioskop dari beragam genre, filter tahun rilis, dan tingkat popularitas.
+- [Katalog Serial TV](https://zhafxstreaming.web.id/explore/tv): Daftar serial televisi mancanegara, K-Drama, dan serial drama lengkap per musim dan episode.
+- [Katalog Anime](https://zhafxstreaming.web.id/explore/anime): Koleksi serial animasi Jepang terlengkap dengan metadata terverifikasi dan jadwal episode terbaru.
+- [Pencarian Tayangan](https://zhafxstreaming.web.id/search): Pencarian terpadu lintas film, serial TV, dan anime berdasarkan judul atau kata kunci.
+
+## Fitur Asisten & Interaksi
+
+- [Tanya Zhafx AI](https://zhafxstreaming.web.id/): Asisten rekomendasi tontonan berbasis preferensi genre, suasana hati, atau judul favorit pengguna.
+
+## Spesifikasi & Standar Terbuka
+
+- Standar Agen AI: Manifest kapabilitas agentic tersedia pada [ai-catalog.json](https://zhafxstreaming.web.id/ai-catalog.json).
+- Sumber Metadata Publik: Informasi tayangan, sinopsis, dan poster bersumber dari The Movie Database (TMDB) dan AniList.
+- Peta Situs: Indeks URL publik terstruktur tersedia pada [sitemap.xml](https://zhafxstreaming.web.id/sitemap.xml).

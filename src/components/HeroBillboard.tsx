@@ -6,7 +6,7 @@ import { Title } from '../types';
 import { useMyList } from '../hooks/useMyList';
 import { useActiveMedia } from '../context/ActiveMediaContext';
 import { storage } from '../lib/storage';
-import { optimizeTmdbImage } from '../lib/image';
+import { optimizeTmdbImage, getTmdbBackdropSrcSet } from '../lib/image';
 
 interface HeroBillboardProps {
   items: Title[];
@@ -91,7 +91,7 @@ export const HeroBillboard: React.FC<HeroBillboardProps> = ({ items }) => {
 
   return (
     <section
-      className="relative w-full h-[65vh] sm:h-[75vh] min-h-[480px] max-h-[780px] overflow-hidden bg-transparent select-none"
+      className="relative z-10 w-full h-[520px] sm:h-[75vh] sm:min-h-[540px] sm:max-h-[780px] overflow-hidden bg-transparent select-none mb-6 sm:mb-12"
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
       onFocus={() => setIsPaused(true)}
@@ -107,11 +107,13 @@ export const HeroBillboard: React.FC<HeroBillboardProps> = ({ items }) => {
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.98 }}
           transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-          className="absolute inset-0"
+          className="absolute inset-0 z-0"
         >
-          {/* Main Backdrop Artwork */}
+          {/* Main Backdrop Artwork - brought forward with crisp visibility */}
           <img
             src={optimizeTmdbImage(current.backdrop || current.poster, 'w780')}
+            srcSet={getTmdbBackdropSrcSet(current.backdrop || current.poster)}
+            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 100vw, 1280px"
             alt={current.title}
             width={780}
             height={439}
@@ -119,36 +121,39 @@ export const HeroBillboard: React.FC<HeroBillboardProps> = ({ items }) => {
             // @ts-ignore
             fetchPriority={currentIndex === 0 ? 'high' : 'auto'}
             decoding="async"
-            className="w-full h-full object-cover object-center"
+            className="w-full h-full object-cover object-center relative z-0 select-none"
           />
 
-          {/* Seamless Apple iOS Vignette Blend */}
-          <div className="absolute inset-0 bg-gradient-to-t from-[#06070B] via-[#06070B]/50 to-transparent" />
-          <div className="absolute inset-0 bg-gradient-to-r from-[#06070B]/90 via-[#06070B]/40 to-transparent sm:w-2/3" />
+          {/* Top Vignette for seamless contrast under floating Navbar */}
+          <div className="absolute inset-x-0 top-0 h-28 sm:h-32 bg-gradient-to-b from-[#06070B]/85 via-[#06070B]/30 to-transparent pointer-events-none z-[1]" />
+
+          {/* Seamless Apple iOS Vignette Blend (balanced so backdrop artwork stays vivid) */}
+          <div className="absolute inset-0 bg-gradient-to-t from-[#06070B] via-[#06070B]/35 to-transparent pointer-events-none z-[1]" />
+          <div className="absolute inset-0 bg-gradient-to-r from-[#06070B]/80 via-[#06070B]/30 to-transparent sm:w-2/3 pointer-events-none z-[1]" />
         </motion.div>
       </AnimatePresence>
 
       {/* Hero Content Information - SF Pro typography */}
-      <div className="relative z-10 h-full max-w-7xl mx-auto px-4 sm:px-6 md:px-8 flex flex-col justify-end pb-14 sm:pb-20 max-w-3xl">
+      <div className="relative z-10 h-full w-full max-w-7xl mx-auto px-4 sm:px-6 md:px-8 flex flex-col justify-end pb-14 sm:pb-20">
         <motion.div
           key={`content-${current.id}`}
           initial={prefersReducedMotion ? {} : { opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.1, ease: 'easeOut' }}
-          className="space-y-4"
+          className="space-y-3 sm:space-y-4 max-w-2xl sm:max-w-3xl"
         >
           {/* Metadata Badges */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="px-3 py-1 rounded-full liquid-glass text-white/90 text-[11px] font-semibold uppercase tracking-wider shadow-sm">
+          <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+            <span className="px-2.5 sm:px-3 py-1 rounded-full liquid-glass text-white/90 text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider shadow-sm">
               {typeLabel}
             </span>
             {current.rating && parseFloat(current.rating) > 0 && (
-              <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full liquid-glass text-white text-[11px] font-bold shadow-sm">
+              <span className="inline-flex items-center gap-1 px-2.5 sm:px-3 py-1 rounded-full liquid-glass text-white text-[10px] sm:text-[11px] font-bold shadow-sm">
                 <Star className="w-3 h-3 fill-current" />
                 <span>{current.rating}</span>
               </span>
             )}
-            <span className="text-xs text-white/70 font-medium px-1.5">{current.year}</span>
+            <span className="text-[11px] sm:text-xs text-white/70 font-medium px-1">{current.year}</span>
             {current.genres && current.genres.length > 0 && (
               <span className="text-xs text-white/60 hidden sm:inline">
                 • {current.genres.slice(0, 3).join(', ')}
@@ -157,7 +162,7 @@ export const HeroBillboard: React.FC<HeroBillboardProps> = ({ items }) => {
           </div>
 
           {/* Title */}
-          <h1 className="text-3xl sm:text-5xl md:text-6xl font-bold text-white tracking-[-0.035em] leading-[1.08] line-clamp-2 drop-shadow-md">
+          <h1 className="text-2xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-white tracking-[-0.035em] leading-[1.12] line-clamp-2 drop-shadow-md">
             {current.title}
           </h1>
 
@@ -167,8 +172,8 @@ export const HeroBillboard: React.FC<HeroBillboardProps> = ({ items }) => {
           </p>
 
           {/* Liquid Glass Action Buttons with Apple Spring Physics */}
-          <div className="flex items-center gap-3 pt-3 flex-wrap">
-            {/* Putar Button (White Liquid Glass Pill with bounce & progress resumption) */}
+          <div className="flex items-center gap-2 sm:gap-3 pt-1.5 sm:pt-3 flex-nowrap sm:flex-wrap">
+            {/* Putar Button */}
             {(() => {
               const lastHistory = storage.getHistory().find((h) => h.id === current.id);
               const targetSeason = lastHistory?.season ?? 1;
@@ -185,9 +190,9 @@ export const HeroBillboard: React.FC<HeroBillboardProps> = ({ items }) => {
               return (
                 <button
                   onClick={() => navigate(playPath)}
-                  className="inline-flex items-center justify-center gap-2 px-7 py-3 rounded-full bg-white text-[#06070B] hover:bg-white/90 font-bold text-sm shadow-[0_8px_25px_rgba(255,255,255,0.25)] ios-spring cursor-pointer min-h-[46px]"
+                  className="inline-flex items-center justify-center gap-1.5 sm:gap-2 px-4 xs:px-5 sm:px-7 py-2.5 sm:py-3 rounded-full bg-white text-[#06070B] hover:bg-white/90 font-bold text-xs sm:text-sm shadow-[0_8px_25px_rgba(255,255,255,0.25)] ios-spring cursor-pointer min-h-[42px] sm:min-h-[46px] shrink-0"
                 >
-                  <Play className="w-4 h-4 fill-current ml-0.5 text-[#06070B]" />
+                  <Play className="w-3.5 sm:w-4 h-3.5 sm:h-4 fill-current ml-0.5 text-[#06070B]" />
                   <span>
                     {hasHistory && (current.type === 'tv' || current.type === 'anime')
                       ? `Lanjutkan (Ep ${targetEpisode})`
@@ -197,34 +202,34 @@ export const HeroBillboard: React.FC<HeroBillboardProps> = ({ items }) => {
               );
             })()}
 
-            {/* Daftar Saya (Liquid Glass Pill) */}
+            {/* Daftar Saya */}
             <button
               onClick={handleToggleMyList}
-              className={`inline-flex items-center justify-center gap-2 px-5 py-3 rounded-full liquid-glass liquid-specular text-sm font-semibold transition-all cursor-pointer min-h-[46px] ios-spring ${
+              className={`inline-flex items-center justify-center gap-1.5 sm:gap-2 px-3.5 xs:px-4 sm:px-5 py-2.5 sm:py-3 rounded-full liquid-glass liquid-specular text-xs sm:text-sm font-semibold transition-all cursor-pointer min-h-[42px] sm:min-h-[46px] ios-spring shrink-0 ${
                 saved ? 'text-white bg-white/[0.22] font-bold shadow-md' : 'text-white hover:bg-white/[0.14]'
               }`}
             >
               {saved ? (
                 <>
-                  <BookmarkCheck className="w-4 h-4 text-white" />
+                  <BookmarkCheck className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-white" />
                   <span>Tersimpan</span>
                 </>
               ) : (
                 <>
-                  <Bookmark className="w-4 h-4" />
+                  <Bookmark className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
                   <span>Daftar Saya</span>
                 </>
               )}
             </button>
 
-            {/* Detail Button (Liquid Glass Circular / Pill) */}
+            {/* Detail Button */}
             <button
               onClick={() => navigate(`/detail/${current.type}/${current.id}`)}
-              className="inline-flex items-center justify-center gap-1.5 px-4 py-3 rounded-full liquid-glass liquid-specular text-white/80 hover:text-white text-sm font-medium transition-all cursor-pointer min-h-[46px] ios-spring"
+              className="inline-flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2.5 sm:py-3 rounded-full liquid-glass liquid-specular text-white/80 hover:text-white text-xs sm:text-sm font-medium transition-all cursor-pointer min-h-[42px] sm:min-h-[46px] ios-spring shrink-0"
               title="Informasi tayangan"
             >
-              <Info className="w-4 h-4" />
-              <span className="hidden sm:inline">Detail</span>
+              <Info className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
+              <span className="hidden xs:inline">Detail</span>
             </button>
           </div>
         </motion.div>
@@ -251,20 +256,20 @@ export const HeroBillboard: React.FC<HeroBillboardProps> = ({ items }) => {
         </>
       )}
 
-      {/* Bottom Glass Navigation Indicator Pills */}
+      {/* Bottom Glass Navigation Indicator Pills - brought forward with z-30 */}
       {validItems.length > 1 && (
-        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 p-1 rounded-full liquid-glass backdrop-blur-md shadow-lg">
+        <div className="absolute bottom-3 sm:bottom-6 left-1/2 -translate-x-1/2 z-30 flex items-center gap-1 p-1 rounded-full liquid-glass backdrop-blur-md shadow-lg pointer-events-auto">
           {validItems.map((_, idx) => (
             <button
               key={idx}
               type="button"
               onClick={() => setCurrentIndex(idx)}
               aria-label={`Pilih slide tayangan ${idx + 1}`}
-              className="min-h-[44px] min-w-[32px] p-2 flex items-center justify-center cursor-pointer ios-spring"
+              className="min-h-[32px] sm:min-h-[44px] min-w-[28px] sm:min-w-[32px] p-1 sm:p-2 flex items-center justify-center cursor-pointer ios-spring"
             >
               <span
-                className={`h-2 transition-all duration-300 rounded-full block ${
-                  idx === currentIndex ? 'w-6 bg-white shadow-sm' : 'w-2 bg-white/40 hover:bg-white/70'
+                className={`h-1.5 sm:h-2 transition-all duration-300 rounded-full block ${
+                  idx === currentIndex ? 'w-5 sm:w-6 bg-white shadow-sm' : 'w-1.5 sm:w-2 bg-white/40 hover:bg-white/70'
                 }`}
               />
             </button>

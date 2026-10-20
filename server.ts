@@ -1620,6 +1620,32 @@ app.get('/google4f8019285e68db73.html', (_req: Request, res: Response) => {
   return res.send('google-site-verification: google4f8019285e68db73.html\n');
 });
 
+// Serve llms.txt for AI crawlers & Agentic discovery
+app.get(['/llms.txt', '/.well-known/llms.txt'], (_req: Request, res: Response) => {
+  const publicLlmsPath = path.resolve(__dirname, 'public', 'llms.txt');
+  const distLlmsPath = path.resolve(__dirname, 'dist', 'llms.txt');
+  const targetPath = fs.existsSync(publicLlmsPath) ? publicLlmsPath : distLlmsPath;
+
+  res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+  if (fs.existsSync(targetPath)) {
+    return res.sendFile(targetPath);
+  }
+  return res.status(404).send('llms.txt not found');
+});
+
+// Serve ai-catalog.json for Agentic Resource Discovery (ARD) standard
+app.get(['/ai-catalog.json', '/.well-known/ai-catalog.json'], (_req: Request, res: Response) => {
+  const publicCatalogPath = path.resolve(__dirname, 'public', 'ai-catalog.json');
+  const distCatalogPath = path.resolve(__dirname, 'dist', 'ai-catalog.json');
+  const targetPath = fs.existsSync(publicCatalogPath) ? publicCatalogPath : distCatalogPath;
+
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  if (fs.existsSync(targetPath)) {
+    return res.sendFile(targetPath);
+  }
+  return res.status(404).json({ error: 'ai-catalog.json not found' });
+});
+
 // Setup Vite middleware in dev or static files in prod
 async function startServer() {
   const isProd = process.env.NODE_ENV === 'production';

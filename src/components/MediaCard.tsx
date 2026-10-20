@@ -86,7 +86,7 @@ export const MediaCard: React.FC<MediaCardProps> = ({ item, className = '', show
           if ((e.target as HTMLElement).closest('button')) return;
           navigate(detailPath);
         }}
-        className="relative aspect-[2/3] w-full overflow-hidden rounded-[20px] bg-[#0E1017] shadow-lg transition-all duration-300 ease-out group-hover:scale-[1.04] group-hover:shadow-[0_16px_36px_rgba(0,0,0,0.65)] ios-spring-soft select-none cursor-pointer"
+        className="relative aspect-[2/3] w-full overflow-hidden rounded-[16px] sm:rounded-[20px] bg-[#0E1017] shadow-md sm:shadow-lg transition-all duration-300 ease-out group-hover:scale-[1.04] group-hover:shadow-[0_16px_36px_rgba(0,0,0,0.65)] ios-spring-soft select-none cursor-pointer"
       >
         {/* Clickable Poster Link to Detail (z-10) */}
         <Link

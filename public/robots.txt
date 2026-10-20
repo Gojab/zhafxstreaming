@@ -5,3 +5,5 @@ Disallow: /history
 Disallow: /my-list
 
 Sitemap: https://zhafxstreaming.web.id/sitemap.xml
+# LLM & AI agent discovery
+# Reference: https://zhafxstreaming.web.id/llms.txt

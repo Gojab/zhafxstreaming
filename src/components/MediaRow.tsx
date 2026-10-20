@@ -50,15 +50,15 @@ export const MediaRow: React.FC<MediaRowProps> = ({
   const displayedItems = uniqueItems.slice(0, visibleCount);
 
   return (
-    <section className="relative space-y-4 my-7 sm:my-9 group/row">
+    <section className="relative space-y-3 sm:space-y-4 group/row">
       {/* Row Header - Apple SF Pro Typography */}
       <div className="flex items-end justify-between px-4 sm:px-6 md:px-8">
-        <div className="space-y-1">
+        <div className="space-y-0.5 sm:space-y-1">
           <h2 className="text-base sm:text-lg md:text-xl font-bold text-white tracking-tight">
             {title}
           </h2>
           {subtitle && (
-            <p className="text-xs text-zinc-300">{subtitle}</p>
+            <p className="text-[11px] sm:text-xs text-zinc-400">{subtitle}</p>
           )}
         </div>
 
@@ -66,7 +66,7 @@ export const MediaRow: React.FC<MediaRowProps> = ({
           <Link
             to={viewAllLink}
             aria-label={`Lihat semua ${title}`}
-            className="text-xs font-semibold text-white/90 hover:text-white inline-flex items-center gap-1.5 transition-all py-2 px-3.5 min-h-[44px] min-w-[44px] rounded-full bg-white/[0.06] hover:bg-white/[0.14] border border-white/15 ios-spring"
+            className="text-xs font-semibold text-white/90 hover:text-white inline-flex items-center gap-1.5 transition-all py-1.5 sm:py-2 px-3 sm:px-3.5 min-h-[38px] sm:min-h-[44px] min-w-[38px] sm:min-w-[44px] rounded-full bg-white/[0.06] hover:bg-white/[0.14] border border-white/15 ios-spring"
           >
             <span>Lihat semua</span>
             <ChevronRight className="w-3.5 h-3.5" />
@@ -92,17 +92,19 @@ export const MediaRow: React.FC<MediaRowProps> = ({
           tabIndex={0}
           onScroll={handleContainerScroll}
           aria-label={`Daftar tayangan ${title}`}
-          className="flex gap-4 sm:gap-5 overflow-x-auto px-4 sm:px-6 md:px-8 pb-4 pt-1 scroll-smooth snap-x snap-mandatory scrollbar-none focus:outline-none"
+          className="flex gap-3 sm:gap-5 overflow-x-auto px-4 sm:px-6 md:px-8 pb-3 sm:pb-4 pt-1 scroll-smooth snap-x snap-mandatory scrollbar-none focus:outline-none"
           style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
         >
           {displayedItems.map((item) => (
             <div
               key={`${item.type}-${item.id}`}
-              className="w-[140px] sm:w-[170px] md:w-[190px] shrink-0 snap-start"
+              className="w-[128px] xs:w-[140px] sm:w-[170px] md:w-[190px] shrink-0 snap-start"
             >
               <MediaCard item={item} />
             </div>
           ))}
+          {/* Spacer at end of track for mobile edge breathing room */}
+          <div className="w-1 sm:hidden shrink-0" aria-hidden="true" />
         </div>
 
         {/* Right Arrow Glass Button (min 44x44px target) */}

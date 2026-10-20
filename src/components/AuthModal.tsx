@@ -205,12 +205,20 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
     if (window.google?.accounts?.id) {
       setupGoogle();
     } else {
+      if (!document.getElementById('google-gsi-client')) {
+        const script = document.createElement('script');
+        script.id = 'google-gsi-client';
+        script.src = 'https://accounts.google.com/gsi/client';
+        script.async = true;
+        script.defer = true;
+        document.head.appendChild(script);
+      }
       const interval = setInterval(() => {
         if (window.google?.accounts?.id) {
           setupGoogle();
           clearInterval(interval);
         }
-      }, 250);
+      }, 150);
       return () => clearInterval(interval);
     }
   }, [isOpen, tab]);
