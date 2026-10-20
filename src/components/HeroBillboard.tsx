@@ -91,7 +91,7 @@ export const HeroBillboard: React.FC<HeroBillboardProps> = ({ items }) => {
 
   return (
     <section
-      className="relative z-10 w-full h-[520px] sm:h-[75vh] sm:min-h-[540px] sm:max-h-[780px] overflow-hidden bg-transparent select-none mb-6 sm:mb-12"
+      className="relative z-10 w-full h-[540px] xs:h-[580px] sm:h-[75vh] sm:min-h-[540px] sm:max-h-[780px] overflow-hidden bg-transparent select-none mb-4 sm:mb-10"
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
       onFocus={() => setIsPaused(true)}
@@ -134,13 +134,13 @@ export const HeroBillboard: React.FC<HeroBillboardProps> = ({ items }) => {
       </AnimatePresence>
 
       {/* Hero Content Information - SF Pro typography */}
-      <div className="relative z-10 h-full w-full max-w-7xl mx-auto px-4 sm:px-6 md:px-8 flex flex-col justify-end pb-14 sm:pb-20">
+      <div className="relative z-10 h-full w-full max-w-7xl mx-auto px-4 sm:px-6 md:px-8 flex flex-col justify-end pb-16 sm:pb-20">
         <motion.div
           key={`content-${current.id}`}
           initial={prefersReducedMotion ? {} : { opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.1, ease: 'easeOut' }}
-          className="space-y-3 sm:space-y-4 max-w-2xl sm:max-w-3xl"
+          className="space-y-2.5 sm:space-y-4 max-w-2xl sm:max-w-3xl"
         >
           {/* Metadata Badges */}
           <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
@@ -172,7 +172,7 @@ export const HeroBillboard: React.FC<HeroBillboardProps> = ({ items }) => {
           </p>
 
           {/* Liquid Glass Action Buttons with Apple Spring Physics */}
-          <div className="flex items-center gap-2 sm:gap-3 pt-1.5 sm:pt-3 flex-nowrap sm:flex-wrap">
+          <div className="flex items-center gap-2 sm:gap-3 pt-2 sm:pt-3 flex-wrap">
             {/* Putar Button */}
             {(() => {
               const lastHistory = storage.getHistory().find((h) => h.id === current.id);
@@ -190,7 +190,7 @@ export const HeroBillboard: React.FC<HeroBillboardProps> = ({ items }) => {
               return (
                 <button
                   onClick={() => navigate(playPath)}
-                  className="inline-flex items-center justify-center gap-1.5 sm:gap-2 px-4 xs:px-5 sm:px-7 py-2.5 sm:py-3 rounded-full bg-white text-[#06070B] hover:bg-white/90 font-bold text-xs sm:text-sm shadow-[0_8px_25px_rgba(255,255,255,0.25)] ios-spring cursor-pointer min-h-[42px] sm:min-h-[46px] shrink-0"
+                  className="inline-flex items-center justify-center gap-1.5 sm:gap-2 px-4 xs:px-5 sm:px-7 py-2.5 sm:py-3 rounded-full bg-white text-[#06070B] hover:bg-white/90 font-bold text-xs sm:text-sm shadow-[0_8px_25px_rgba(255,255,255,0.25)] ios-spring cursor-pointer min-h-[40px] sm:min-h-[46px] shrink-0"
                 >
                   <Play className="w-3.5 sm:w-4 h-3.5 sm:h-4 fill-current ml-0.5 text-[#06070B]" />
                   <span>
@@ -205,7 +205,7 @@ export const HeroBillboard: React.FC<HeroBillboardProps> = ({ items }) => {
             {/* Daftar Saya */}
             <button
               onClick={handleToggleMyList}
-              className={`inline-flex items-center justify-center gap-1.5 sm:gap-2 px-3.5 xs:px-4 sm:px-5 py-2.5 sm:py-3 rounded-full liquid-glass liquid-specular text-xs sm:text-sm font-semibold transition-all cursor-pointer min-h-[42px] sm:min-h-[46px] ios-spring shrink-0 ${
+              className={`inline-flex items-center justify-center gap-1.5 sm:gap-2 px-3.5 xs:px-4 sm:px-5 py-2.5 sm:py-3 rounded-full liquid-glass liquid-specular text-xs sm:text-sm font-semibold transition-all cursor-pointer min-h-[40px] sm:min-h-[46px] ios-spring shrink-0 ${
                 saved ? 'text-white bg-white/[0.22] font-bold shadow-md' : 'text-white hover:bg-white/[0.14]'
               }`}
             >
@@ -225,7 +225,7 @@ export const HeroBillboard: React.FC<HeroBillboardProps> = ({ items }) => {
             {/* Detail Button */}
             <button
               onClick={() => navigate(`/detail/${current.type}/${current.id}`)}
-              className="inline-flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2.5 sm:py-3 rounded-full liquid-glass liquid-specular text-white/80 hover:text-white text-xs sm:text-sm font-medium transition-all cursor-pointer min-h-[42px] sm:min-h-[46px] ios-spring shrink-0"
+              className="inline-flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2.5 sm:py-3 rounded-full liquid-glass liquid-specular text-white/80 hover:text-white text-xs sm:text-sm font-medium transition-all cursor-pointer min-h-[40px] sm:min-h-[46px] ios-spring shrink-0"
               title="Informasi tayangan"
             >
               <Info className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
@@ -256,20 +256,20 @@ export const HeroBillboard: React.FC<HeroBillboardProps> = ({ items }) => {
         </>
       )}
 
-      {/* Bottom Glass Navigation Indicator Pills - brought forward with z-30 */}
+      {/* Bottom Glass Navigation Indicator Pills - compact on mobile to never overlap buttons */}
       {validItems.length > 1 && (
-        <div className="absolute bottom-3 sm:bottom-6 left-1/2 -translate-x-1/2 z-30 flex items-center gap-1 p-1 rounded-full liquid-glass backdrop-blur-md shadow-lg pointer-events-auto">
+        <div className="absolute bottom-2.5 sm:bottom-5 left-1/2 -translate-x-1/2 z-30 flex items-center gap-1 p-1 rounded-full bg-black/40 sm:liquid-glass backdrop-blur-md border border-white/10 sm:border-white/15 shadow-lg pointer-events-auto">
           {validItems.map((_, idx) => (
             <button
               key={idx}
               type="button"
               onClick={() => setCurrentIndex(idx)}
               aria-label={`Pilih slide tayangan ${idx + 1}`}
-              className="min-h-[32px] sm:min-h-[44px] min-w-[28px] sm:min-w-[32px] p-1 sm:p-2 flex items-center justify-center cursor-pointer ios-spring"
+              className="min-h-[22px] sm:min-h-[44px] min-w-[18px] sm:min-w-[32px] p-1 sm:p-2 flex items-center justify-center cursor-pointer ios-spring"
             >
               <span
-                className={`h-1.5 sm:h-2 transition-all duration-300 rounded-full block ${
-                  idx === currentIndex ? 'w-5 sm:w-6 bg-white shadow-sm' : 'w-1.5 sm:w-2 bg-white/40 hover:bg-white/70'
+                className={`h-1 sm:h-1.5 transition-all duration-300 rounded-full block ${
+                  idx === currentIndex ? 'w-4 sm:w-6 bg-white shadow-sm' : 'w-1 sm:w-1.5 bg-white/40 hover:bg-white/70'
                 }`}
               />
             </button>

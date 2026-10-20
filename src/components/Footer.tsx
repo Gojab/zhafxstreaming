@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Play } from 'lucide-react';
+import { Play, Heart } from 'lucide-react';
 import { Logo } from './Logo';
 import { CONFIG } from '../config';
 
@@ -40,6 +40,17 @@ export const Footer: React.FC = () => {
             <Link to="/my-list" className="hover:text-white transition-colors min-h-[44px] min-w-[44px] inline-flex items-center px-1">
               Daftar Saya
             </Link>
+            {/* Tombol Donasi Saweria */}
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new Event('open-zhafx-donation'))}
+              aria-label="Buka QR Donasi Saweria"
+              title="Donasi Saweria"
+              className="hover:text-white transition-colors min-h-[44px] min-w-[44px] inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#FF5C6C]/15 hover:bg-[#FF5C6C]/25 border border-[#FF5C6C]/30 text-[#FF5C6C] text-xs font-semibold cursor-pointer ios-spring shadow-sm"
+            >
+              <Heart className="w-3.5 h-3.5 fill-current" />
+              <span>Donasi</span>
+            </button>
             {/* Tombol Pemutar Intro Sinematik */}
             <button
               type="button"

@@ -13,6 +13,7 @@ import {
   Clapperboard,
   User as UserIcon,
   LogOut,
+  Heart,
 } from 'lucide-react';
 import { Logo } from './Logo';
 import { storage } from '../lib/storage';
@@ -299,6 +300,23 @@ export const QuickFeaturesModal: React.FC<QuickFeaturesModalProps> = ({
             <div>
               <span className="text-xs font-bold text-white block">Intro Epic</span>
               <span className="text-[10px] text-white/50">Putar animasi</span>
+            </div>
+          </button>
+
+          {/* 9. Donasi Saweria QR */}
+          <button
+            onClick={() => {
+              onClose();
+              window.dispatchEvent(new Event('open-zhafx-donation'));
+            }}
+            className="p-3.5 rounded-[20px] liquid-glass hover:bg-white/[0.14] transition-all flex flex-col items-start gap-2 text-left group ios-spring cursor-pointer border border-[#FF5C6C]/30 bg-[#FF5C6C]/10"
+          >
+            <div className="w-8 h-8 rounded-full bg-[#FF5C6C]/25 flex items-center justify-center text-[#FF5C6C] group-hover:bg-[#FF5C6C] group-hover:text-white transition-colors">
+              <Heart className="w-4 h-4 fill-current" />
+            </div>
+            <div>
+              <span className="text-xs font-bold text-white block">Donasi QR</span>
+              <span className="text-[10px] text-white/60">Saweria QRIS</span>
             </div>
           </button>
         </div>
