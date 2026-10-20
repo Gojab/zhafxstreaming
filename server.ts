@@ -1661,6 +1661,9 @@ app.get(['/ai-catalog.json', '/.well-known/ai-catalog.json'], (_req: Request, re
 async function startServer() {
   const isProd = process.env.NODE_ENV === 'production';
 
+  // Serve static assets from public directly (favicons, logos, manifests, robots, sitemap)
+  app.use(express.static(path.resolve(__dirname, 'public')));
+
   if (!isProd) {
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({

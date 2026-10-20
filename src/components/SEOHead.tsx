@@ -13,7 +13,7 @@ const BASE_CANONICAL_DOMAIN = 'https://zhafxstreaming.web.id';
 const DEFAULT_TITLE = 'Zhafx — Platform Streaming Film, Serial TV & Anime';
 const DEFAULT_DESC =
   'Nonton ribuan film, serial TV, dan anime terbaru di Zhafx dengan kualitas sinematik, streaming cepat tanpa hambatan, dan rekomendasi cerdas bertenaga AI.';
-const DEFAULT_IMAGE = 'https://zhafxstreaming.web.id/assets/aistudio/Screenshot__129__8a97505d.png';
+const DEFAULT_IMAGE = 'https://zhafxstreaming.web.id/logo.png';
 
 export const SEOHead: React.FC<SEOHeadProps> = ({
   title,

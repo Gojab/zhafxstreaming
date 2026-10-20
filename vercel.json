@@ -5,7 +5,7 @@
       "destination": "/api/$1"
     },
     {
-      "source": "/((?!api/|sitemap\\.xml|robots\\.txt|llms\\.txt|ai-catalog\\.json|\\.well-known/|assets/|google[a-zA-Z0-9_-]+\\.html).*)",
+      "source": "/((?!api/|sitemap\\.xml|robots\\.txt|llms\\.txt|ai-catalog\\.json|\\.well-known/|assets/|google[a-zA-Z0-9_-]+\\.html|favicon|apple-touch-icon|icon-|logo\\.png|site\\.webmanifest).*)",
       "destination": "/index.html"
     }
   ],
