@@ -379,7 +379,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
       />
 
       {/* Main Glass Sheet */}
-      <div className="relative w-full max-w-md rounded-[32px] sm:rounded-[36px] liquid-glass-dense liquid-specular border border-white/20 shadow-2xl p-6 sm:p-7 space-y-4 z-10 text-white overflow-hidden max-h-[92vh] overflow-y-auto">
+      <div className="relative w-full max-w-md rounded-[32px] sm:rounded-[36px] liquid-glass-dense border border-white/20 shadow-2xl p-6 sm:p-7 space-y-4 z-10 text-white max-h-[85vh] sm:max-h-[90vh] overflow-y-auto overflow-x-hidden overscroll-contain scroll-smooth">
         {/* Header */}
         <div className="flex items-center justify-between pb-3 border-b border-white/10">
           <div className="flex items-center gap-2.5">

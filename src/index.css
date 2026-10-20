@@ -63,6 +63,9 @@
 /* Specular diagonal highlight reflection on glass surfaces */
 .liquid-specular {
   position: relative;
+}
+
+.liquid-specular:not([class*="overflow-y-auto"]):not([class*="overflow-x-auto"]):not([class*="overflow-auto"]) {
   overflow: hidden;
 }
 

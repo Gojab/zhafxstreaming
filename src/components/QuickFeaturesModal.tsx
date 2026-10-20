@@ -87,7 +87,7 @@ export const QuickFeaturesModal: React.FC<QuickFeaturesModalProps> = ({
       />
 
       {/* Main Apple iOS 26 Liquid Glass Feature Sheet */}
-      <div className="relative w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-[32px] sm:rounded-[36px] liquid-glass-dense liquid-specular border border-white/25 shadow-2xl p-5 sm:p-7 space-y-4 z-10 scrollbar-none text-white">
+      <div className="relative w-full max-w-lg max-h-[85vh] sm:max-h-[90vh] overflow-y-auto overflow-x-hidden overscroll-contain scroll-smooth rounded-[32px] sm:rounded-[36px] liquid-glass-dense border border-white/25 shadow-2xl p-5 sm:p-7 space-y-4 z-10 text-white">
         {/* Top Header: X & Close Button */}
         <div className="flex items-center justify-between pb-3 border-b border-white/[0.12]">
           <div className="flex items-center gap-3">
