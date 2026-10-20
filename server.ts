@@ -1607,7 +1607,7 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
   if (fs.existsSync(targetPath)) {
     return res.sendFile(targetPath);
   }
-  return res.send("User-agent: *\nAllow: /\nDisallow: /api/\n\nSitemap: https://zhafx.vercel.app/sitemap.xml\n");
+  return res.send("User-agent: *\nAllow: /\nDisallow: /api/\n\nSitemap: https://zhafxstreaming.web.id/sitemap.xml\n");
 });
 
 // Serve Google Search Console Verification File
