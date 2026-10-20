@@ -1,7 +1,0 @@
-User-agent: *
-Allow: /
-Disallow: /api/
-Disallow: /history
-Disallow: /my-list
-
-Sitemap: https://zhafx.vercel.app/sitemap.xml
