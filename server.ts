@@ -124,8 +124,8 @@ const apiKey = process.env.GEMINI_API_KEY || '';
 app.get(['/api/ai/chat', '/api/chat'], (_req: Request, res: Response) => {
   res.status(200).json({
     status: 'ok',
-    service: 'Zhafx Multi-Provider AI Engine (16 Models Active)',
-    configured: Boolean(process.env.GEMINI_API_KEY),
+    service: 'Zhafx Multi-Provider AI Engine (fallback aktif)',
+    configured: Boolean(process.env.GEMINI_API_KEY || process.env.GROQ_API_KEY || process.env.OPENROUTER_API_KEY),
   });
 });
 

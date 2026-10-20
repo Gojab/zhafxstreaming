@@ -22,10 +22,10 @@ export interface ModelProvider {
 export const AI_MODELS: ModelProvider[] = [
   // 1-5: Google Gemini Official SDK
   { id: 'gemini_2_5_flash', name: 'Gemini 2.5 Flash', type: 'gemini', modelId: 'gemini-2.5-flash' },
-  { id: 'gemini_3_8_flash', name: 'Gemini 3.8 Flash', type: 'gemini', modelId: 'gemini-3.8-flash' },
-  { id: 'gemini_2_0_flash', name: 'Gemini 2.0 Flash', type: 'gemini', modelId: 'gemini-2.0-flash' },
+  { id: 'gemini_3_flash', name: 'Gemini 3 Flash', type: 'gemini', modelId: 'gemini-3-flash' },
+  { id: 'gemini_2_5_flash_lite', name: 'Gemini 2.5 Flash Lite', type: 'gemini', modelId: 'gemini-2.5-flash-lite' },
   { id: 'gemini_3_1_flash_lite', name: 'Gemini 3.1 Flash Lite', type: 'gemini', modelId: 'gemini-3.1-flash-lite' },
-  { id: 'gemini_flash_latest', name: 'Gemini Flash Latest', type: 'gemini', modelId: 'gemini-flash-latest' },
+  { id: 'gemini_3_5_flash', name: 'Gemini 3.5 Flash', type: 'gemini', modelId: 'gemini-3.5-flash' },
 
   // 6-13: Free Public Multi-Cloud LLMs (No API Key required)
   { id: 'poll_openai', name: 'OpenAI GPT-4o Mini', type: 'pollinations', modelId: 'openai' },
@@ -216,7 +216,9 @@ export async function executeMultiModelChat(
         },
       });
 
-      const geminiModels = ['gemini-2.5-flash', 'gemini-3.8-flash', 'gemini-2.0-flash', 'gemini-3.1-flash-lite', 'gemini-flash-latest'];
+      // Only use currently supported Gemini model IDs. Invalid IDs here used to
+      // make the whole provider look broken before fallback could start.
+      const geminiModels = ['gemini-2.5-flash', 'gemini-3.1-flash-lite', 'gemini-2.0-flash'];
 
       for (const gModel of geminiModels) {
         try {
@@ -278,7 +280,77 @@ export async function executeMultiModelChat(
     }
   }
 
-  // 2. Try Free Public Cloud LLM Endpoints
+  // 2. Try configured OpenAI-compatible providers before public fallbacks.
+  // Each model is isolated: a timeout or provider error moves to the next one.
+  const gatewayModels = [
+    { name: 'OpenRouter Gemini', model: 'google/gemini-2.5-flash' },
+    { name: 'OpenRouter DeepSeek', model: 'deepseek/deepseek-chat-v3-0324:free' },
+    { name: 'OpenRouter Llama', model: 'meta-llama/llama-3.3-70b-instruct:free' },
+  ];
+  const openRouterKey = process.env.OPENROUTER_API_KEY;
+  if (openRouterKey) {
+    for (const candidate of gatewayModels) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 9000);
+        const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${openRouterKey}`,
+            'HTTP-Referer': process.env.APP_URL || 'https://zhafx.com',
+            'X-Title': 'Zhafx AI',
+          },
+          body: JSON.stringify({ model: candidate.model, messages: chatMessages, temperature: 0.7 }),
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+        if (!response.ok) continue;
+        const data = await response.json();
+        const text = data.choices?.[0]?.message?.content;
+        if (!text || text.trim().length < 10) continue;
+        onChunk(text);
+        if (!text.includes('<picks>')) {
+          const picks = extractFallbackPicks(text, contextTitle);
+          if (picks.length > 0) onChunk(`\\n\\n<picks>${JSON.stringify(picks)}</picks>`);
+        }
+        return { success: true, modelUsed: candidate.name };
+      } catch (err: any) {
+        console.warn(`[AI Engine] ${candidate.name} failed:`, err?.message || err);
+      }
+    }
+  }
+
+  // 3. Try configured Groq before public endpoints.
+  if (process.env.GROQ_API_KEY) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 9000);
+      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.GROQ_API_KEY}` },
+        body: JSON.stringify({ model: 'llama-3.3-70b-versatile', messages: chatMessages, temperature: 0.7 }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      if (response.ok) {
+        const data = await response.json();
+        const text = data.choices?.[0]?.message?.content;
+        if (text && text.trim().length > 10) {
+          onChunk(text);
+          if (!text.includes('<picks>')) {
+            const picks = extractFallbackPicks(text, contextTitle);
+            if (picks.length > 0) onChunk(`\\n\\n<picks>${JSON.stringify(picks)}</picks>`);
+          }
+          return { success: true, modelUsed: 'Groq Llama 3.3 70B' };
+        }
+      }
+    } catch (err: any) {
+      console.warn('[AI Engine] Groq fallback failed:', err?.message || err);
+    }
+  }
+
+  // 4. Try Free Public Cloud LLM Endpoints
   const freeModels = ['openai', 'deepseek', 'mistral', 'llama', 'qwen', 'gemini', 'searchgpt'];
 
   for (const fModel of freeModels) {
