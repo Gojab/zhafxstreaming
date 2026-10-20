@@ -13,8 +13,8 @@
     --text-muted: rgba(255, 255, 255, 0.42);
     --accent: #FFFFFF;
     
-    /* Apple SF Pro font hierarchy */
-    --font-ios: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "SF Pro", "Inter", system-ui, sans-serif;
+    /* Apple SF Pro / Plus Jakarta Sans font hierarchy with matching fallback metrics */
+    --font-ios: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", system-ui, sans-serif;
   }
 
   body {
@@ -112,6 +112,16 @@
 }
 
 /* Custom Minimalist Native Scrollbars */
+.scrollbar-none {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
 ::-webkit-scrollbar {
   width: 4px;
   height: 4px;

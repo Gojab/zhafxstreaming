@@ -42,9 +42,6 @@ export default defineConfig(() => {
               if (id.includes('hls.js')) {
                 return 'vendor-hls';
               }
-              if (id.includes('gsap')) {
-                return 'vendor-gsap';
-              }
               if (id.includes('motion')) {
                 return 'vendor-motion';
               }

@@ -3,7 +3,7 @@ import { api } from '../services/api';
 import { Title } from '../types';
 import { HeroBillboard } from '../components/HeroBillboard';
 import { MediaRow } from '../components/MediaRow';
-import { HeroSkeleton, MediaCardSkeleton } from '../components/Skeleton';
+import { HeroSkeleton, MediaRowSkeleton, MediaCardSkeleton } from '../components/Skeleton';
 import { SEOHead } from '../components/SEOHead';
 import { DonationModal } from '../components/DonationModal';
 import { useWatchHistory } from '../hooks/useWatchHistory';
@@ -104,17 +104,19 @@ export const HomePage: React.FC = () => {
     genres: [],
   }));
 
-  // 1. Loading State
+  // 1. Loading State (Structured identical to success state to prevent CLS)
   if (isLoading) {
     return (
-      <div className="space-y-8 pb-28 sm:pb-24 pt-20 sm:pt-24 md:pt-28">
+      <div className="pb-28 sm:pb-24 pt-[74px] sm:pt-24 md:pt-28">
+        <SEOHead
+          title=""
+          canonicalPath="/"
+          description="Platform streaming film, serial TV, dan anime modern dengan rekomendasi bertenaga AI."
+        />
         <HeroSkeleton />
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8 space-y-8">
-          <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-4">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <MediaCardSkeleton key={i} />
-            ))}
-          </div>
+        <div className="mt-4 sm:mt-10 space-y-7 sm:space-y-9">
+          <MediaRowSkeleton />
+          <MediaRowSkeleton />
         </div>
       </div>
     );

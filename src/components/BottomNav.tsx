@@ -1,6 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
-import { Home, Compass, Sparkles, Bookmark, User as UserIcon } from 'lucide-react';
+import {
+  Home,
+  Film,
+  Tv,
+  Clapperboard,
+  Bookmark,
+  History,
+  Sparkles,
+  User as UserIcon,
+} from 'lucide-react';
 import { storage } from '../lib/storage';
 import { User } from '../types';
 
@@ -22,17 +31,17 @@ export const BottomNav: React.FC<BottomNavProps> = ({ onOpenAI, onOpenFeatures, 
   }, []);
 
   const navItemClass = ({ isActive }: { isActive: boolean }) =>
-    `flex flex-col items-center justify-center gap-0.5 px-3 py-1.5 min-h-[44px] min-w-[44px] rounded-full text-[10px] font-medium transition-all ios-spring ${
+    `flex flex-col items-center justify-center gap-0.5 px-2.5 xs:px-3 py-1.5 min-h-[44px] min-w-[48px] xs:min-w-[52px] shrink-0 rounded-full text-[10px] font-medium transition-all ios-spring whitespace-nowrap ${
       isActive
-        ? 'text-white font-semibold bg-white/[0.16] shadow-sm'
+        ? 'text-white font-semibold bg-white/[0.18] shadow-sm'
         : 'text-zinc-200 hover:text-white active:scale-95'
     }`;
 
   return (
-    <div className="md:hidden fixed bottom-3 sm:bottom-5 left-3 right-3 z-40 flex justify-center pointer-events-none pb-[env(safe-area-inset-bottom)]">
+    <div className="md:hidden fixed bottom-3 sm:bottom-5 left-2 right-2 xs:left-3 xs:right-3 z-40 flex justify-center pointer-events-none pb-[env(safe-area-inset-bottom)]">
       <nav
         aria-label="Navigasi Bawah Apple iOS"
-        className="w-full max-w-[400px] h-15 rounded-full liquid-glass-dense liquid-specular shadow-[0_12px_40px_rgba(0,0,0,0.65)] flex items-center justify-around px-2 pointer-events-auto border border-white/20"
+        className="w-auto max-w-[95vw] h-15 rounded-full liquid-glass-dense liquid-specular shadow-[0_12px_40px_rgba(0,0,0,0.7)] flex items-center gap-0.5 xs:gap-1 px-2.5 pointer-events-auto border border-white/20 overflow-x-auto scrollbar-none scroll-smooth touch-pan-x select-none"
       >
         {/* 1. Beranda */}
         <NavLink to="/" className={navItemClass}>
@@ -40,19 +49,31 @@ export const BottomNav: React.FC<BottomNavProps> = ({ onOpenAI, onOpenFeatures, 
           <span>Beranda</span>
         </NavLink>
 
-        {/* 2. Jelajahi */}
+        {/* 2. Film */}
         <NavLink to="/explore/movie" className={navItemClass}>
-          <Compass className="w-4 h-4 stroke-[1.8]" />
-          <span>Jelajahi</span>
+          <Film className="w-4 h-4 stroke-[1.8]" />
+          <span>Film</span>
         </NavLink>
 
-        {/* 3. Center: Tombol X (min 44x44px) */}
+        {/* 3. Serial TV */}
+        <NavLink to="/explore/tv" className={navItemClass}>
+          <Tv className="w-4 h-4 stroke-[1.8]" />
+          <span>Serial TV</span>
+        </NavLink>
+
+        {/* 4. Anime */}
+        <NavLink to="/explore/anime" className={navItemClass}>
+          <Clapperboard className="w-4 h-4 stroke-[1.8]" />
+          <span>Anime</span>
+        </NavLink>
+
+        {/* 5. Center: Tombol X Fitur Utama (min 44x44px) */}
         <button
           type="button"
           onClick={onOpenFeatures}
           aria-label="Fitur Utama X"
           title="X"
-          className="flex flex-col items-center justify-center gap-0.5 px-2.5 py-1 min-h-[44px] min-w-[44px] rounded-full text-[10px] font-medium text-white active:scale-90 transition-transform ios-spring cursor-pointer"
+          className="flex flex-col items-center justify-center gap-0.5 px-2 py-1 min-h-[44px] min-w-[44px] shrink-0 rounded-full text-[10px] font-medium text-white active:scale-90 transition-transform ios-spring cursor-pointer"
         >
           <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-white/[0.14] to-white/[0.24] border border-white/30 flex items-center justify-center shadow-lg text-white">
             <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 fill-none" stroke="currentColor">
@@ -65,18 +86,37 @@ export const BottomNav: React.FC<BottomNavProps> = ({ onOpenAI, onOpenFeatures, 
           <span className="text-[10px] text-white font-bold leading-none">X</span>
         </button>
 
-        {/* 4. Daftar Saya */}
+        {/* 6. Daftar Saya */}
         <NavLink to="/my-list" className={navItemClass}>
           <Bookmark className="w-4 h-4 stroke-[1.8]" />
           <span>Daftar</span>
         </NavLink>
 
-        {/* 5. Tanya AI / Akun Login (min 44x44px) */}
+        {/* 7. Riwayat Nonton */}
+        <NavLink to="/history" className={navItemClass}>
+          <History className="w-4 h-4 stroke-[1.8]" />
+          <span>Riwayat</span>
+        </NavLink>
+
+        {/* 8. Tanya AI (min 44x44px) */}
+        <button
+          type="button"
+          onClick={onOpenAI}
+          aria-label="Tanya AI"
+          className="flex flex-col items-center justify-center gap-0.5 px-2.5 py-1.5 min-h-[44px] min-w-[48px] shrink-0 rounded-full text-[10px] font-medium text-zinc-200 hover:text-white active:scale-90 transition-transform ios-spring cursor-pointer whitespace-nowrap"
+        >
+          <div className="w-6 h-6 rounded-full bg-white/[0.12] border border-white/20 flex items-center justify-center shadow-inner text-white">
+            <Sparkles className="w-3.5 h-3.5" />
+          </div>
+          <span>Tanya AI</span>
+        </button>
+
+        {/* 9. Akun / Masuk (min 44x44px) */}
         <button
           type="button"
           onClick={user ? onOpenFeatures : onOpenAuth}
           aria-label={user ? 'Akun Saya' : 'Masuk Google'}
-          className="flex flex-col items-center justify-center gap-0.5 px-3 py-1.5 min-h-[44px] min-w-[44px] rounded-full text-[10px] font-medium text-zinc-200 hover:text-white active:scale-90 transition-transform ios-spring cursor-pointer"
+          className="flex flex-col items-center justify-center gap-0.5 px-2.5 py-1.5 min-h-[44px] min-w-[48px] shrink-0 rounded-full text-[10px] font-medium text-zinc-200 hover:text-white active:scale-90 transition-transform ios-spring cursor-pointer whitespace-nowrap"
         >
           {user ? (
             user.avatar ? (
@@ -95,7 +135,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({ onOpenAI, onOpenFeatures, 
             )
           ) : (
             <div className="w-6 h-6 rounded-full bg-white/[0.12] border border-white/20 flex items-center justify-center shadow-inner text-white">
-              <Sparkles className="w-3.5 h-3.5" />
+              <UserIcon className="w-3.5 h-3.5" />
             </div>
           )}
           <span>{user ? user.name?.split(' ')[0] : 'Masuk'}</span>
@@ -103,4 +143,5 @@ export const BottomNav: React.FC<BottomNavProps> = ({ onOpenAI, onOpenFeatures, 
       </nav>
     </div>
   );
+};
 };

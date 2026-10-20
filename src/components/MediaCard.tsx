@@ -5,7 +5,7 @@ import { Title } from '../types';
 import { useMyList } from '../hooks/useMyList';
 import { useActiveMedia } from '../context/ActiveMediaContext';
 import { storage } from '../lib/storage';
-import { optimizeTmdbImage } from '../lib/image';
+import { optimizeTmdbImage, getTmdbPosterSrcSet } from '../lib/image';
 
 interface MediaCardProps {
   item: Title;
@@ -97,6 +97,8 @@ export const MediaCard: React.FC<MediaCardProps> = ({ item, className = '', show
           {!imageError && item.poster ? (
             <img
               src={optimizeTmdbImage(item.poster, 'w342')}
+              srcSet={getTmdbPosterSrcSet(item.poster)}
+              sizes="(max-width: 640px) 140px, (max-width: 1024px) 180px, 220px"
               alt={item.title}
               width={342}
               height={513}

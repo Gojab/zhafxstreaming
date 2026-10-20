@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Play, Info, Star, Bookmark, BookmarkCheck, ChevronLeft, ChevronRight } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
 import { Title } from '../types';
 import { useMyList } from '../hooks/useMyList';
 import { useActiveMedia } from '../context/ActiveMediaContext';
@@ -100,47 +99,38 @@ export const HeroBillboard: React.FC<HeroBillboardProps> = ({ items }) => {
       onTouchEnd={handleTouchEnd}
       aria-label="Tayangan Unggulan"
     >
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={current.id || currentIndex}
-          initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, scale: 1.05 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.98 }}
-          transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-          className="absolute inset-0 z-0"
-        >
-          {/* Main Backdrop Artwork - brought forward with crisp visibility */}
-          <img
-            src={optimizeTmdbImage(current.backdrop || current.poster, 'w780')}
-            srcSet={getTmdbBackdropSrcSet(current.backdrop || current.poster)}
-            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 100vw, 1280px"
-            alt={current.title}
-            width={780}
-            height={439}
-            loading={currentIndex === 0 ? 'eager' : 'lazy'}
-            // @ts-ignore
-            fetchPriority={currentIndex === 0 ? 'high' : 'auto'}
-            decoding="async"
-            className="w-full h-full object-cover object-center relative z-0 select-none"
-          />
+      {/* Main Backdrop Artwork - brought forward with crisp visibility */}
+      <div
+        key={current.id || currentIndex}
+        className="absolute inset-0 z-0 animate-in fade-in duration-700 ease-out will-change-[opacity]"
+      >
+        <img
+          src={optimizeTmdbImage(current.backdrop || current.poster, 'w780')}
+          srcSet={getTmdbBackdropSrcSet(current.backdrop || current.poster)}
+          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 100vw, 1280px"
+          alt={current.title}
+          width={780}
+          height={439}
+          loading={currentIndex === 0 ? 'eager' : 'lazy'}
+          // @ts-ignore
+          fetchPriority={currentIndex === 0 ? 'high' : 'auto'}
+          decoding="async"
+          className="w-full h-full object-cover object-center relative z-0 select-none"
+        />
 
-          {/* Top Vignette for seamless contrast under floating Navbar */}
-          <div className="absolute inset-x-0 top-0 h-28 sm:h-32 bg-gradient-to-b from-[#06070B]/85 via-[#06070B]/30 to-transparent pointer-events-none z-[1]" />
+        {/* Top Vignette for seamless contrast under floating Navbar */}
+        <div className="absolute inset-x-0 top-0 h-28 sm:h-32 bg-gradient-to-b from-[#06070B]/85 via-[#06070B]/30 to-transparent pointer-events-none z-[1]" />
 
-          {/* Seamless Apple iOS Vignette Blend (balanced so backdrop artwork stays vivid) */}
-          <div className="absolute inset-0 bg-gradient-to-t from-[#06070B] via-[#06070B]/35 to-transparent pointer-events-none z-[1]" />
-          <div className="absolute inset-0 bg-gradient-to-r from-[#06070B]/80 via-[#06070B]/30 to-transparent sm:w-2/3 pointer-events-none z-[1]" />
-        </motion.div>
-      </AnimatePresence>
+        {/* Seamless Apple iOS Vignette Blend (balanced so backdrop artwork stays vivid) */}
+        <div className="absolute inset-0 bg-gradient-to-t from-[#06070B] via-[#06070B]/35 to-transparent pointer-events-none z-[1]" />
+        <div className="absolute inset-0 bg-gradient-to-r from-[#06070B]/80 via-[#06070B]/30 to-transparent sm:w-2/3 pointer-events-none z-[1]" />
+      </div>
 
       {/* Hero Content Information - SF Pro typography */}
       <div className="relative z-10 h-full w-full max-w-7xl mx-auto px-4 sm:px-6 md:px-8 flex flex-col justify-end pb-16 sm:pb-20">
-        <motion.div
+        <div
           key={`content-${current.id}`}
-          initial={prefersReducedMotion ? {} : { opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.1, ease: 'easeOut' }}
-          className="space-y-2.5 sm:space-y-4 max-w-2xl sm:max-w-3xl"
+          className="space-y-2.5 sm:space-y-4 max-w-2xl sm:max-w-3xl animate-in fade-in duration-300 ease-out will-change-[opacity]"
         >
           {/* Metadata Badges */}
           <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
@@ -232,7 +222,7 @@ export const HeroBillboard: React.FC<HeroBillboardProps> = ({ items }) => {
               <span className="hidden xs:inline">Detail</span>
             </button>
           </div>
-        </motion.div>
+        </div>
       </div>
 
       {/* Floating Glass Navigation Arrows (Desktop) */}

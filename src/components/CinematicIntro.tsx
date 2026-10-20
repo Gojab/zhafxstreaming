@@ -165,15 +165,16 @@ export const CinematicIntro: React.FC<CinematicIntroProps> = ({ onComplete, forc
   return (
     <div
       id="zhafx-intro"
-      className="fixed inset-0 w-full h-screen bg-[#05070c] flex justify-center items-center z-[99999] overflow-hidden select-none pointer-events-auto"
+      className="fixed inset-0 w-full h-[100dvh] bg-[#05070c] flex justify-center items-center z-[99999] overflow-hidden select-none pointer-events-auto"
       style={{
         animation: 'fadeOutIntro 0.35s ease 1.15s forwards',
       }}
     >
       <style>{`
-        /* Efek Prisma / Kaca Balok Vertikal */
+        /* Efek Prisma / Kaca Balok Vertikal - Hardware Accelerated */
         .glass-prism {
           position: absolute;
+          inset: 0;
           width: 100%;
           height: 100%;
           background: repeating-linear-gradient(
@@ -186,46 +187,53 @@ export const CinematicIntro: React.FC<CinematicIntroProps> = ({ onComplete, forc
           backdrop-filter: blur(8px);
           -webkit-backdrop-filter: blur(8px);
           mix-blend-mode: overlay;
-          animation: shiftGlass 1.1s ease-out forwards;
+          will-change: transform, opacity;
+          animation: shiftGlass 1.1s cubic-bezier(0.16, 1, 0.3, 1) forwards;
         }
 
-        /* Kilauan Cahaya Biru Ala Amazon */
+        /* Kilauan Cahaya Biru Ala Amazon - Pure Compositor Transform */
         .light-streak {
           position: absolute;
-          width: 320px;
+          top: 0;
+          bottom: 0;
+          width: 340px;
           height: 100%;
           background: linear-gradient(90deg, transparent, rgba(50, 115, 255, 0.35), transparent);
-          transform: skewX(-25deg);
           filter: blur(28px);
           -webkit-filter: blur(28px);
-          animation: sweepLight 1.1s ease-in-out forwards;
+          will-change: transform;
+          animation: sweepLight 1.1s cubic-bezier(0.25, 1, 0.5, 1) forwards;
         }
 
-        /* Wadah Logo ZHAFX */
+        /* Wadah Logo ZHAFX - Static Letter Spacing to Prevent Layout Shifts */
         .logo-container {
           position: relative;
-          font-family: 'Arial Black', -apple-system, BlinkMacSystemFont, 'Unbounded', sans-serif;
+          font-family: 'Arial Black', -apple-system, BlinkMacSystemFont, sans-serif;
           font-weight: 900;
           color: #ffffff;
+          letter-spacing: 6px;
           text-shadow: 0 0 20px rgba(255, 255, 255, 0.7), 0 0 40px rgba(45, 105, 255, 0.5);
+          will-change: transform, opacity;
           animation: revealLogo 1.1s cubic-bezier(0.16, 1, 0.3, 1) forwards;
           text-align: center;
           user-select: none;
         }
 
         .studio-tagline {
+          letter-spacing: 6px;
+          will-change: transform, opacity;
           animation: revealTagline 0.5s ease 0.6s forwards;
           opacity: 0;
         }
 
-        /* Animasi Pergerakan (1.1s + 0.35s fadeout = <= 1.5s total) */
+        /* Animasi Pergerakan Bebas Layout Reflow */
         @keyframes shiftGlass {
           0% {
-            transform: scale(1.4) translateX(-40px);
-            opacity: 1;
+            transform: scale(1.3) translateX(-30px);
+            opacity: 0.9;
           }
           70% {
-            opacity: 0.8;
+            opacity: 0.7;
           }
           100% {
             transform: scale(1) translateX(0);
@@ -235,31 +243,23 @@ export const CinematicIntro: React.FC<CinematicIntroProps> = ({ onComplete, forc
 
         @keyframes sweepLight {
           0% {
-            left: -40%;
+            transform: translateX(-120vw) skewX(-25deg);
           }
           100% {
-            left: 140%;
+            transform: translateX(120vw) skewX(-25deg);
           }
         }
 
         @keyframes revealLogo {
           0% {
-            transform: scale(0.88);
-            filter: blur(12px);
-            -webkit-filter: blur(12px);
-            letter-spacing: 16px;
+            transform: scale(0.9);
             opacity: 0;
           }
-          60% {
-            filter: blur(3px);
-            -webkit-filter: blur(3px);
-            opacity: 0.9;
+          50% {
+            opacity: 0.85;
           }
           100% {
             transform: scale(1);
-            filter: blur(0);
-            -webkit-filter: blur(0);
-            letter-spacing: 6px;
             opacity: 1;
           }
         }
@@ -267,13 +267,11 @@ export const CinematicIntro: React.FC<CinematicIntroProps> = ({ onComplete, forc
         @keyframes revealTagline {
           0% {
             opacity: 0;
-            transform: translateY(8px);
-            letter-spacing: 4px;
+            transform: translateY(6px);
           }
           100% {
             opacity: 0.85;
             transform: translateY(0);
-            letter-spacing: 6px;
           }
         }
 

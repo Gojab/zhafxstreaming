@@ -16,6 +16,6 @@
 
 ## Spesifikasi & Standar Terbuka
 
-- Standar Agen AI: Manifest kapabilitas agentic tersedia pada [ai-catalog.json](https://zhafxstreaming.web.id/ai-catalog.json).
-- Sumber Metadata Publik: Informasi tayangan, sinopsis, dan poster bersumber dari The Movie Database (TMDB) dan AniList.
-- Peta Situs: Indeks URL publik terstruktur tersedia pada [sitemap.xml](https://zhafxstreaming.web.id/sitemap.xml).
+- [Standar Agen AI](https://zhafxstreaming.web.id/ai-catalog.json): Manifest kapabilitas agentic terbuka sesuai standar Agentic Resource Discovery (ARD).
+- [Sumber Metadata Publik](https://zhafxstreaming.web.id/): Informasi tayangan, sinopsis, dan poster bersumber dari The Movie Database (TMDB) dan AniList.
+- [Peta Situs](https://zhafxstreaming.web.id/sitemap.xml): Indeks URL publik terstruktur untuk pengindeksan mesin pencari.
