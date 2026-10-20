@@ -26,12 +26,14 @@ import {
   Layers,
   ListOrdered,
   X,
+  Download,
 } from 'lucide-react';
 import { api } from '../services/api';
 import { Title, MediaType, Episode } from '../types';
 import { storage } from '../lib/storage';
 import { useMyList } from '../hooks/useMyList';
 import { useActiveMedia } from '../context/ActiveMediaContext';
+import { useDownload } from '../context/DownloadContext';
 import { MediaRow } from '../components/MediaRow';
 import { SEOHead } from '../components/SEOHead';
 
@@ -316,11 +318,47 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
   const [episodesList, setEpisodesList] = useState<Episode[]>([]);
   const [showShareToast, setShowShareToast] = useState(false);
   const [isTipDismissed, setIsTipDismissed] = useState(false);
+  const [downloadToast, setDownloadToast] = useState(false);
 
   const { isSaved, toggle } = useMyList();
   const { setActiveMedia } = useActiveMedia();
+  const { startDownload, toggleDrawer } = useDownload();
   const playerContainerRef = useRef<HTMLDivElement | null>(null);
   const isNativeFsActive = useRef<boolean>(false);
+
+  const handleDownloadCurrent = () => {
+    if (!title || !id) return;
+    startDownload({
+      contentId: id,
+      mediaType,
+      title: title.title,
+      poster: title.poster,
+      year: title.year,
+      season: mediaType === 'tv' ? seasonNum : undefined,
+      episode: mediaType === 'tv' || mediaType === 'anime' ? episodeNum : undefined,
+      episodeName: currentEpisodeObj?.name,
+      audio: animeAudio,
+    });
+    setDownloadToast(true);
+    setTimeout(() => setDownloadToast(false), 3500);
+  };
+
+  const handleDownloadEpisode = (ep: number, epName?: string) => {
+    if (!title || !id) return;
+    startDownload({
+      contentId: id,
+      mediaType,
+      title: title.title,
+      poster: title.poster,
+      year: title.year,
+      season: mediaType === 'tv' ? seasonNum : undefined,
+      episode: ep,
+      episodeName: epName,
+      audio: animeAudio,
+    });
+    setDownloadToast(true);
+    setTimeout(() => setDownloadToast(false), 3500);
+  };
 
   // Dynamic import of hls.js on demand
   const loadHls = async () => {
@@ -805,6 +843,20 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
             </button>
           )}
 
+          {/* Unduh Video Top Button */}
+          {title && (
+            <button
+              type="button"
+              onClick={handleDownloadCurrent}
+              aria-label="Unduh Tayangan Ini"
+              title="Unduh Tayangan Ini (Tekan X untuk cek progres)"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-400 hover:bg-amber-300 text-black font-bold text-xs cursor-pointer transition-all active:scale-95 shadow-md"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Unduh</span>
+            </button>
+          )}
+
           <button
             type="button"
             onClick={toggleFullscreen}
@@ -817,6 +869,19 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
           </button>
         </div>
       </div>
+
+      {/* Download Toast Notification */}
+      {downloadToast && (
+        <div className="fixed top-20 right-4 sm:right-6 z-50 p-3.5 px-4 rounded-2xl bg-zinc-900/95 border border-amber-400/50 text-white text-xs font-medium shadow-2xl flex items-center gap-3 backdrop-blur-md animate-fade-in">
+          <div className="w-7 h-7 rounded-full bg-amber-400 text-black flex items-center justify-center font-bold shrink-0">
+            <Download className="w-4 h-4 animate-bounce" />
+          </div>
+          <div>
+            <span className="font-bold text-amber-300 block">Unduhan Dimulai!</span>
+            <span className="text-[11px] text-white/70">Tekan tombol <strong>X</strong> di keyboard untuk cek progres.</span>
+          </div>
+        </div>
+      )}
 
       {/* =========================================================================
           THE PLAYER CONTAINER ("Kotak Sudut Tumpul", Tidak Langsung Fullscreen)
@@ -1066,8 +1131,22 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
               </div>
             </div>
 
-            {/* Quick Actions (Save, Share, Refresh) */}
-            <div className="flex items-center gap-2 self-start md:self-center shrink-0">
+            {/* Quick Actions (Download, Save, Share, Refresh) */}
+            <div className="flex items-center gap-2 self-start md:self-center shrink-0 flex-wrap">
+              {title && (
+                <button
+                  onClick={handleDownloadCurrent}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-gradient-to-r from-amber-400 to-amber-300 hover:from-amber-300 hover:to-amber-200 text-black text-xs font-bold cursor-pointer transition-all active:scale-95 shadow-md"
+                  title="Unduh video ke perangkat (Tekan X untuk cek progres)"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Unduh Video</span>
+                  <kbd className="px-1.5 py-0.2 rounded bg-black/15 text-black text-[9px] font-mono font-bold">
+                    X
+                  </kbd>
+                </button>
+              )}
+
               {title && (
                 <button
                   onClick={() =>
@@ -1285,11 +1364,23 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
                           <h4 className={`text-xs font-bold truncate ${isCurrent ? 'text-[#FFB224]' : 'text-white'}`}>
                             {matchingEp?.name || `Episode ${ep}`}
                           </h4>
-                          {isCurrent && (
-                            <span className="px-1.5 py-0.5 rounded bg-[#FFB224] text-black text-[9px] font-extrabold uppercase shrink-0">
-                              Sedang Diputar
+                          <div className="flex items-center gap-1 shrink-0">
+                            <span
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDownloadEpisode(ep, matchingEp?.name);
+                              }}
+                              className="p-1 rounded-md bg-white/10 hover:bg-amber-400 hover:text-black text-white/70 transition-all cursor-pointer"
+                              title={`Unduh Episode ${ep} (Cek di Shortcut X)`}
+                            >
+                              <Download className="w-3 h-3" />
                             </span>
-                          )}
+                            {isCurrent && (
+                              <span className="px-1.5 py-0.5 rounded bg-[#FFB224] text-black text-[9px] font-extrabold uppercase shrink-0">
+                                Sedang Diputar
+                              </span>
+                            )}
+                          </div>
                         </div>
                         <p className="text-[11px] text-white/50 line-clamp-2 mt-1 leading-relaxed">
                           {matchingEp?.overview || 'Klik untuk memutar episode ini secara instan.'}

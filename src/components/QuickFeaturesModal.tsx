@@ -14,10 +14,12 @@ import {
   User as UserIcon,
   LogOut,
   Heart,
+  Download,
 } from 'lucide-react';
 import { Logo } from './Logo';
 import { storage } from '../lib/storage';
 import { User } from '../types';
+import { useDownload } from '../context/DownloadContext';
 
 interface QuickFeaturesModalProps {
   isOpen: boolean;
@@ -33,6 +35,7 @@ export const QuickFeaturesModal: React.FC<QuickFeaturesModalProps> = ({
   onOpenAuth,
 }) => {
   const navigate = useNavigate();
+  const { openDrawer, activeCount, downloads } = useDownload();
   const [user, setUser] = useState<User | null>(() => storage.getUser());
 
   useEffect(() => {
@@ -185,6 +188,40 @@ export const QuickFeaturesModal: React.FC<QuickFeaturesModalProps> = ({
             </button>
           </div>
         )}
+
+        {/* Shortcut X: Pusat Unduhan & Progres Banner */}
+        <div
+          onClick={() => {
+            onClose();
+            openDrawer();
+          }}
+          className="p-3.5 sm:p-4 rounded-[22px] bg-gradient-to-r from-amber-500/20 via-white/[0.08] to-amber-500/10 border border-amber-500/30 flex items-center justify-between gap-3 cursor-pointer hover:border-amber-400/50 hover:bg-white/[0.12] transition-all group shadow-md"
+        >
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-2xl bg-amber-400 text-black flex items-center justify-center font-bold shadow-md shrink-0 group-hover:scale-105 transition-transform">
+              <Download className={`w-5 h-5 ${activeCount > 0 ? 'animate-bounce' : ''}`} />
+            </div>
+            <div className="min-w-0 space-y-0.5">
+              <div className="flex items-center gap-2">
+                <span className="text-xs sm:text-sm font-bold text-white block">
+                  Pusat Unduhan & Progres
+                </span>
+                <span className="px-1.5 py-0.2 rounded bg-amber-400 text-black font-mono font-black text-[9px]">
+                  X
+                </span>
+              </div>
+              <p className="text-[11px] text-white/60 truncate">
+                {activeCount > 0
+                  ? `${activeCount} video sedang diunduh • Klik untuk periksa progres`
+                  : 'Unduh film, serial TV, dan anime riil untuk ditonton offline'}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1 text-xs font-semibold text-amber-300 shrink-0">
+            <span className="hidden sm:inline">Buka</span>
+            <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+          </div>
+        </div>
 
         {/* Feature Grid */}
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 sm:gap-3">

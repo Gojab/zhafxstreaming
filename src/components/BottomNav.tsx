@@ -5,9 +5,11 @@ import {
   History,
   Sparkles,
   User as UserIcon,
+  Download,
 } from 'lucide-react';
 import { storage } from '../lib/storage';
 import { User } from '../types';
+import { useDownload } from '../context/DownloadContext';
 
 interface BottomNavProps {
   onOpenAI: () => void;
@@ -17,6 +19,7 @@ interface BottomNavProps {
 
 export const BottomNav: React.FC<BottomNavProps> = ({ onOpenAI, onOpenFeatures, onOpenAuth }) => {
   const [user, setUser] = useState<User | null>(() => storage.getUser());
+  const { activeCount } = useDownload();
 
   useEffect(() => {
     const handleAuthChange = () => {
@@ -51,17 +54,26 @@ export const BottomNav: React.FC<BottomNavProps> = ({ onOpenAI, onOpenFeatures, 
           <span>Riwayat</span>
         </NavLink>
 
-        {/* 4. Center: Tombol X Fitur Utama (Cuma X tanpa keterangan, di tengah) */}
+        {/* 4. Center: Tombol X Fitur Utama & Pengelola Unduhan */}
         <button
           type="button"
           onClick={onOpenFeatures}
           aria-label="X"
-          title="X"
-          className="flex items-center justify-center p-1 min-h-[44px] min-w-[44px] shrink-0 active:scale-90 transition-transform ios-spring cursor-pointer mx-0.5"
+          title="X (Pusat Fitur & Unduhan)"
+          className="flex items-center justify-center p-1 min-h-[44px] min-w-[44px] shrink-0 active:scale-90 transition-transform ios-spring cursor-pointer mx-0.5 relative"
         >
-          <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-white/[0.22] to-white/[0.36] border border-white/40 flex items-center justify-center shadow-lg text-white font-black text-sm">
+          <div className={`w-10 h-10 rounded-full border flex items-center justify-center shadow-lg font-black text-sm transition-all ${
+            activeCount > 0
+              ? 'bg-amber-400 text-black border-amber-300 ring-2 ring-amber-400/50'
+              : 'bg-gradient-to-tr from-white/[0.22] to-white/[0.36] border-white/40 text-white'
+          }`}>
             <span className="leading-none">X</span>
           </div>
+          {activeCount > 0 && (
+            <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-amber-400 text-black font-mono font-extrabold text-[9px] flex items-center justify-center shadow-md animate-pulse">
+              {activeCount}
+            </span>
+          )}
         </button>
 
         {/* 5. Tanya AI (min 44x44px) */}
