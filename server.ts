@@ -1046,11 +1046,18 @@ app.post('/api/auth/logout', (req: Request, res: Response) => {
 });
 
 // Google / Gmail OAuth 2.0 Web Redirection Endpoint
+function getRequestOrigin(req: Request): string {
+  const forwardedHost = req.headers['x-forwarded-host'];
+  const host = (Array.isArray(forwardedHost) ? forwardedHost[0] : forwardedHost) || req.get('host') || 'localhost:3000';
+  const forwardedProto = req.headers['x-forwarded-proto'];
+  const protocol = (Array.isArray(forwardedProto) ? forwardedProto[0] : forwardedProto)?.split(',')[0]?.trim() || req.protocol || 'http';
+  return `${protocol}://${host}`;
+}
+
 app.get('/api/auth/google/login', (req: Request, res: Response) => {
-  const host = req.get('host') || 'localhost:3000';
-  const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
-  const defaultOrigin = `${protocol}://${host}`;
-  const origin = (req.query.origin as string) || defaultOrigin;
+  // Always derive the callback from the request host. Trusting a client-supplied
+  // origin causes Google to reject the code exchange when a proxy rewrites hosts.
+  const origin = getRequestOrigin(req);
   const redirectUri = `${origin}/api/auth/google/callback`;
   const clientId = process.env.VITE_GOOGLE_CLIENT_ID || '358715674309-hdh36g2l56bqv0rckcvcd4666kemh4sj.apps.googleusercontent.com';
 
@@ -1071,9 +1078,7 @@ app.get('/api/auth/google/login', (req: Request, res: Response) => {
 app.get('/api/auth/google/callback', async (req: Request, res: Response) => {
   const code = req.query.code as string;
   const error = req.query.error as string;
-  const host = req.get('host') || 'localhost:3000';
-  const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
-  const origin = `${protocol}://${host}`;
+  const origin = getRequestOrigin(req);
   const redirectUri = `${origin}/api/auth/google/callback`;
 
   if (error || !code) {
