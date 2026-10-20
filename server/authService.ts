@@ -83,6 +83,11 @@ export function initAuthDb(): AuthDb {
     const users: StoredUser[] = Array.isArray(parsed.users)
       ? parsed.users.map((u: any) => ({
           ...u,
+          // Keep accounts created by older versions compatible with email login.
+          // Older records used `password` instead of the current `passwordHash` key.
+          passwordHash: u.passwordHash || (typeof u.password === 'string' && u.password.includes(':') ? u.password : undefined),
+          email: typeof u.email === 'string' ? u.email.trim().toLowerCase() : '',
+          username: typeof u.username === 'string' ? u.username.trim() : '',
           isEmailVerified: u.isEmailVerified !== undefined ? u.isEmailVerified : true,
         }))
       : [];

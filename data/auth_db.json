@@ -96,6 +96,15 @@
       "passwordHash": "9b04391bf513cf3e7d4017758309e7a5:81beab295026c8cfe6e70015235dc1d58cae05ebb2bf0ea5902d751ac46ec891d4ea6fd47d43644e58f1d737d249786c1625eceb800d16d3c4636a8e529e116a",
       "isEmailVerified": true,
       "joinedAt": 1792499305968
+    },
+    {
+      "id": "usr_1792500634961_6ca9a995",
+      "name": "Test Login",
+      "username": "logindebug20261020",
+      "email": "login-debug-20261020@example.com",
+      "passwordHash": "09d655e2beb1934ab29fa9b3877910cc:e7c7854b5cbe01f6c14749449fa862c6fc8e3a4e4fb99bb2a5fab624167f440e364fe9477e57ffa250155191228bb07dbadd11949daf2641a37960ca61cfd1fa",
+      "isEmailVerified": true,
+      "joinedAt": 1792500634961
     }
   ],
   "sessions": [
@@ -176,6 +185,18 @@
       "userId": "usr_1792499305968_91ef6b10",
       "createdAt": 1792499390933,
       "expiresAt": 1795091390933
+    },
+    {
+      "token": "899c4aa4cf41f1dd9ae7ffd356a642bd9dcf8e4a582d601680955800022d01e9",
+      "userId": "usr_1792500634961_6ca9a995",
+      "createdAt": 1792500634962,
+      "expiresAt": 1795092634962
+    },
+    {
+      "token": "637a6a79560fdfa89ecea41a4bbac23bcfaf87ee0b9c851c60d53438ffba04b9",
+      "userId": "usr_1792500634961_6ca9a995",
+      "createdAt": 1792500635012,
+      "expiresAt": 1795092635012
     }
   ],
   "otps": []
