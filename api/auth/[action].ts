@@ -182,7 +182,7 @@ export default async function handler(req: any, res: any) {
     let userAvatar = typeof avatar === 'string' ? avatar.trim() : undefined;
     let userGoogleId = typeof googleId === 'string' ? googleId.trim() : undefined;
 
-    const clientSecret = process.env.GOOGLE_CLIENT_SECRET || '';
+    const clientSecret = process.env.GOOGLE_CLIENT_SECRET_2 || process.env.GOOGLE_CLIENT_SECRET || '';
     const clientId = process.env.VITE_GOOGLE_CLIENT_ID || '358715674309-hdh36g2l56bqv0rckcvcd4666kemh4sj.apps.googleusercontent.com';
 
     if (code && clientSecret) {
