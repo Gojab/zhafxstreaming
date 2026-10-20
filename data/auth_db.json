@@ -87,6 +87,15 @@
       "passwordHash": "8b39140eb6009bac9d59b3e8f75ba8ab:d20ad2d74bd2208254181cdcfb00a56d0e2f7d15ea219f4d3f826fa476a26da7fa78ea0631cb6568d8f8ec0bd1852c4dbd70096f008ee691627eb77c37ea6a21",
       "isEmailVerified": true,
       "joinedAt": 1792331814914
+    },
+    {
+      "id": "usr_1792499305968_91ef6b10",
+      "name": "Test User",
+      "username": "testauth20261020",
+      "email": "testauth20261020@example.com",
+      "passwordHash": "9b04391bf513cf3e7d4017758309e7a5:81beab295026c8cfe6e70015235dc1d58cae05ebb2bf0ea5902d751ac46ec891d4ea6fd47d43644e58f1d737d249786c1625eceb800d16d3c4636a8e529e116a",
+      "isEmailVerified": true,
+      "joinedAt": 1792499305968
     }
   ],
   "sessions": [
@@ -161,6 +170,12 @@
       "userId": "usr_1792330640162_87a0bc5c",
       "createdAt": 1792403829825,
       "expiresAt": 1794995829825
+    },
+    {
+      "token": "b734227230bfb9f5967347e9323707a7bab31ee9cfc399ab104d396edd77888b",
+      "userId": "usr_1792499305968_91ef6b10",
+      "createdAt": 1792499390933,
+      "expiresAt": 1795091390933
     }
   ],
   "otps": []
