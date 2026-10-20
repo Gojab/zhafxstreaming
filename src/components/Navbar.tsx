@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Search, Sparkles, User as UserIcon, LogOut, Bookmark, History, ChevronDown, Clapperboard, Download } from 'lucide-react';
+import { Search, Sparkles, User as UserIcon, LogOut, Bookmark, History, ChevronDown, Clapperboard } from 'lucide-react';
 import { Logo } from './Logo';
 import { storage } from '../lib/storage';
 import { User } from '../types';
-import { useDownload } from '../context/DownloadContext';
 
 interface NavbarProps {
   onOpenAI: () => void;
@@ -14,7 +13,6 @@ interface NavbarProps {
 
 export const Navbar: React.FC<NavbarProps> = ({ onOpenAI, onOpenFeatures, onOpenAuth }) => {
   const navigate = useNavigate();
-  const { toggleDrawer, activeCount } = useDownload();
   const [hasScrolled, setHasScrolled] = useState(false);
   const [user, setUser] = useState<User | null>(() => storage.getUser());
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
@@ -136,27 +134,6 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAI, onOpenFeatures, onOpen
             <span className="hidden sm:inline text-[12px]">Cari</span>
             <kbd className="hidden lg:inline-block px-1.5 py-0.2 rounded-full bg-white/10 text-[9px] text-white/70">
               /
-            </kbd>
-          </button>
-
-          {/* Pusat Unduhan & Progres (Shortcut: X) */}
-          <button
-            type="button"
-            onClick={toggleDrawer}
-            aria-label="Pusat Unduhan & Progres (Shortcut: X)"
-            title="Pusat Unduhan & Progres (Shortcut: X)"
-            className={`flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full border transition-all cursor-pointer min-h-[38px] ios-spring shadow-sm ${
-              activeCount > 0
-                ? 'bg-amber-400 text-black border-amber-300 font-bold'
-                : 'bg-white/[0.08] hover:bg-white/[0.16] border-white/20 text-white'
-            }`}
-          >
-            <Download className={`w-3.5 h-3.5 ${activeCount > 0 ? 'animate-bounce' : ''}`} />
-            {activeCount > 0 && (
-              <span className="text-[11px] font-mono font-extrabold">{activeCount}</span>
-            )}
-            <kbd className="hidden lg:inline-block px-1.5 py-0.2 rounded-full bg-white/20 text-[9px] font-mono">
-              X
             </kbd>
           </button>
 

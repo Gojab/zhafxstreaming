@@ -28,9 +28,6 @@ const AIChatDrawer = lazy(() => import('./components/AIChatDrawer').then((m) => 
 const QuickFeaturesModal = lazy(() => import('./components/QuickFeaturesModal').then((m) => ({ default: m.QuickFeaturesModal })));
 const AuthModal = lazy(() => import('./components/AuthModal').then((m) => ({ default: m.AuthModal })));
 
-import { DownloadProvider } from './context/DownloadContext';
-import { DownloadDrawer } from './components/DownloadDrawer';
-
 // Stub for stripped @vercel/analytics
 const Analytics = () => null;
 
@@ -208,9 +205,6 @@ function AppLayout() {
         </Suspense>
       )}
 
-      {/* Pusat Unduhan & Progres (Shortcut: X) */}
-      <DownloadDrawer />
-
       {/* Vercel Web Analytics */}
       <Analytics />
     </div>
@@ -221,11 +215,9 @@ export default function App() {
   return (
     <ErrorBoundary>
       <ActiveMediaProvider>
-        <DownloadProvider>
-          <BrowserRouter>
-            <AppLayout />
-          </BrowserRouter>
-        </DownloadProvider>
+        <BrowserRouter>
+          <AppLayout />
+        </BrowserRouter>
       </ActiveMediaProvider>
     </ErrorBoundary>
   );

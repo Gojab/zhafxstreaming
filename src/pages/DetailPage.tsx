@@ -18,7 +18,6 @@ import {
   Users,
   Mic,
   X,
-  Download,
 } from 'lucide-react';
 import { api } from '../services/api';
 import { Title, Episode, MediaType, CastMember, VideoTrailer } from '../types';
@@ -27,7 +26,6 @@ import { MediaRow } from '../components/MediaRow';
 import { SEOHead } from '../components/SEOHead';
 import { useMyList } from '../hooks/useMyList';
 import { useActiveMedia } from '../context/ActiveMediaContext';
-import { useDownload } from '../context/DownloadContext';
 import { storage } from '../lib/storage';
 
 interface DetailPageProps {
@@ -60,47 +58,10 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
 
   // Share feedback toast
   const [showShareToast, setShowShareToast] = useState(false);
-  const [downloadToast, setDownloadToast] = useState(false);
 
   const { isSaved, toggle } = useMyList();
   const { setActiveMedia } = useActiveMedia();
-  const { startDownload, toggleDrawer } = useDownload();
   const history = storage.getHistory();
-
-  const handleDownloadCurrent = () => {
-    if (!title || !id) return;
-    const lastHistory = history.find((h) => h.id === title.id);
-    const resumeSeason = lastHistory?.season ?? (title.seasons?.[0]?.number ?? 1);
-    const resumeEpisode = lastHistory?.episode ?? 1;
-
-    startDownload({
-      contentId: id,
-      mediaType,
-      title: title.title,
-      poster: title.poster,
-      year: title.year,
-      season: mediaType === 'tv' ? resumeSeason : undefined,
-      episode: mediaType === 'tv' || mediaType === 'anime' ? resumeEpisode : undefined,
-    });
-    setDownloadToast(true);
-    setTimeout(() => setDownloadToast(false), 3500);
-  };
-
-  const handleDownloadEpisode = (ep: number, epName?: string) => {
-    if (!title || !id) return;
-    startDownload({
-      contentId: id,
-      mediaType,
-      title: title.title,
-      poster: title.poster,
-      year: title.year,
-      season: mediaType === 'tv' ? selectedSeason : undefined,
-      episode: ep,
-      episodeName: epName,
-    });
-    setDownloadToast(true);
-    setTimeout(() => setDownloadToast(false), 3500);
-  };
 
   const loadDetails = async (signal?: AbortSignal) => {
     if (!id) return;
@@ -268,19 +229,6 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
         <div className="fixed top-20 right-6 z-50 px-4 py-2.5 rounded-xl bg-zinc-900 border border-white/20 text-white text-xs font-medium shadow-xl flex items-center gap-2">
           <CheckCircle2 className="w-4 h-4 text-emerald-400" />
           Tautan tayangan berhasil disalin!
-        </div>
-      )}
-
-      {/* Download Feedback Toast */}
-      {downloadToast && (
-        <div className="fixed top-20 right-4 sm:right-6 z-50 p-3.5 px-4 rounded-2xl bg-zinc-900/95 border border-amber-400/50 text-white text-xs font-medium shadow-2xl flex items-center gap-3 backdrop-blur-md animate-fade-in">
-          <div className="w-7 h-7 rounded-full bg-amber-400 text-black flex items-center justify-center font-bold shrink-0">
-            <Download className="w-4 h-4 animate-bounce" />
-          </div>
-          <div>
-            <span className="font-bold text-amber-300 block">Unduhan Dimulai!</span>
-            <span className="text-[11px] text-white/70">Tekan tombol <strong>X</strong> di keyboard untuk memeriksa progres unduhan.</span>
-          </div>
         </div>
       )}
 
@@ -467,19 +415,6 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
                 </button>
               );
             })()}
-
-            {/* Download Video Button */}
-            <button
-              onClick={handleDownloadCurrent}
-              className="inline-flex items-center justify-center gap-2 px-5 sm:px-6 py-3 rounded-full bg-gradient-to-r from-amber-400 to-amber-300 hover:from-amber-300 hover:to-amber-200 text-black font-bold text-xs sm:text-sm shadow-[0_8px_25px_rgba(251,191,36,0.3)] transition-all ios-spring cursor-pointer min-h-[44px]"
-              title="Unduh video ke perangkat (Tekan X untuk cek progres)"
-            >
-              <Download className="w-4 h-4" />
-              <span>{title.type === 'movie' ? 'Unduh Film' : 'Unduh Episode'}</span>
-              <kbd className="hidden sm:inline-block px-1.5 py-0.2 rounded bg-black/15 text-black text-[9px] font-mono font-bold">
-                X
-              </kbd>
-            </button>
 
             {/* Video Trailer Button (FrameX Feature) */}
             {primaryTrailer && (
@@ -692,26 +627,14 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
                         <h4 className="text-xs sm:text-sm font-bold text-white group-hover:text-white/80 transition-colors line-clamp-1">
                           {ep.name || `Episode ${ep.number}`}
                         </h4>
-                        <div className="flex items-center gap-1.5 shrink-0">
+                        {watched && (
                           <span
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDownloadEpisode(ep.number, ep.name);
-                            }}
-                            className="p-1.5 rounded-lg bg-white/10 hover:bg-amber-400 hover:text-black text-white/70 transition-all cursor-pointer"
-                            title={`Unduh Episode ${ep.number} (Tekan X untuk cek progres)`}
+                            title="Sudah ditonton"
+                            className="text-emerald-400 shrink-0"
                           >
-                            <Download className="w-3.5 h-3.5" />
+                            <CheckCircle2 className="w-4 h-4" />
                           </span>
-                          {watched && (
-                            <span
-                              title="Sudah ditonton"
-                              className="text-emerald-400 shrink-0"
-                            >
-                              <CheckCircle2 className="w-4 h-4" />
-                            </span>
-                          )}
-                        </div>
+                        )}
                       </div>
 
                       {ep.airDate && (
