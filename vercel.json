@@ -1,6 +1,14 @@
 {
   "rewrites": [
     {
+      "source": "/api/anime/:action",
+      "destination": "/api/anime/[action]"
+    },
+    {
+      "source": "/api/auth/:action",
+      "destination": "/api/auth/[action]"
+    },
+    {
       "source": "/api/(.*)",
       "destination": "/api/$1"
     },
