@@ -223,8 +223,8 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAI, onOpenFeatures, onOpen
 
               {/* Profile Dropdown */}
               {isProfileMenuOpen && (
-                <div className="absolute right-0 top-full mt-2.5 sm:mt-3 w-64 rounded-[26px] liquid-glass-dense liquid-specular border border-white/25 shadow-2xl p-2.5 z-50 text-white animate-in fade-in zoom-in-95 duration-150">
-                  <div className="px-3.5 py-2.5 border-b border-white/10 mb-1.5 flex items-center gap-3">
+                <div className="absolute right-0 top-full mt-5 sm:mt-6 w-64 rounded-[26px] bg-[#0E1017]/95 backdrop-blur-2xl border border-white/25 shadow-[0_20px_50px_rgba(0,0,0,0.85)] p-2.5 z-50 text-white animate-in fade-in zoom-in-95 duration-150">
+                  <div className="px-3.5 py-2.5 border-b border-white/15 mb-1.5 flex items-center gap-3">
                     {user.avatar ? (
                       <img
                         src={user.avatar}
@@ -238,7 +238,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAI, onOpenFeatures, onOpen
                     )}
                     <div className="min-w-0">
                       <p className="text-xs font-bold text-white truncate">{user.name}</p>
-                      <p className="text-[10px] text-white/50 truncate">{user.email}</p>
+                      <p className="text-[11px] text-white/90 truncate">{user.email}</p>
                     </div>
                   </div>
 
@@ -248,52 +248,56 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAI, onOpenFeatures, onOpen
                       setIsProfileMenuOpen(false);
                       setIsProfileModalOpen(true);
                     }}
-                    className="w-full px-3 py-2 rounded-xl text-left text-xs text-white hover:text-white hover:bg-white/10 flex items-center gap-2.5 cursor-pointer transition-colors font-semibold"
+                    className="w-full px-3 py-2.5 rounded-xl text-left text-xs text-white hover:bg-white/15 flex items-center gap-2.5 cursor-pointer transition-colors font-medium"
                   >
-                    <IoPersonOutline className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>Atur Profil</span>
+                    <IoPersonOutline className="w-4 h-4 text-white shrink-0" />
+                    <span className="text-white">Atur Profil</span>
                   </button>
 
+                  {/* 2. Daftar Saya Button */}
                   <button
                     onClick={() => {
                       setIsProfileMenuOpen(false);
                       navigate('/my-list');
                     }}
-                    className="w-full px-3 py-2 rounded-xl text-left text-xs text-white/80 hover:text-white hover:bg-white/10 flex items-center gap-2.5 cursor-pointer transition-colors"
+                    className="w-full px-3 py-2.5 rounded-xl text-left text-xs text-white hover:bg-white/15 flex items-center gap-2.5 cursor-pointer transition-colors font-medium"
                   >
-                    <IoBookmarkOutline className="w-4 h-4 text-amber-300 shrink-0" />
-                    <span>Daftar Saya</span>
+                    <IoBookmarkOutline className="w-4 h-4 text-white shrink-0" />
+                    <span className="text-white">Daftar Saya</span>
                   </button>
 
+                  {/* 3. Riwayat Nonton Button */}
                   <button
                     onClick={() => {
                       setIsProfileMenuOpen(false);
                       navigate('/history');
                     }}
-                    className="w-full px-3 py-2 rounded-xl text-left text-xs text-white/80 hover:text-white hover:bg-white/10 flex items-center gap-2.5 cursor-pointer transition-colors"
+                    className="w-full px-3 py-2.5 rounded-xl text-left text-xs text-white hover:bg-white/15 flex items-center gap-2.5 cursor-pointer transition-colors font-medium"
                   >
-                    <IoTimeOutline className="w-4 h-4 text-sky-300 shrink-0" />
-                    <span>Riwayat Nonton</span>
+                    <IoTimeOutline className="w-4 h-4 text-white shrink-0" />
+                    <span className="text-white">Riwayat Nonton</span>
                   </button>
 
+                  {/* 4. Putar Intro Sinematik Button */}
                   <button
                     onClick={() => {
                       setIsProfileMenuOpen(false);
                       window.dispatchEvent(new Event('play-zhafx-intro'));
                     }}
-                    className="w-full px-3 py-2 rounded-xl text-left text-xs text-white/80 hover:text-white hover:bg-white/10 flex items-center gap-2.5 cursor-pointer transition-colors"
+                    className="w-full px-3 py-2.5 rounded-xl text-left text-xs text-white hover:bg-white/15 flex items-center gap-2.5 cursor-pointer transition-colors font-medium"
                   >
-                    <IoVideocamOutline className="w-4 h-4 text-purple-300 shrink-0" />
-                    <span>Putar Intro Sinematik</span>
+                    <IoVideocamOutline className="w-4 h-4 text-white shrink-0" />
+                    <span className="text-white">Putar Intro Sinematik</span>
                   </button>
 
-                  <div className="pt-1.5 mt-1.5 border-t border-white/10">
+                  {/* 5. Keluar Button */}
+                  <div className="pt-1.5 mt-1.5 border-t border-white/15">
                     <button
                       onClick={handleLogout}
-                      className="w-full px-3 py-2 rounded-xl text-left text-xs text-rose-300 hover:text-rose-200 hover:bg-rose-500/20 flex items-center gap-2.5 cursor-pointer transition-colors font-semibold"
+                      className="w-full px-3 py-2.5 rounded-xl text-left text-xs text-white hover:bg-white/15 flex items-center gap-2.5 cursor-pointer transition-colors font-medium"
                     >
-                      <IoLogOutOutline className="w-4 h-4 shrink-0" />
-                      <span>Keluar</span>
+                      <IoLogOutOutline className="w-4 h-4 text-white shrink-0" />
+                      <span className="text-white">Keluar</span>
                     </button>
                   </div>
                 </div>

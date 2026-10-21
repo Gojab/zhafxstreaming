@@ -160,17 +160,17 @@ export const QuickFeaturesModal: React.FC<QuickFeaturesModalProps> = ({
                   onClose();
                   window.dispatchEvent(new Event('open-zhafx-profile'));
                 }}
-                className="px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/20 border border-white/15 text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors shrink-0"
+                className="px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/20 border border-white/15 text-white text-xs font-medium flex items-center gap-1.5 cursor-pointer transition-colors shrink-0"
               >
-                <UserIcon className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Atur Profil</span>
+                <UserIcon className="w-3.5 h-3.5 text-white" />
+                <span className="text-white">Atur Profil</span>
               </button>
               <button
                 onClick={handleLogout}
-                className="px-3 py-1.5 rounded-full bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/20 text-rose-300 text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors shrink-0"
+                className="px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/20 border border-white/15 text-white text-xs font-medium flex items-center gap-1.5 cursor-pointer transition-colors shrink-0"
               >
-                <LogOut className="w-3.5 h-3.5" />
-                <span>Keluar</span>
+                <LogOut className="w-3.5 h-3.5 text-white" />
+                <span className="text-white">Keluar</span>
               </button>
             </div>
           </div>
