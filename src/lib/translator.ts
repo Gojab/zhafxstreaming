@@ -4,6 +4,10 @@
  */
 
 const KNOWN_SYNOPSES: Record<string, string> = {
+  'clayface':
+    'Kisah kebangkitan Matt Hagen dari pemuda jalanan kota Gotham menjadi aktor terkemuka Hollywood yang terhenti secara tragis saat bos mafia lokal membuatnya cacat mengerikan. Ditinggalkan dan hancur, Matt mencari perawatan mutakhir yang secara ajaib memulihkan tubuhnya, namun merusak kesadarannya dan menyeretnya ke dalam spiral balas dendam mematikan.',
+  'by any means':
+    'Di Mississippi era 1960-an, seorang agen FBI muda berkulit hitam terpaksa bekerja sama dengan pembunuh bayaran mafia yang terkenal kejam demi menyelidiki rentetan pembunuhan brutal bermotif hak-hak sipil.',
   'dune: part two':
     'Paul Atreides bersatu dengan Chani dan kaum Fremen saat menempuh jalan balas dendam terhadap para konspirator yang menghancurkan keluarganya, seraya berusaha mencegah masa depan kelam yang hanya bisa ia ramalkan.',
   'dune':
@@ -51,15 +55,16 @@ const memoryTranslationCache = new Map<string, string>();
 /**
  * Checks whether the text already looks like Bahasa Indonesia
  */
-function isIndonesian(text: string): boolean {
+export function isIndonesian(text: string): boolean {
   if (!text || text.length < 15) return false;
-  const sample = text.toLowerCase();
+  const sample = ` ${text.toLowerCase()} `;
 
   const idWords = [
     ' yang ', ' dan ', ' di ', ' dari ', ' untuk ', ' pada ', ' dengan ',
     ' adalah ', ' sebuah ', ' seorang ', ' dalam ', ' saat ', ' oleh ',
     ' mereka ', ' ia ', ' dia ', ' kehidupan ', ' perjalanan ', ' dunia ',
-    ' kisah ', ' melawan ', ' bersama ', ' setelah ', ' demi ', ' membalas '
+    ' kisah ', ' melawan ', ' bersama ', ' setelah ', ' demi ', ' membalas ',
+    ' tentang ', ' ketika ', ' harus ', ' karena ', ' menjadi '
   ];
 
   let idScore = 0;
@@ -72,11 +77,16 @@ function isIndonesian(text: string): boolean {
 
 /**
  * Translates any synopsis to Indonesian, using local verified dictionary first,
- * then in-memory cache, then the backend translate endpoint or Google GTX fallback.
+ * then in-memory cache, then the backend translate endpoint or client MyMemory fallback.
  */
 export async function translateToIndonesian(text: string, titleHint?: string): Promise<string> {
   const trimmed = (text || '').trim();
-  if (!trimmed || trimmed === 'Belum ada sinopsis untuk tayangan ini.' || trimmed === 'Informasi sinopsis belum tersedia.') {
+  if (
+    !trimmed ||
+    trimmed === 'Belum ada sinopsis untuk tayangan ini.' ||
+    trimmed === 'Informasi sinopsis belum tersedia.' ||
+    trimmed === 'Sinopsis belum tersedia.'
+  ) {
     return 'Sinopsis dalam Bahasa Indonesia sedang disiapkan.';
   }
 
@@ -104,7 +114,7 @@ export async function translateToIndonesian(text: string, titleHint?: string): P
   try {
     const sessionKey = `zhafx_tr_${trimmed.slice(0, 32)}`;
     const saved = sessionStorage.getItem(sessionKey);
-    if (saved) {
+    if (saved && isIndonesian(saved)) {
       memoryTranslationCache.set(trimmed, saved);
       return saved;
     }
@@ -112,18 +122,18 @@ export async function translateToIndonesian(text: string, titleHint?: string): P
     // sessionStorage not available
   }
 
-  // 5. Query local backend /api/translate
+  // 5. Query local backend /api/translate (runs Gemini 3.8 Flash or Server MyMemory)
   try {
     const res = await fetch('/api/translate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text: trimmed }),
-      signal: AbortSignal.timeout(4000),
+      signal: AbortSignal.timeout(5000),
     });
 
     if (res.ok) {
       const data = await res.json();
-      if (data && data.success && data.translated) {
+      if (data && data.success && data.translated && data.translated !== trimmed) {
         memoryTranslationCache.set(trimmed, data.translated);
         try {
           const sessionKey = `zhafx_tr_${trimmed.slice(0, 32)}`;
@@ -133,21 +143,29 @@ export async function translateToIndonesian(text: string, titleHint?: string): P
       }
     }
   } catch {
-    // Fallback directly to Google Translate GTX
+    // Fallback to client MyMemory
   }
 
-  // 6. Direct client-side Google GTX fallback
+  // 6. Direct client-side MyMemory fallback (Unblocked, fast, no CORS issues)
   try {
-    const gtxUrl = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=id&dt=t&q=${encodeURIComponent(trimmed)}`;
-    const gtxRes = await fetch(gtxUrl, { signal: AbortSignal.timeout(4000) });
-    if (gtxRes.ok) {
-      const gtxData = await gtxRes.json();
-      if (Array.isArray(gtxData) && Array.isArray(gtxData[0])) {
-        const translated = gtxData[0].map((c: any) => c[0] || '').join('').trim();
-        if (translated) {
-          memoryTranslationCache.set(trimmed, translated);
-          return translated;
-        }
+    const memoryUrl = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(trimmed.slice(0, 500))}&langpair=en|id`;
+    const memRes = await fetch(memoryUrl, {
+      signal: AbortSignal.timeout(4500),
+      headers: {
+        'Accept': 'application/json',
+      },
+    });
+
+    if (memRes.ok) {
+      const memData = await memRes.json();
+      const translatedText = memData?.responseData?.translatedText;
+      if (translatedText && typeof translatedText === 'string' && !translatedText.includes('QUERY LENGTH LIMIT') && translatedText !== trimmed) {
+        memoryTranslationCache.set(trimmed, translatedText);
+        try {
+          const sessionKey = `zhafx_tr_${trimmed.slice(0, 32)}`;
+          sessionStorage.setItem(sessionKey, translatedText);
+        } catch {}
+        return translatedText;
       }
     }
   } catch {

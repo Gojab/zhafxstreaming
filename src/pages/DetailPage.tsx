@@ -27,6 +27,7 @@ import { SEOHead } from '../components/SEOHead';
 import { useMyList } from '../hooks/useMyList';
 import { useActiveMedia } from '../context/ActiveMediaContext';
 import { storage } from '../lib/storage';
+import { translateToIndonesian, isIndonesian } from '../lib/translator';
 
 interface DetailPageProps {
   onOpenAIWithContext: (title: Title) => void;
@@ -72,6 +73,13 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
       setTitle(data);
       if (data.backdrop || data.poster) {
         setActiveMedia(data.backdrop || data.poster, data.title);
+      }
+      if (data.overview && !isIndonesian(data.overview)) {
+        translateToIndonesian(data.overview, data.title).then((trans) => {
+          if (trans && trans !== data.overview) {
+            setTitle((prev) => (prev ? { ...prev, overview: trans } : null));
+          }
+        });
       }
       if (data.seasons && data.seasons.length > 0) {
         // Prioritize Season 1 over Season 0 (Specials)

@@ -7,9 +7,11 @@ export const CONFIG = {
   APP_NAME: 'Zhafx',
   APP_SLOGAN: 'Platform Streaming Film, Serial TV & Anime',
   
-  // Primary upstream API base URL
-  API_BASE_URL: 'https://api.framextv.tech',
-  API_ANIME_BASE_URL: 'https://api.framextv.tech/anime',
+  // Primary upstream API base URL (.xyz is active & fast, .tech as fallback)
+  API_BASE_URL: 'https://api.framextv.xyz',
+  API_BASE_URL_FALLBACK: 'https://api.framextv.tech',
+  API_ANIME_BASE_URL: 'https://api.framextv.xyz/anime',
+  API_ANIME_BASE_URL_FALLBACK: 'https://api.framextv.tech/anime',
   
   // Embed Player base URL
   EMBED_BASE_URL: 'https://framextv.xyz/embed',

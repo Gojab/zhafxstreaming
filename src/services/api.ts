@@ -212,8 +212,10 @@ async function fetchWithRetry<T>(
 
       try {
         let requestUrl = url;
-        // If previous attempts failed due to CORS or network, use proxy
-        if (attempt > 0 && useProxyFallback) {
+        const isFrameX = url.includes('framextv.tech') || url.includes('framextv.xyz');
+
+        // FrameX does not send browser CORS headers, proxy directly or on retry
+        if ((isFrameX || attempt > 0) && useProxyFallback && !url.startsWith('/api')) {
           requestUrl = `${CONFIG.PROXY_URL}?url=${encodeURIComponent(url)}`;
         }
 
@@ -309,6 +311,7 @@ async function fetchWithRetry<T>(
 export const api = {
   /**
    * Home data containing hero, trending, popular movies, popular TV, anime, etc.
+   * Mirrors all rails from FrameX TV with automatic Indonesian synopsis translation.
    */
   async getHome(signal?: AbortSignal): Promise<{
     hero: Title | null;
@@ -316,15 +319,31 @@ export const api = {
     popularMovies: Title[];
     popularTv: Title[];
     popularAnime: Title[];
+    airingAnime: Title[];
     newReleases: Title[];
     actionMovies: Title[];
     scifiMovies: Title[];
+    thrillerMovies: Title[];
+    comedyMovies: Title[];
   }> {
-    const url = `${CONFIG.API_BASE_URL}${CONFIG.ENDPOINTS.HOME}`;
-    const data = await fetchWithRetry<any>(url, { signal });
+    let data: any = null;
 
-    const rails = data.rails || {};
-    const hero = data.hero ? normalize(data.hero, data.hero.type || 'movie') : null;
+    // 1. Try local/Vercel serverless /api/home endpoint first (pre-translated & zero CORS issues)
+    try {
+      data = await fetchWithRetry<any>('/api/home', { signal, useProxyFallback: false });
+    } catch {
+      // 2. Fallback to direct FrameX upstream through proxy
+      try {
+        const url = `${CONFIG.API_BASE_URL}${CONFIG.ENDPOINTS.HOME}`;
+        data = await fetchWithRetry<any>(url, { signal });
+      } catch {
+        const fallbackUrl = `${CONFIG.API_BASE_URL_FALLBACK}${CONFIG.ENDPOINTS.HOME}`;
+        data = await fetchWithRetry<any>(fallbackUrl, { signal });
+      }
+    }
+
+    const rails = data?.rails || {};
+    const hero = data?.hero ? normalize(data.hero, data.hero.type || 'movie') : null;
     if (hero && hero.overview) {
       hero.overview = await translateToIndonesian(hero.overview, hero.title);
     }
@@ -335,7 +354,7 @@ export const api = {
     };
 
     const trending = parseList(rails.trending_movies, 'movie');
-    // Translate top trending titles' overviews in parallel
+    // Ensure top trending titles' overviews are translated into Indonesian
     await Promise.all(
       trending.slice(0, 8).map(async (t) => {
         if (t.overview) {
@@ -350,9 +369,12 @@ export const api = {
       popularMovies: parseList(rails.popular_movies, 'movie'),
       popularTv: parseList(rails.popular_tv, 'tv'),
       popularAnime: parseList(rails.popular_anime, 'anime'),
+      airingAnime: parseList(rails.airing_anime, 'anime'),
       newReleases: parseList(rails.new_releases, 'movie'),
       actionMovies: parseList(rails.action_movies, 'movie'),
       scifiMovies: parseList(rails.scifi_movies, 'movie'),
+      thrillerMovies: parseList(rails.thriller_movies, 'movie'),
+      comedyMovies: parseList(rails.comedy_movies, 'movie'),
     };
   },
 

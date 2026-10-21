@@ -242,9 +242,12 @@ const DEFAULT_HOME_DATA = {
       genres: ['Animasi', 'Aksi', 'Supranatural'],
     },
   ],
+  airingAnime: [],
   newReleases: [],
   actionMovies: [],
   scifiMovies: [],
+  thrillerMovies: [],
+  comedyMovies: [],
 };
 
 export const HomePage: React.FC = () => {
@@ -254,9 +257,12 @@ export const HomePage: React.FC = () => {
     popularMovies: Title[];
     popularTv: Title[];
     popularAnime: Title[];
+    airingAnime: Title[];
     newReleases: Title[];
     actionMovies: Title[];
     scifiMovies: Title[];
+    thrillerMovies: Title[];
+    comedyMovies: Title[];
   } | null>(null);
 
   const [isLoading, setIsLoading] = useState(true);
@@ -297,27 +303,24 @@ export const HomePage: React.FC = () => {
         const heroId = homeData.hero?.id;
         const heroTitle = (homeData.hero?.title || '').toLowerCase();
 
-        // Deduplicate and filter out redundant Dune duplicates or hero repeats from rows
-        const filterDuneRombongan = (items: Title[]) => {
+        // Deduplicate and filter out redundant duplicates or hero repeats from rows
+        const filterDuplicates = (items: Title[]) => {
           const seen = new Set<string>();
           return (items || []).filter((item) => {
             if (!item || !item.id) return false;
             if (seen.has(item.id)) return false;
             // Prevent hero duplicate in immediate rows
             if (heroId && item.id === heroId) return false;
-            // If hero is Dune, prevent other Dune variants from flooding the row
-            if (heroTitle.includes('dune') && item.title.toLowerCase().includes('dune')) {
-              return false;
-            }
             seen.add(item.id);
             return true;
           });
         };
 
-        const trending = filterDuneRombongan(homeData.trending);
-        const popularMovies = filterDuneRombongan(homeData.popularMovies);
-        const popularTv = filterDuneRombongan(homeData.popularTv);
-        const popularAnime = filterDuneRombongan(homeData.popularAnime);
+        const trending = filterDuplicates(homeData.trending);
+        const popularMovies = filterDuplicates(homeData.popularMovies);
+        const popularTv = filterDuplicates(homeData.popularTv);
+        const popularAnime = filterDuplicates(homeData.popularAnime);
+        const airingAnime = filterDuplicates(homeData.airingAnime || []);
 
         setData({
           hero: homeData.hero,
@@ -325,9 +328,12 @@ export const HomePage: React.FC = () => {
           popularMovies: popularMovies.length > 0 ? popularMovies : DEFAULT_HOME_DATA.popularMovies,
           popularTv: popularTv.length > 0 ? popularTv : DEFAULT_HOME_DATA.popularTv,
           popularAnime: popularAnime.length > 0 ? popularAnime : DEFAULT_HOME_DATA.popularAnime,
-          newReleases: filterDuneRombongan(homeData.newReleases || []),
-          actionMovies: filterDuneRombongan(homeData.actionMovies || []),
-          scifiMovies: filterDuneRombongan(homeData.scifiMovies || []),
+          airingAnime,
+          newReleases: filterDuplicates(homeData.newReleases || []),
+          actionMovies: filterDuplicates(homeData.actionMovies || []),
+          scifiMovies: filterDuplicates(homeData.scifiMovies || []),
+          thrillerMovies: filterDuplicates(homeData.thrillerMovies || []),
+          comedyMovies: filterDuplicates(homeData.comedyMovies || []),
         });
       } else {
         setData(DEFAULT_HOME_DATA);
@@ -492,6 +498,16 @@ export const HomePage: React.FC = () => {
         viewAllLink="/explore/anime"
       />
 
+      {/* Airing Anime (Sedang Tayang) */}
+      {data.airingAnime && data.airingAnime.length > 0 && (
+        <MediaRow
+          title="Anime sedang tayang"
+          subtitle="Episode terbaru musim ini yang sedang on-going"
+          items={data.airingAnime}
+          viewAllLink="/explore/anime?sort=trending.desc"
+        />
+      )}
+
       {/* My List Row (if saved items exist) */}
       {myListTitles.length > 0 && (
         <MediaRow
@@ -519,11 +535,31 @@ export const HomePage: React.FC = () => {
         />
       )}
 
+      {/* Thriller Movies */}
+      {data.thrillerMovies && data.thrillerMovies.length > 0 && (
+        <MediaRow
+          title="Cerita seru & kriminal"
+          subtitle="Ketegangan tinggi dan misteri penuh intrik"
+          items={data.thrillerMovies}
+          viewAllLink="/explore/movie?genre=53"
+        />
+      )}
+
       {data.scifiMovies.length > 0 && (
         <MediaRow
           title="Fiksi ilmiah & masa depan"
           items={data.scifiMovies}
           viewAllLink="/explore/movie?genre=878"
+        />
+      )}
+
+      {/* Comedy Movies */}
+      {data.comedyMovies && data.comedyMovies.length > 0 && (
+        <MediaRow
+          title="Film komedi segar"
+          subtitle="Tawa dan hiburan menyenangkan pelepas penat"
+          items={data.comedyMovies}
+          viewAllLink="/explore/movie?genre=35"
         />
       )}
       </div>

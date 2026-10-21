@@ -2,6 +2,7 @@ import express from 'express';
 import type { Request, Response } from 'express';
 import dotenv from 'dotenv';
 import path from 'path';
+import { GoogleGenAI } from '@google/genai';
 import { fileURLToPath } from 'url';
 import crypto from 'crypto';
 import fs from 'fs';
@@ -181,39 +182,57 @@ app.all('/api/proxy', async (req: Request, res: Response) => {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 12000);
 
-  try {
-    const isPost = req.method === 'POST';
-    const isFrameX = targetUrl.includes('framextv.tech') || targetUrl.includes('framextv.xyz');
-    const upstreamRes = await fetch(targetUrl, {
-      method: req.method,
-      signal: controller.signal,
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-        'Accept': 'application/json, text/plain, */*',
-        ...(isFrameX ? {
-          'Referer': 'https://framextv.xyz/',
-          'Origin': 'https://framextv.xyz',
-        } : {}),
-        ...(isPost ? { 'Content-Type': 'application/json' } : {}),
-      },
-      ...(isPost && req.body ? { body: JSON.stringify(req.body) } : {}),
-    });
-    clearTimeout(timeoutId);
-
-    const contentType = upstreamRes.headers.get('content-type') || 'application/json';
-    res.setHeader('Content-Type', contentType);
-    res.status(upstreamRes.status);
-    
-    const body = await upstreamRes.text();
-    res.send(body);
-  } catch (err: any) {
-    clearTimeout(timeoutId);
-    console.error('[API Proxy] Error fetching:', targetUrl, err?.message);
-    res.status(502).json({
-      error: 'Gagal menghubungi server hulu.',
-      details: err?.name === 'AbortError' ? 'Koneksi timeout setelah 12 detik.' : (err?.message || 'Error jaringan')
-    });
+  const candidateUrls = [targetUrl];
+  if (targetUrl.includes('framextv.tech')) {
+    candidateUrls.push(targetUrl.replace('framextv.tech', 'framextv.xyz'));
+  } else if (targetUrl.includes('framextv.xyz')) {
+    candidateUrls.push(targetUrl.replace('framextv.xyz', 'framextv.tech'));
   }
+
+  const isPost = req.method === 'POST';
+  const isFrameX = targetUrl.includes('framextv.tech') || targetUrl.includes('framextv.xyz');
+
+  for (const candidate of candidateUrls) {
+    try {
+      const upstreamRes = await fetch(candidate, {
+        method: req.method,
+        signal: controller.signal,
+        headers: {
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+          'Accept': 'application/json, text/plain, */*',
+          ...(isFrameX
+            ? {
+                'Referer': 'https://framextv.xyz/',
+                'Origin': 'https://framextv.xyz',
+              }
+            : {}),
+          ...(isPost ? { 'Content-Type': 'application/json' } : {}),
+        },
+        ...(isPost && req.body ? { body: JSON.stringify(req.body) } : {}),
+      });
+
+      if (upstreamRes.status >= 500 && candidateUrls.indexOf(candidate) < candidateUrls.length - 1) {
+        continue;
+      }
+
+      clearTimeout(timeoutId);
+      const contentType = upstreamRes.headers.get('content-type') || 'application/json';
+      res.setHeader('Content-Type', contentType);
+      res.status(upstreamRes.status);
+
+      const body = await upstreamRes.text();
+      return res.send(body);
+    } catch {
+      // Try next candidate
+    }
+  }
+
+  clearTimeout(timeoutId);
+  return res.status(502).json({
+    error: 'Gagal menghubungi server hulu.',
+    details: 'Semua server FrameX (xyz & tech) telah dicoba.',
+  });
 });
 
 // ==========================================
@@ -229,10 +248,59 @@ async function translateTextToIndonesian(text: string): Promise<string> {
     return serverTranslationCache.get(trimmed)!;
   }
 
+  // Tier 1: Gemini 3.8 Flash (Server-Side)
+  const currentKey = process.env.GEMINI_API_KEY;
+  if (currentKey) {
+    try {
+      const ai = new GoogleGenAI({ apiKey: currentKey });
+      const prompt = `Terjemahkan sinopsis film/serial berikut ke Bahasa Indonesia yang alami, mengalir, sinematik, dan menarik tanpa spoiler. HANYA berikan teks hasil terjemahannya saja tanpa tanda petik atau pengantar tambahan:\n\n${trimmed}`;
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.8-flash',
+        contents: prompt,
+        config: {
+          temperature: 0.3,
+        },
+      });
+
+      const translated = response.text?.trim();
+      if (translated && translated.length > 5) {
+        serverTranslationCache.set(trimmed, translated);
+        return translated;
+      }
+    } catch (err: any) {
+      console.warn('[Translate Gemini Server Notice]:', err?.message || err);
+    }
+  }
+
+  // Tier 2: MyMemory Translation API
+  try {
+    const memoryUrl = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(trimmed.slice(0, 500))}&langpair=en|id`;
+    const memRes = await fetch(memoryUrl, {
+      signal: AbortSignal.timeout(4500),
+      headers: {
+        'Accept': 'application/json',
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+      },
+    });
+
+    if (memRes.ok) {
+      const memData = await memRes.json();
+      const translatedText = memData?.responseData?.translatedText;
+      if (translatedText && typeof translatedText === 'string' && !translatedText.includes('QUERY LENGTH LIMIT')) {
+        serverTranslationCache.set(trimmed, translatedText);
+        return translatedText;
+      }
+    }
+  } catch (err: any) {
+    console.warn('[Translate MyMemory Server Notice]:', err?.message || err);
+  }
+
+  // Tier 3: Google GTX with clean headers
   try {
     const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=id&dt=t&q=${encodeURIComponent(trimmed)}`;
     const res = await fetch(url, {
-      signal: AbortSignal.timeout(5000),
+      signal: AbortSignal.timeout(4000),
       headers: {
         'User-Agent':
           'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
@@ -276,6 +344,140 @@ app.all('/api/translate', async (req: Request, res: Response) => {
 
   const translated = await translateTextToIndonesian(text);
   return res.json({ success: true, translated });
+});
+
+// ==========================================
+// FrameX Home Catalog API with Auto Failover & Indonesian Translation
+// ==========================================
+let serverCachedHomeData: any = null;
+let serverCacheExpiry = 0;
+
+app.get('/api/home', async (_req: Request, res: Response) => {
+  const now = Date.now();
+  if (serverCachedHomeData && serverCacheExpiry > now) {
+    res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
+    return res.status(200).json(serverCachedHomeData);
+  }
+
+  const backends = ['https://api.framextv.xyz', 'https://api.framextv.tech'];
+  let rawHomeData: any = null;
+
+  for (const backend of backends) {
+    try {
+      const upstreamRes = await fetch(`${backend}/api/home`, {
+        headers: {
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+          Referer: 'https://framextv.xyz/',
+          Origin: 'https://framextv.xyz',
+          Accept: 'application/json',
+        },
+        signal: AbortSignal.timeout(6000),
+      });
+
+      if (upstreamRes.ok) {
+        const data = await upstreamRes.json();
+        if (data && (data.hero || data.rails)) {
+          rawHomeData = data;
+          break;
+        }
+      }
+    } catch {
+      // try next backend
+    }
+  }
+
+  if (!rawHomeData) {
+    if (serverCachedHomeData) {
+      return res.status(200).json(serverCachedHomeData);
+    }
+    return res.status(502).json({ error: 'Gagal memuat katalog FrameX.' });
+  }
+
+  try {
+    const rails = rawHomeData.rails || {};
+
+    // Translate Hero Overview to Indonesian
+    if (rawHomeData.hero && rawHomeData.hero.overview) {
+      rawHomeData.hero.overview = await translateTextToIndonesian(rawHomeData.hero.overview);
+    }
+
+    // Populate Anime if FrameX upstream anime rails are empty
+    const currentAnime = rails.popular_anime?.results || [];
+    if (!Array.isArray(currentAnime) || currentAnime.length === 0) {
+      try {
+        const animeQuery = `query {
+          popular: Page(page: 1, perPage: 16) {
+            media(type: ANIME, sort: POPULARITY_DESC) {
+              id
+              title { romaji english native }
+              coverImage { extraLarge large }
+              bannerImage
+              averageScore
+              seasonYear
+              description
+              genres
+            }
+          }
+          airing: Page(page: 1, perPage: 16) {
+            media(type: ANIME, status: RELEASING, sort: TRENDING_DESC) {
+              id
+              title { romaji english native }
+              coverImage { extraLarge large }
+              bannerImage
+              averageScore
+              seasonYear
+              description
+              genres
+            }
+          }
+        }`;
+
+        const aniRes = await fetch('https://graphql.anilist.co', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify({ query: animeQuery }),
+          signal: AbortSignal.timeout(5000),
+        });
+
+        if (aniRes.ok) {
+          const aniJson = await aniRes.json();
+          const mapAnime = (item: any) => ({
+            id: String(item.id),
+            type: 'anime',
+            title: item.title?.english || item.title?.romaji || 'Anime',
+            originalTitle: item.title?.native,
+            poster: item.coverImage?.extraLarge || item.coverImage?.large,
+            backdrop: item.bannerImage || item.coverImage?.extraLarge,
+            year: String(item.seasonYear || '2025'),
+            rating: item.averageScore ? (item.averageScore / 10).toFixed(1) : '8.5',
+            overview: item.description ? item.description.replace(/<[^>]*>/g, '').trim() : 'Anime terpopuler di Zhafx.',
+            genres: item.genres || ['Action', 'Fantasy'],
+          });
+
+          rails.popular_anime = {
+            success: true,
+            results: (aniJson.data?.popular?.media || []).map(mapAnime),
+          };
+          rails.airing_anime = {
+            success: true,
+            results: (aniJson.data?.airing?.media || []).map(mapAnime),
+          };
+        }
+      } catch {
+        // Safe fallback
+      }
+    }
+
+    serverCachedHomeData = rawHomeData;
+    serverCacheExpiry = now + 5 * 60 * 1000;
+
+    res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
+    return res.status(200).json(rawHomeData);
+  } catch (err: any) {
+    console.warn('[Home Endpoint Error]:', err?.message || err);
+    return res.status(200).json(rawHomeData);
+  }
 });
 
 // ==========================================
