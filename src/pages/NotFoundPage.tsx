@@ -13,11 +13,11 @@ export const NotFoundPage: React.FC = () => {
         <span className="text-6xl sm:text-8xl font-bold text-[#FFB224] tracking-tight block drop-shadow-lg">
           404
         </span>
-        <h1 className="text-xl sm:text-3xl font-bold text-white tracking-tight">
-          Halaman Tidak Ditemukan
+        <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
+          Halamannya gak ada.
         </h1>
-        <p className="text-xs sm:text-sm text-white/55 max-w-md leading-relaxed">
-          Tautan yang Anda tuju mungkin salah, telah dipindahkan, atau tayangan tersebut sudah tidak tersedia di server.
+        <p className="text-xs sm:text-sm text-white/70 max-w-md leading-relaxed">
+          Nyari halaman ini sama aja kayak nyari status hubungan kamu sama dia yang gajelas.
         </p>
       </div>
 

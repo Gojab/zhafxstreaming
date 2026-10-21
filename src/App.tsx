@@ -6,6 +6,7 @@ import { Footer } from './components/Footer';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { CinematicIntro } from './components/CinematicIntro';
 import { LiquidBackground } from './components/LiquidBackground';
+import { OfflineIndicator } from './components/OfflineIndicator';
 import { ActiveMediaProvider } from './context/ActiveMediaContext';
 import { storage } from './lib/storage';
 import { supabase } from './lib/supabase';
@@ -166,6 +167,9 @@ function AppLayout() {
     <div className="min-h-screen flex flex-col bg-[#06070B] text-white relative selection:bg-white/20 selection:text-white">
       {/* Apple iOS 26 Dynamic Ambient Blurred Backdrop */}
       <LiquidBackground />
+
+      {/* Global Offline Network Status Alert */}
+      <OfflineIndicator />
 
       {/* Cinematic Logo Intro Animation (Amazon Original Glass Panel Style) */}
       <CinematicIntro />

@@ -171,7 +171,7 @@ export async function sendChatMessageStream(
   abortSignal?: AbortSignal
 ): Promise<void> {
   if (!navigator.onLine) {
-    callbacks.onError('Anda sedang offline. Periksa koneksi internet Anda.', 'OFFLINE');
+    callbacks.onError('Gak ada internet. Mending matiin HP, daripada bolak-balik nungguin kabar dari hts.', 'OFFLINE');
     return;
   }
 
