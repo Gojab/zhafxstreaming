@@ -22,6 +22,7 @@ const PlayerPage = lazy(() => import('./pages/PlayerPage').then((m) => ({ defaul
 const HistoryPage = lazy(() => import('./pages/HistoryPage').then((m) => ({ default: m.HistoryPage })));
 const MyListPage = lazy(() => import('./pages/MyListPage').then((m) => ({ default: m.MyListPage })));
 const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage').then((m) => ({ default: m.ResetPasswordPage })));
+const DashboardPage = lazy(() => import('./pages/DashboardPage').then((m) => ({ default: m.DashboardPage })));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage').then((m) => ({ default: m.NotFoundPage })));
 
 // Lazy-load heavier drawers & modals only when triggered by user
@@ -205,6 +206,8 @@ function AppLayout() {
             <Route path="/history" element={<HistoryPage />} />
             <Route path="/my-list" element={<MyListPage />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
+            <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/profile" element={<DashboardPage />} />
             <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </Suspense>

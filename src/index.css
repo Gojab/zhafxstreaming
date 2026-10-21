@@ -96,7 +96,7 @@
   position: relative;
 }
 
-.liquid-specular:not([class*="overflow-y-auto"]):not([class*="overflow-x-auto"]):not([class*="overflow-auto"]) {
+.liquid-specular:not([class*="overflow-y-auto"]):not([class*="overflow-x-auto"]):not([class*="overflow-auto"]):not([class*="overflow-visible"]):not([class*="!overflow-visible"]) {
   overflow: hidden;
 }
 

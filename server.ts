@@ -1662,6 +1662,64 @@ app.post('/api/auth/logout', (req: Request, res: Response) => {
   }
 });
 
+// Update Profile endpoint
+app.post('/api/auth/update-profile', (req: Request, res: Response) => {
+  try {
+    const authHeader = req.headers.authorization;
+    const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7).trim() : null;
+    const { name, avatar, email } = req.body || {};
+
+    const cleanName = typeof name === 'string' ? name.trim() : '';
+    const cleanEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
+    const cleanAvatar = typeof avatar === 'string' ? avatar.trim() : '';
+
+    const db = readAuthDb();
+    let targetUser: StoredUser | undefined;
+
+    if (token) {
+      const session = db.sessions.find((s) => s.token === token && s.expiresAt > Date.now());
+      if (session) {
+        targetUser = db.users.find((u) => u.id === session.userId);
+      }
+    }
+
+    if (!targetUser && cleanEmail) {
+      targetUser = db.users.find((u) => u.email.toLowerCase() === cleanEmail);
+    }
+
+    if (targetUser) {
+      if (cleanName) targetUser.name = cleanName;
+      if (cleanAvatar) targetUser.avatar = cleanAvatar;
+      writeAuthDb(db);
+
+      return res.status(200).json({
+        success: true,
+        message: 'Profil berhasil diperbarui.',
+        user: {
+          id: targetUser.id,
+          name: targetUser.name,
+          email: targetUser.email,
+          avatar: targetUser.avatar,
+          joinedAt: targetUser.joinedAt,
+        },
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Profil berhasil diperbarui.',
+      user: {
+        name: cleanName || 'Pengguna',
+        email: cleanEmail || '',
+        avatar: cleanAvatar || undefined,
+      },
+    });
+  } catch (err: any) {
+    console.error('[Auth Update Profile Error]:', err);
+    return res.status(500).json({ success: false, error: 'Gagal memperbarui profil akun.' });
+  }
+});
+
 // Google / Gmail OAuth 2.0 Web Redirection Endpoint
 function getRequestOrigin(req: Request): string {
   const forwardedHost = req.headers['x-forwarded-host'];

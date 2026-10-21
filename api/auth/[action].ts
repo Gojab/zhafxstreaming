@@ -119,6 +119,56 @@ export default async function handler(req: any, res: any) {
     return res.status(200).json({ success: true, message: 'Berhasil keluar dari sesi akun.' });
   }
 
+  // 4b. POST /api/auth/update-profile
+  if (action === 'update-profile' || action === 'profile') {
+    const authHeader = req.headers?.authorization;
+    const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7).trim() : null;
+    const { name, avatar, email } = body || {};
+
+    const cleanName = typeof name === 'string' ? name.trim() : '';
+    const cleanEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
+    const cleanAvatar = typeof avatar === 'string' ? avatar.trim() : '';
+
+    const db = readAuthDb();
+    let targetUser = token ? getUserByToken(token) : undefined;
+
+    if (!targetUser && cleanEmail) {
+      targetUser = db.users.find((u) => u.email.toLowerCase() === cleanEmail);
+    }
+
+    if (targetUser) {
+      const userIndex = db.users.findIndex((u) => u.id === targetUser!.id);
+      if (userIndex !== -1) {
+        if (cleanName) db.users[userIndex].name = cleanName;
+        if (cleanAvatar) db.users[userIndex].avatar = cleanAvatar;
+        writeAuthDb(db);
+        targetUser = db.users[userIndex];
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: 'Profil berhasil diperbarui.',
+        user: {
+          id: targetUser.id,
+          name: targetUser.name,
+          email: targetUser.email,
+          avatar: targetUser.avatar,
+          joinedAt: targetUser.joinedAt,
+        },
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Profil berhasil diperbarui.',
+      user: {
+        name: cleanName || 'Pengguna',
+        email: cleanEmail || '',
+        avatar: cleanAvatar || undefined,
+      },
+    });
+  }
+
   // 5. POST /api/auth/send-verification-code
   if (action === 'send-verification-code') {
     const { email, name } = body || {};

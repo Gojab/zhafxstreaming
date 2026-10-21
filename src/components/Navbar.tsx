@@ -13,6 +13,7 @@ import {
 } from 'react-icons/io5';
 import { Logo } from './Logo';
 import { PillBase, NavItem } from '@/components/ui/3d-adaptive-navigation-bar';
+import { ProfileModal } from './ProfileModal';
 import { storage } from '../lib/storage';
 import { User } from '../types';
 
@@ -38,7 +39,17 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAI, onOpenFeatures, onOpen
   const [hasScrolled, setHasScrolled] = useState(false);
   const [user, setUser] = useState<User | null>(() => storage.getUser());
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const profileMenuRef = useRef<HTMLDivElement | null>(null);
+
+  // Global event listener to open Profile Modal from any component
+  useEffect(() => {
+    const handleOpenProfile = () => {
+      setIsProfileModalOpen(true);
+    };
+    window.addEventListener('open-zhafx-profile', handleOpenProfile);
+    return () => window.removeEventListener('open-zhafx-profile', handleOpenProfile);
+  }, []);
 
   // Active item resolution for the 3D Adaptive Pill
   const currentActiveId =
@@ -121,7 +132,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAI, onOpenFeatures, onOpen
   return (
     <header className="fixed top-2.5 sm:top-4 left-2.5 right-2.5 sm:left-6 sm:right-6 max-w-7xl mx-auto z-40 transition-all duration-300">
       <div
-        className={`w-full px-3 sm:px-6 h-14 sm:h-16 rounded-[24px] sm:rounded-full flex items-center justify-between gap-2 sm:gap-4 transition-all duration-300 ${
+        className={`w-full px-3 sm:px-6 h-14 sm:h-16 rounded-[24px] sm:rounded-full flex items-center justify-between gap-2 sm:gap-4 transition-all duration-300 relative !overflow-visible ${
           hasScrolled
             ? 'liquid-glass-dense liquid-specular shadow-2xl'
             : 'liquid-glass liquid-specular shadow-lg'
@@ -212,20 +223,45 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAI, onOpenFeatures, onOpen
 
               {/* Profile Dropdown */}
               {isProfileMenuOpen && (
-                <div className="absolute right-0 top-11 w-56 rounded-[22px] liquid-glass-dense liquid-specular border border-white/20 shadow-2xl p-2 z-50 text-white animate-in fade-in duration-150">
-                  <div className="px-3 py-2 border-b border-white/10 mb-1">
-                    <p className="text-xs font-bold text-white truncate">{user.name}</p>
-                    <p className="text-[10px] text-white/50 truncate">{user.email}</p>
+                <div className="absolute right-0 top-full mt-2.5 sm:mt-3 w-64 rounded-[26px] liquid-glass-dense liquid-specular border border-white/25 shadow-2xl p-2.5 z-50 text-white animate-in fade-in zoom-in-95 duration-150">
+                  <div className="px-3.5 py-2.5 border-b border-white/10 mb-1.5 flex items-center gap-3">
+                    {user.avatar ? (
+                      <img
+                        src={user.avatar}
+                        alt={user.name || 'User'}
+                        className="w-9 h-9 rounded-full object-cover border border-white/30 shrink-0"
+                      />
+                    ) : (
+                      <div className="w-9 h-9 rounded-full bg-white text-black font-bold text-sm flex items-center justify-center uppercase shadow-sm shrink-0">
+                        {user.name?.charAt(0) || user.email?.charAt(0) || 'U'}
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-white truncate">{user.name}</p>
+                      <p className="text-[10px] text-white/50 truncate">{user.email}</p>
+                    </div>
                   </div>
+
+                  {/* 1. Atur Profil Button */}
+                  <button
+                    onClick={() => {
+                      setIsProfileMenuOpen(false);
+                      setIsProfileModalOpen(true);
+                    }}
+                    className="w-full px-3 py-2 rounded-xl text-left text-xs text-white hover:text-white hover:bg-white/10 flex items-center gap-2.5 cursor-pointer transition-colors font-semibold"
+                  >
+                    <IoPersonOutline className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span>Atur Profil</span>
+                  </button>
 
                   <button
                     onClick={() => {
                       setIsProfileMenuOpen(false);
                       navigate('/my-list');
                     }}
-                    className="w-full px-3 py-2 rounded-xl text-left text-xs text-white/80 hover:text-white hover:bg-white/10 flex items-center gap-2 cursor-pointer transition-colors"
+                    className="w-full px-3 py-2 rounded-xl text-left text-xs text-white/80 hover:text-white hover:bg-white/10 flex items-center gap-2.5 cursor-pointer transition-colors"
                   >
-                    <IoBookmarkOutline className="w-4 h-4 text-white" />
+                    <IoBookmarkOutline className="w-4 h-4 text-amber-300 shrink-0" />
                     <span>Daftar Saya</span>
                   </button>
 
@@ -234,9 +270,9 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAI, onOpenFeatures, onOpen
                       setIsProfileMenuOpen(false);
                       navigate('/history');
                     }}
-                    className="w-full px-3 py-2 rounded-xl text-left text-xs text-white/80 hover:text-white hover:bg-white/10 flex items-center gap-2 cursor-pointer transition-colors"
+                    className="w-full px-3 py-2 rounded-xl text-left text-xs text-white/80 hover:text-white hover:bg-white/10 flex items-center gap-2.5 cursor-pointer transition-colors"
                   >
-                    <IoTimeOutline className="w-4 h-4 text-white" />
+                    <IoTimeOutline className="w-4 h-4 text-sky-300 shrink-0" />
                     <span>Riwayat Nonton</span>
                   </button>
 
@@ -245,18 +281,18 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAI, onOpenFeatures, onOpen
                       setIsProfileMenuOpen(false);
                       window.dispatchEvent(new Event('play-zhafx-intro'));
                     }}
-                    className="w-full px-3 py-2 rounded-xl text-left text-xs text-white/80 hover:text-white hover:bg-white/10 flex items-center gap-2 cursor-pointer transition-colors"
+                    className="w-full px-3 py-2 rounded-xl text-left text-xs text-white/80 hover:text-white hover:bg-white/10 flex items-center gap-2.5 cursor-pointer transition-colors"
                   >
-                    <IoVideocamOutline className="w-4 h-4 text-white" />
+                    <IoVideocamOutline className="w-4 h-4 text-purple-300 shrink-0" />
                     <span>Putar Intro Sinematik</span>
                   </button>
 
-                  <div className="pt-1 mt-1 border-t border-white/10">
+                  <div className="pt-1.5 mt-1.5 border-t border-white/10">
                     <button
                       onClick={handleLogout}
-                      className="w-full px-3 py-2 rounded-xl text-left text-xs text-rose-300 hover:text-rose-200 hover:bg-rose-500/20 flex items-center gap-2 cursor-pointer transition-colors font-semibold"
+                      className="w-full px-3 py-2 rounded-xl text-left text-xs text-rose-300 hover:text-rose-200 hover:bg-rose-500/20 flex items-center gap-2.5 cursor-pointer transition-colors font-semibold"
                     >
-                      <IoLogOutOutline className="w-4 h-4" />
+                      <IoLogOutOutline className="w-4 h-4 shrink-0" />
                       <span>Keluar</span>
                     </button>
                   </div>
@@ -275,6 +311,15 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAI, onOpenFeatures, onOpen
           )}
         </div>
       </div>
+
+      {/* Profile Management Modal */}
+      {isProfileModalOpen && (
+        <ProfileModal
+          isOpen={isProfileModalOpen}
+          onClose={() => setIsProfileModalOpen(false)}
+          onLogout={handleLogout}
+        />
+      )}
     </header>
   );
 };
