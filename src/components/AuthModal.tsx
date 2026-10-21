@@ -19,6 +19,7 @@ import {
 import { storage } from '../lib/storage';
 import { User } from '../types';
 import { CONFIG } from '../config';
+import { supabase } from '../lib/supabase';
 
 declare global {
   interface Window {
@@ -249,65 +250,31 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
     }, 600);
   };
 
-  // Google Sign-In Trigger (OAuth 2.0 token client)
-  const triggerGoogleGIS = () => {
+  // Google login is handled by Supabase OAuth. This keeps the client secret
+  // on Supabase and avoids browser-origin errors from the Google GIS token flow.
+  const triggerGoogleGIS = async () => {
     setIsLoading(true);
     setError(null);
+    setSuccessMessage(null);
 
-    if (!window.google?.accounts?.oauth2) {
-      // Fallback to server-side OAuth flow
-      triggerGoogleOAuthFlow();
-      return;
-    }
-
-    try {
-      const client = window.google.accounts.oauth2.initTokenClient({
-        client_id: CONFIG.GOOGLE_CLIENT_ID,
-        scope: 'email profile openid',
-        callback: async (tokenRes: any) => {
-          if (tokenRes && tokenRes.access_token) {
-            try {
-              const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-                headers: { Authorization: `Bearer ${tokenRes.access_token}` },
-              });
-              const info = await res.json();
-              if (info && info.email) {
-                await handleGoogleAuthBackend({
-                  email: info.email,
-                  name: info.name,
-                  avatar: info.picture,
-                  googleId: info.sub,
-                });
-                return;
-              }
-            } catch (e: any) {
-              setError(`Gagal mengambil data profil Google: ${e?.message || 'Error'}`);
-              setIsLoading(false);
-            }
-          } else {
-            setIsLoading(false);
-          }
+    const { error: oauthError } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin,
+        queryParams: {
+          access_type: 'offline',
+          prompt: 'select_account',
         },
-        error_callback: (err: any) => {
-          setIsLoading(false);
-          const errType = err?.type || err?.error || '';
-          if (errType === 'idpiframe_initialization_failed' || errType === 'origin_mismatch') {
-            setError(
-              `Domain (${window.location.origin}) belum terdaftar di Google Cloud Console. Silakan gunakan opsi 'Masuk Cepat 1-Klik' di atas.`
-            );
-            setShowConsoleHelp(true);
-          } else if (errType === 'popup_closed_by_user') {
-            setError('Jendela login Google ditutup sebelum selesai.');
-          } else {
-            // Auto fallback to server-side OAuth flow
-            triggerGoogleOAuthFlow();
-          }
-        },
-      });
+      },
+    });
 
-      client.requestAccessToken({ prompt: 'select_account' });
-    } catch {
-      triggerGoogleOAuthFlow();
+    if (oauthError) {
+      setIsLoading(false);
+      setError(
+        oauthError.message.includes('provider is not enabled')
+          ? 'Google OAuth belum diaktifkan di Supabase Authentication > Providers > Google.'
+          : `Login Google gagal: ${oauthError.message}`
+      );
     }
   };
 
@@ -326,48 +293,54 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
     await handleGoogleAuthBackend({ email: cleanEmail, name: cleanName });
   };
 
-  // Direct Password Login / Register
+  // Email/password auth is handled directly by Supabase Auth.
   const handlePasswordAuth = async (e: React.FormEvent) => {
     e.preventDefault();
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail || !password) {
+      setError('Email dan kata sandi wajib diisi.');
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
     setSuccessMessage(null);
 
-    const endpoint = isRegister ? '/api/auth/register' : '/api/auth/login';
-    const payload = isRegister
-      ? { name: name.trim() || email.split('@')[0], email: email.trim(), password }
-      : { login: email.trim(), password, rememberMe: true };
-
     try {
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      const data = await safeJsonParse(res);
+      const result = isRegister
+        ? await supabase.auth.signUp({
+            email: cleanEmail,
+            password,
+            options: { data: { name: name.trim() || cleanEmail.split('@')[0] } },
+          })
+        : await supabase.auth.signInWithPassword({ email: cleanEmail, password });
 
-      if (data && data.success && data.user) {
-        handleFinishAuth(
-          data.user,
-          data.token,
-          isRegister
-            ? `Pendaftaran berhasil! Selamat datang, ${data.user.name}.`
-            : `Berhasil masuk! Selamat datang kembali, ${data.user.name}.`
-        );
-        return;
-      }
+      if (result.error) throw result.error;
+      const session = result.data.session;
+      const authUser = result.data.user;
 
-      if (data && data.error) {
-        setError(data.error);
+      if (!authUser) throw new Error('Akun tidak dapat dibuat atau ditemukan.');
+      if (!session) {
         setIsLoading(false);
+        setSuccessMessage('Pendaftaran berhasil. Silakan cek email untuk verifikasi akun.');
         return;
       }
 
-      setError('Terjadi kesalahan saat memproses autentikasi.');
-      setIsLoading(false);
+      const user: User = {
+        id: authUser.id,
+        email: authUser.email || cleanEmail,
+        name: String(authUser.user_metadata?.name || cleanEmail.split('@')[0]),
+        avatar: authUser.user_metadata?.avatar_url,
+        joinedAt: new Date(authUser.created_at).getTime(),
+      };
+      handleFinishAuth(
+        user,
+        session.access_token,
+        isRegister ? `Pendaftaran berhasil! Selamat datang, ${user.name}.` : `Berhasil masuk! Selamat datang kembali, ${user.name}.`
+      );
     } catch (err: any) {
-      setError(err?.message || 'Terjadi kesalahan sistem.');
       setIsLoading(false);
+      setError(err?.message || 'Login email gagal. Periksa email dan kata sandi Anda.');
     }
   };
 

@@ -9,6 +9,7 @@ import { CinematicIntro } from './components/CinematicIntro';
 import { LiquidBackground } from './components/LiquidBackground';
 import { ActiveMediaProvider } from './context/ActiveMediaContext';
 import { storage } from './lib/storage';
+import { supabase } from './lib/supabase';
 import { Title } from './types';
 
 // HomePage is imported directly for instant FCP and LCP
@@ -67,24 +68,37 @@ function AppLayout() {
       // safe fallback
     }
 
-    const token = storage.getToken();
-    if (token) {
-      fetch('/api/auth/me', {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-        .then((res) => (res.ok ? res.json() : null))
-        .then((data) => {
-          if (data && data.success && data.user) {
-            storage.saveUser(data.user);
-          } else if (data && data.success === false) {
-            storage.removeToken();
-            storage.removeUser();
-          }
-        })
-        .catch(() => {
-          // Keep offline session
-        });
-    }
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session?.user) return;
+      const authUser = session.user;
+      storage.saveToken(session.access_token);
+      storage.saveUser({
+        id: authUser.id,
+        email: authUser.email || '',
+        name: String(authUser.user_metadata?.name || authUser.email?.split('@')[0] || 'Pengguna'),
+        avatar: authUser.user_metadata?.avatar_url,
+        joinedAt: new Date(authUser.created_at).getTime(),
+      });
+    });
+
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!session) {
+        storage.removeToken();
+        storage.removeUser();
+        return;
+      }
+      const authUser = session.user;
+      storage.saveToken(session.access_token);
+      storage.saveUser({
+        id: authUser.id,
+        email: authUser.email || '',
+        name: String(authUser.user_metadata?.name || authUser.email?.split('@')[0] || 'Pengguna'),
+        avatar: authUser.user_metadata?.avatar_url,
+        joinedAt: new Date(authUser.created_at).getTime(),
+      });
+    });
+
+    return () => listener.subscription.unsubscribe();
   }, []);
 
   // Hide Navbar, BottomNav, and Footer in player mode for true cinematic fullscreen
