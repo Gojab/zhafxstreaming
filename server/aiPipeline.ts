@@ -201,7 +201,81 @@ export async function executeMultiModelChat(
 
   chatMessages.push({ role: 'user', content: userPrompt });
 
-  // 1. Try Google Gemini SDK if API Key is available
+  // 1. Stream OpenAI GPT first. Streaming makes the first words appear quickly
+  // instead of waiting for the complete answer before sending anything.
+  const openAiKey = process.env.OPENAI_API_KEY;
+  if (openAiKey) {
+    const openAiModels = ['gpt-4o-mini', 'gpt-4o'];
+    for (const model of openAiModels) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 12000);
+        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${openAiKey}`,
+          },
+          body: JSON.stringify({
+            model,
+            messages: chatMessages,
+            temperature: 0.7,
+            stream: true,
+            max_tokens: 700,
+          }),
+          signal: controller.signal,
+        });
+
+        if (!response.ok || !response.body) {
+          clearTimeout(timeoutId);
+          console.warn(`[AI Engine] OpenAI ${model} returned ${response.status}`);
+          continue;
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let fullText = '';
+        let hasOutput = false;
+
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const events = buffer.split('\\n');
+          buffer = events.pop() || '';
+
+          for (const event of events) {
+            if (!event.startsWith('data: ')) continue;
+            const payload = event.slice(6).trim();
+            if (payload === '[DONE]') continue;
+            try {
+              const chunk = JSON.parse(payload).choices?.[0]?.delta?.content;
+              if (chunk) {
+                hasOutput = true;
+                fullText += chunk;
+                onChunk(chunk);
+              }
+            } catch {
+              // Ignore incomplete SSE frames; the next read completes them.
+            }
+          }
+        }
+        clearTimeout(timeoutId);
+
+        if (!hasOutput || fullText.trim().length < 10) continue;
+        if (!fullText.includes('<picks>')) {
+          const picks = extractFallbackPicks(fullText, contextTitle);
+          if (picks.length > 0) onChunk(`\\n\\n<picks>${JSON.stringify(picks)}</picks>`);
+        }
+        return { success: true, modelUsed: `OpenAI ${model}` };
+      } catch (err: any) {
+        console.warn(`[AI Engine] OpenAI ${model} failed:`, err?.message || err);
+      }
+    }
+  }
+
+  // 2. Try Google Gemini SDK if API Key is available
   const activeGeminiKey = geminiApiKey || process.env.GEMINI_API_KEY;
   if (activeGeminiKey) {
     try {
