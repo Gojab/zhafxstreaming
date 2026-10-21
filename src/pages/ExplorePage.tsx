@@ -6,7 +6,13 @@ import { MediaCard } from '../components/MediaCard';
 import { MediaCardSkeleton } from '../components/Skeleton';
 import { SEOHead } from '../components/SEOHead';
 import { CONFIG } from '../config';
-import { Filter, RotateCcw, AlertTriangle, ChevronDown, Compass } from 'lucide-react';
+import {
+  IoFilterOutline as Filter,
+  IoReloadOutline as RotateCcw,
+  IoWarningOutline as AlertTriangle,
+  IoChevronDownOutline as ChevronDown,
+  IoCompassOutline as Compass,
+} from 'react-icons/io5';
 
 export const ExplorePage: React.FC = () => {
   const { type: typeParam } = useParams<{ type?: string }>();

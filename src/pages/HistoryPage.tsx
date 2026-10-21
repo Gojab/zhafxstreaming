@@ -1,6 +1,12 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { History, Trash2, Play, Compass, Clock } from 'lucide-react';
+import {
+  IoTimeOutline as History,
+  IoTrashOutline as Trash2,
+  IoPlay as Play,
+  IoCompassOutline as Compass,
+  IoTimeOutline as Clock,
+} from 'react-icons/io5';
 import { useWatchHistory } from '../hooks/useWatchHistory';
 
 export const HistoryPage: React.FC = () => {

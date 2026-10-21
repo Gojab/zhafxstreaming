@@ -2,7 +2,13 @@
 
 import React, { useState, useTransition } from 'react';
 import Link from 'next/link';
-import { Mail, Lock, LogIn, AlertCircle, RotateCw } from 'lucide-react';
+import {
+  IoMailOutline as Mail,
+  IoLockClosedOutline as Lock,
+  IoLogInOutline as LogIn,
+  IoAlertCircleOutline as AlertCircle,
+  IoSyncOutline as RotateCw,
+} from 'react-icons/io5';
 import { login } from '@/app/auth/actions';
 
 export default function LoginPage() {
@@ -64,12 +70,20 @@ export default function LoginPage() {
           </div>
 
           <div className="space-y-1.5">
-            <label
-              htmlFor="password"
-              className="text-xs font-semibold text-zinc-300 block"
-            >
-              Kata Sandi
-            </label>
+            <div className="flex items-center justify-between">
+              <label
+                htmlFor="password"
+                className="text-xs font-semibold text-zinc-300 block"
+              >
+                Kata Sandi
+              </label>
+              <Link
+                href="/forgot-password"
+                className="text-[11px] text-zinc-400 hover:text-white transition-colors"
+              >
+                Lupa kata sandi?
+              </Link>
+            </div>
             <div className="relative">
               <input
                 id="password"

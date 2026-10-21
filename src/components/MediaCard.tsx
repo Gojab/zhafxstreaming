@@ -1,6 +1,12 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Play, Bookmark, BookmarkCheck, Star, Info } from 'lucide-react';
+import {
+  IoPlay as Play,
+  IoBookmarkOutline as Bookmark,
+  IoBookmark as BookmarkCheck,
+  IoStar as Star,
+  IoInformationCircleOutline as Info,
+} from 'react-icons/io5';
 import { Title } from '../types';
 import { useMyList } from '../hooks/useMyList';
 import { useActiveMedia } from '../context/ActiveMediaContext';

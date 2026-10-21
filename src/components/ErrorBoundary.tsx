@@ -1,5 +1,5 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
-import { AlertTriangle, RefreshCcw } from 'lucide-react';
+import { IoWarningOutline as AlertTriangle, IoReloadOutline as RefreshCcw } from 'react-icons/io5';
 
 interface Props {
   children: ReactNode;

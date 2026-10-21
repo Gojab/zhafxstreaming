@@ -1,20 +1,20 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  X as CloseIcon,
-  Home,
-  Film,
-  Tv,
-  Sparkles,
-  Search,
-  Bookmark,
-  History,
-  ChevronRight,
-  Clapperboard,
-  User as UserIcon,
-  LogOut,
-  Heart,
-} from 'lucide-react';
+  IoCloseOutline as CloseIcon,
+  IoHomeOutline as Home,
+  IoFilmOutline as Film,
+  IoTvOutline as Tv,
+  IoSparkles as Sparkles,
+  IoSearchOutline as Search,
+  IoBookmarkOutline as Bookmark,
+  IoTimeOutline as History,
+  IoChevronForwardOutline as ChevronRight,
+  IoVideocamOutline as Clapperboard,
+  IoPersonOutline as UserIcon,
+  IoLogOutOutline as LogOut,
+  IoHeart as Heart,
+} from 'react-icons/io5';
 import { Logo } from './Logo';
 import { storage } from '../lib/storage';
 import { User } from '../types';

@@ -1,24 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-  Play,
-  Bookmark,
-  BookmarkCheck,
-  Share2,
-  Sparkles,
-  Star,
-  Clock,
-  Calendar,
-  RotateCcw,
-  AlertTriangle,
-  ChevronDown,
-  CheckCircle2,
-  Film,
-  Video,
-  Users,
-  Mic,
-  X,
-} from 'lucide-react';
+  IoPlay as Play,
+  IoBookmarkOutline as Bookmark,
+  IoBookmark as BookmarkCheck,
+  IoShareSocialOutline as Share2,
+  IoSparkles as Sparkles,
+  IoStar as Star,
+  IoTimeOutline as Clock,
+  IoCalendarOutline as Calendar,
+  IoReloadOutline as RotateCcw,
+  IoWarningOutline as AlertTriangle,
+  IoChevronDownOutline as ChevronDown,
+  IoCheckmarkCircleOutline as CheckCircle2,
+  IoFilmOutline as Film,
+  IoVideocamOutline as Video,
+  IoPeopleOutline as Users,
+  IoMicOutline as Mic,
+  IoCloseOutline as X,
+} from 'react-icons/io5';
 import { api } from '../services/api';
 import { Title, Episode, MediaType, CastMember, VideoTrailer } from '../types';
 import { DetailSkeleton } from '../components/Skeleton';

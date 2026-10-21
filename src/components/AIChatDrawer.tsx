@@ -1,18 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  X,
-  Send,
-  Square,
-  Sparkles,
-  Trash2,
-  Copy,
-  Check,
-  RotateCcw,
-  Film,
-  AlertCircle,
-  ChevronRight,
-} from 'lucide-react';
+  IoCloseOutline as X,
+  IoSend as Send,
+  IoStop as Square,
+  IoSparkles as Sparkles,
+  IoTrashOutline as Trash2,
+  IoCopyOutline as Copy,
+  IoCheckmarkOutline as Check,
+  IoReloadOutline as RotateCcw,
+  IoFilmOutline as Film,
+  IoAlertCircleOutline as AlertCircle,
+  IoChevronForwardOutline as ChevronRight,
+} from 'react-icons/io5';
 import ReactMarkdown from 'react-markdown';
 import { ChatMessage, RecommendationPick, Title } from '../types';
 import { storage } from '../lib/storage';

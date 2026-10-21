@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Home, Compass } from 'lucide-react';
+import { IoHomeOutline as Home, IoCompassOutline as Compass } from 'react-icons/io5';
 import { Logo } from '../components/Logo';
 
 export const NotFoundPage: React.FC = () => {

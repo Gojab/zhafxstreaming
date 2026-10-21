@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { IoHomeOutline, IoVideocamOutline, IoHeartOutline } from 'react-icons/io5';
-import { Sparkles } from 'lucide-react';
+import { IoHomeOutline, IoVideocamOutline, IoBookmarkOutline, IoSparkles } from 'react-icons/io5';
 
 interface BottomNavProps {
   onOpenAI: () => void;
@@ -47,14 +46,14 @@ export const BottomNav: React.FC<BottomNavProps> = ({ onOpenAI, onOpenFeatures }
     },
     {
       title: 'TANYA AI',
-      icon: <Sparkles className="w-4 h-4 text-white transition-transform duration-300 group-hover:scale-110" />,
+      icon: <IoSparkles className="w-4 h-4 text-white transition-transform duration-300 group-hover:scale-110" />,
       id: 'ai',
       action: onOpenAI,
       isActive: false,
     },
     {
       title: 'DAFTAR',
-      icon: <IoHeartOutline className="w-5 h-5 text-white transition-transform duration-300 group-hover:scale-110" />,
+      icon: <IoBookmarkOutline className="w-5 h-5 text-white transition-transform duration-300 group-hover:scale-110" />,
       id: 'list',
       action: () => navigate('/my-list'),
       isActive: currentPath === '/my-list' || currentPath === '/history',

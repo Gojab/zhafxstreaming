@@ -1,18 +1,18 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
-  Search,
-  X,
-  History,
-  Film,
-  Tv,
-  Sparkles,
-  AlertCircle,
-  Filter,
-  RotateCcw,
-  ChevronDown,
-  Clapperboard,
-} from 'lucide-react';
+  IoSearchOutline as Search,
+  IoCloseOutline as X,
+  IoTimeOutline as History,
+  IoFilmOutline as Film,
+  IoTvOutline as Tv,
+  IoSparkles as Sparkles,
+  IoAlertCircleOutline as AlertCircle,
+  IoFilterOutline as Filter,
+  IoReloadOutline as RotateCcw,
+  IoChevronDownOutline as ChevronDown,
+  IoVideocamOutline as Clapperboard,
+} from 'react-icons/io5';
 import { useDebounce } from '../hooks/useDebounce';
 import { api } from '../services/api';
 import { Title, MediaType } from '../types';

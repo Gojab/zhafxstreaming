@@ -8,9 +8,9 @@ import { SEOHead } from '../components/SEOHead';
 import { useWatchHistory } from '../hooks/useWatchHistory';
 import { useMyList } from '../hooks/useMyList';
 import {
-  RotateCcw,
-  AlertTriangle,
-} from 'lucide-react';
+  IoReloadOutline as RotateCcw,
+  IoWarningOutline as AlertTriangle,
+} from 'react-icons/io5';
 
 const DEFAULT_HOME_DATA = {
   hero: {

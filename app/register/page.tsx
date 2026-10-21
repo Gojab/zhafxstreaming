@@ -2,7 +2,14 @@
 
 import React, { useState, useTransition } from 'react';
 import Link from 'next/link';
-import { Mail, Lock, UserPlus, AlertCircle, CheckCircle2, RotateCw } from 'lucide-react';
+import {
+  IoMailOutline as Mail,
+  IoLockClosedOutline as Lock,
+  IoPersonAddOutline as UserPlus,
+  IoAlertCircleOutline as AlertCircle,
+  IoCheckmarkCircleOutline as CheckCircle2,
+  IoSyncOutline as RotateCw,
+} from 'react-icons/io5';
 import { signup } from '@/app/auth/actions';
 
 export default function RegisterPage() {

@@ -1,16 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import {
-  X,
-  Mail,
-  Lock,
-  User as UserIcon,
-  CheckCircle2,
-  AlertCircle,
-  ArrowRight,
-  ShieldCheck,
-  RotateCw,
-  Sparkles,
-} from 'lucide-react';
+  IoCloseOutline as X,
+  IoMailOutline as Mail,
+  IoLockClosedOutline as Lock,
+  IoPersonOutline as UserIcon,
+  IoCheckmarkCircleOutline as CheckCircle2,
+  IoAlertCircleOutline as AlertCircle,
+  IoArrowForwardOutline as ArrowRight,
+  IoShieldCheckmarkOutline as ShieldCheck,
+  IoSyncOutline as RotateCw,
+  IoSparkles as Sparkles,
+  IoSendOutline as Send,
+  IoArrowBackOutline as ArrowBack,
+  IoKeyOutline as KeyIcon,
+} from 'react-icons/io5';
 import { storage } from '../lib/storage';
 import { User } from '../types';
 import { supabase } from '../lib/supabase';
@@ -22,7 +25,7 @@ interface AuthModalProps {
 }
 
 export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess }) => {
-  const [isRegister, setIsRegister] = useState(false);
+  const [mode, setMode] = useState<'login' | 'register' | 'forgot'>('login');
 
   // Form states
   const [name, setName] = useState('');
@@ -88,7 +91,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
     setSuccessMessage(null);
 
     try {
-      if (isRegister) {
+      if (mode === 'register') {
         const { data, error: signUpError } = await supabase.auth.signUp({
           email: cleanEmail,
           password,
@@ -157,6 +160,40 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
     }
   };
 
+  // Forgot password handler using Supabase resetPasswordForEmail
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanEmail = email.trim().toLowerCase();
+
+    if (!cleanEmail) {
+      setError('Alamat email wajib diisi.');
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+    setSuccessMessage(null);
+
+    try {
+      const redirectOrigin =
+        typeof window !== 'undefined' ? window.location.origin : 'https://zhafxstreaming.web.id';
+
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
+        redirectTo: `${redirectOrigin}/reset-password`,
+      });
+
+      if (resetError) throw resetError;
+
+      setSuccessMessage(
+        'Tautan pemulihan kata sandi telah dikirim ke email Anda! Silakan periksa kotak masuk atau folder spam.'
+      );
+    } catch (err: any) {
+      setError(err?.message || 'Gagal mengirim email pemulihan. Pastikan email terdaftar.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -179,14 +216,20 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
         <div className="flex items-center justify-between pb-3 border-b border-white/10">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-white">
-              <ShieldCheck className="w-5 h-5" />
+              {mode === 'forgot' ? (
+                <KeyIcon className="w-5 h-5" />
+              ) : (
+                <ShieldCheck className="w-5 h-5" />
+              )}
             </div>
             <div>
               <h2 className="text-base sm:text-lg font-bold text-white tracking-tight leading-none">
-                ZhafxStreaming
+                {mode === 'forgot' ? 'Lupa Kata Sandi' : 'ZhafxStreaming'}
               </h2>
               <p className="text-[11px] text-white/50 mt-1">
-                Autentikasi Email & Kata Sandi (Supabase Auth)
+                {mode === 'forgot'
+                  ? 'Kirim tautan pemulihan kata sandi'
+                  : 'Autentikasi Email & Kata Sandi (Supabase Auth)'}
               </p>
             </div>
           </div>
@@ -200,39 +243,41 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
           </button>
         </div>
 
-        {/* Tab Selection: Masuk vs Daftar */}
-        <div className="flex p-1 rounded-full bg-white/[0.06] border border-white/10 text-xs font-semibold">
-          <button
-            type="button"
-            onClick={() => {
-              setIsRegister(false);
-              setError(null);
-              setSuccessMessage(null);
-            }}
-            className={`flex-1 py-2 rounded-full transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-              !isRegister
-                ? 'bg-white text-black font-bold shadow-md'
-                : 'text-white/70 hover:text-white'
-            }`}
-          >
-            Masuk Akun
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setIsRegister(true);
-              setError(null);
-              setSuccessMessage(null);
-            }}
-            className={`flex-1 py-2 rounded-full transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-              isRegister
-                ? 'bg-white text-black font-bold shadow-md'
-                : 'text-white/70 hover:text-white'
-            }`}
-          >
-            Daftar Baru
-          </button>
-        </div>
+        {/* Tab Selection: Masuk vs Daftar (only show when not in forgot password mode) */}
+        {mode !== 'forgot' && (
+          <div className="flex p-1 rounded-full bg-white/[0.06] border border-white/10 text-xs font-semibold">
+            <button
+              type="button"
+              onClick={() => {
+                setMode('login');
+                setError(null);
+                setSuccessMessage(null);
+              }}
+              className={`flex-1 py-2 rounded-full transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                mode === 'login'
+                  ? 'bg-white text-black font-bold shadow-md'
+                  : 'text-white/70 hover:text-white'
+              }`}
+            >
+              Masuk Akun
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setMode('register');
+                setError(null);
+                setSuccessMessage(null);
+              }}
+              className={`flex-1 py-2 rounded-full transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                mode === 'register'
+                  ? 'bg-white text-black font-bold shadow-md'
+                  : 'text-white/70 hover:text-white'
+              }`}
+            >
+              Daftar Baru
+            </button>
+          </div>
+        )}
 
         {/* Status Messages */}
         {error && (
@@ -246,7 +291,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
           <div className="p-3.5 rounded-[18px] bg-emerald-500/15 border border-emerald-500/30 text-emerald-200 text-xs space-y-1">
             <div className="flex items-center gap-2 font-semibold text-emerald-300">
               <CheckCircle2 className="w-4 h-4 shrink-0" />
-              <span>Autentikasi Berhasil</span>
+              <span>{mode === 'forgot' ? 'Tautan Terkirim' : 'Autentikasi Berhasil'}</span>
             </div>
             <p className="text-[11px] leading-relaxed text-emerald-200/90">
               {successMessage}
@@ -254,94 +299,168 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
           </div>
         )}
 
-        {/* Email & Password Form */}
-        <form onSubmit={handlePasswordAuth} className="space-y-3.5 pt-1">
-          {isRegister && (
+        {/* FORGOT PASSWORD FORM */}
+        {mode === 'forgot' ? (
+          <form onSubmit={handleForgotPassword} className="space-y-4 pt-1">
+            <p className="text-xs text-white/70 leading-relaxed">
+              Masukkan alamat email terdaftar akun Anda. Kami akan mengirimkan tautan aman dari Supabase untuk menyetel ulang kata sandi Anda.
+            </p>
+
             <div className="space-y-1.5">
-              <label className="text-[11px] font-semibold text-white/70 block">Nama Lengkap</label>
+              <label className="text-[11px] font-semibold text-white/70 block">
+                Alamat Email Terdaftar
+              </label>
               <div className="relative">
                 <input
-                  type="text"
+                  type="email"
                   required
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Nama Lengkap Anda"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="namaanda@email.com"
                   className="w-full h-11 px-4 pl-10 rounded-full bg-white/[0.06] border border-white/15 text-sm text-white focus:outline-none focus:border-white transition-colors placeholder:text-white/30"
                 />
-                <UserIcon className="w-4 h-4 text-white/40 absolute left-3.5 top-3.5" />
+                <Mail className="w-4 h-4 text-white/40 absolute left-3.5 top-3.5" />
               </div>
             </div>
-          )}
 
-          <div className="space-y-1.5">
-            <label className="text-[11px] font-semibold text-white/70 block">
-              Alamat Email
-            </label>
-            <div className="relative">
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="namaanda@email.com"
-                className="w-full h-11 px-4 pl-10 rounded-full bg-white/[0.06] border border-white/15 text-sm text-white focus:outline-none focus:border-white transition-colors placeholder:text-white/30"
-              />
-              <Mail className="w-4 h-4 text-white/40 absolute left-3.5 top-3.5" />
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-[11px] font-semibold text-white/70 block">Kata Sandi</label>
-            <div className="relative">
-              <input
-                type="password"
-                required
-                minLength={6}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Minimal 6 karakter"
-                className="w-full h-11 px-4 pl-10 rounded-full bg-white/[0.06] border border-white/15 text-sm text-white focus:outline-none focus:border-white transition-colors placeholder:text-white/30"
-              />
-              <Lock className="w-4 h-4 text-white/40 absolute left-3.5 top-3.5" />
-            </div>
-          </div>
-
-          <button
-            type="submit"
-            disabled={isLoading}
-            className="w-full h-11 rounded-full bg-white hover:bg-zinc-200 text-black font-bold text-sm shadow-md flex items-center justify-center gap-2 transition-all ios-spring cursor-pointer disabled:opacity-50"
-          >
-            {isLoading ? (
-              <>
-                <RotateCw className="w-4 h-4 animate-spin text-black" />
-                <span>Memproses...</span>
-              </>
-            ) : (
-              <>
-                <span>
-                  {isRegister ? 'Daftar Akun Baru' : 'Masuk Sekarang'}
-                </span>
-                <ArrowRight className="w-4 h-4 text-black" />
-              </>
-            )}
-          </button>
-
-          <div className="pt-1 text-center">
             <button
-              type="button"
-              onClick={() => {
-                setIsRegister(!isRegister);
-                setError(null);
-                setSuccessMessage(null);
-              }}
-              className="text-xs text-white/80 hover:text-white underline cursor-pointer"
+              type="submit"
+              disabled={isLoading}
+              className="w-full h-11 rounded-full bg-white hover:bg-zinc-200 text-black font-bold text-sm shadow-md flex items-center justify-center gap-2 transition-all ios-spring cursor-pointer disabled:opacity-50"
             >
-              {isRegister
-                ? 'Sudah memiliki akun? Masuk di sini'
-                : 'Belum memiliki akun? Daftar gratis sekarang'}
+              {isLoading ? (
+                <>
+                  <RotateCw className="w-4 h-4 animate-spin text-black" />
+                  <span>Mengirim Email...</span>
+                </>
+              ) : (
+                <>
+                  <Send className="w-4 h-4 text-black" />
+                  <span>Kirim Tautan Reset</span>
+                </>
+              )}
             </button>
-          </div>
-        </form>
+
+            <div className="pt-2 text-center border-t border-white/10">
+              <button
+                type="button"
+                onClick={() => {
+                  setMode('login');
+                  setError(null);
+                  setSuccessMessage(null);
+                }}
+                className="inline-flex items-center gap-1.5 text-xs text-white/70 hover:text-white cursor-pointer transition-colors"
+              >
+                <ArrowBack className="w-3.5 h-3.5" />
+                <span>Kembali ke Masuk Akun</span>
+              </button>
+            </div>
+          </form>
+        ) : (
+          /* LOGIN & REGISTER FORM */
+          <form onSubmit={handlePasswordAuth} className="space-y-3.5 pt-1">
+            {mode === 'register' && (
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-semibold text-white/70 block">Nama Lengkap</label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    required
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Nama Lengkap Anda"
+                    className="w-full h-11 px-4 pl-10 rounded-full bg-white/[0.06] border border-white/15 text-sm text-white focus:outline-none focus:border-white transition-colors placeholder:text-white/30"
+                  />
+                  <UserIcon className="w-4 h-4 text-white/40 absolute left-3.5 top-3.5" />
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-semibold text-white/70 block">
+                Alamat Email
+              </label>
+              <div className="relative">
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="namaanda@email.com"
+                  className="w-full h-11 px-4 pl-10 rounded-full bg-white/[0.06] border border-white/15 text-sm text-white focus:outline-none focus:border-white transition-colors placeholder:text-white/30"
+                />
+                <Mail className="w-4 h-4 text-white/40 absolute left-3.5 top-3.5" />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label className="text-[11px] font-semibold text-white/70 block">Kata Sandi</label>
+                {mode === 'login' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMode('forgot');
+                      setError(null);
+                      setSuccessMessage(null);
+                    }}
+                    className="text-[11px] text-white/50 hover:text-white transition-colors underline cursor-pointer"
+                  >
+                    Lupa sandi?
+                  </button>
+                )}
+              </div>
+              <div className="relative">
+                <input
+                  type="password"
+                  required
+                  minLength={6}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Minimal 6 karakter"
+                  className="w-full h-11 px-4 pl-10 rounded-full bg-white/[0.06] border border-white/15 text-sm text-white focus:outline-none focus:border-white transition-colors placeholder:text-white/30"
+                />
+                <Lock className="w-4 h-4 text-white/40 absolute left-3.5 top-3.5" />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="w-full h-11 rounded-full bg-white hover:bg-zinc-200 text-black font-bold text-sm shadow-md flex items-center justify-center gap-2 transition-all ios-spring cursor-pointer disabled:opacity-50"
+            >
+              {isLoading ? (
+                <>
+                  <RotateCw className="w-4 h-4 animate-spin text-black" />
+                  <span>Memproses...</span>
+                </>
+              ) : (
+                <>
+                  <span>
+                    {mode === 'register' ? 'Daftar Akun Baru' : 'Masuk Sekarang'}
+                  </span>
+                  <ArrowRight className="w-4 h-4 text-black" />
+                </>
+              )}
+            </button>
+
+            <div className="pt-1 text-center">
+              <button
+                type="button"
+                onClick={() => {
+                  setMode(mode === 'register' ? 'login' : 'register');
+                  setError(null);
+                  setSuccessMessage(null);
+                }}
+                className="text-xs text-white/80 hover:text-white underline cursor-pointer"
+              >
+                {mode === 'register'
+                  ? 'Sudah memiliki akun? Masuk di sini'
+                  : 'Belum memiliki akun? Daftar gratis sekarang'}
+              </button>
+            </div>
+          </form>
+        )}
 
         {/* Footer info */}
         <div className="pt-2 border-t border-white/10 text-center">

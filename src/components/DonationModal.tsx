@@ -1,5 +1,10 @@
 import React, { useEffect } from 'react';
-import { X, Heart, ExternalLink, QrCode } from 'lucide-react';
+import {
+  IoCloseOutline as X,
+  IoHeart as Heart,
+  IoOpenOutline as ExternalLink,
+  IoQrCodeOutline as QrCode,
+} from 'react-icons/io5';
 
 interface DonationModalProps {
   isOpen: boolean;

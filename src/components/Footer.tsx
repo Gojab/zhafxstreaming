@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Play, Heart } from 'lucide-react';
+import { IoPlay as Play, IoHeart as Heart } from 'react-icons/io5';
 import { Logo } from './Logo';
 import { CONFIG } from '../config';
 

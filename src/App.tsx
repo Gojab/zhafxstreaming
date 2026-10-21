@@ -1,6 +1,5 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
-import { Sparkles } from 'lucide-react';
 import { Navbar } from './components/Navbar';
 import { BottomNav } from './components/BottomNav';
 import { Footer } from './components/Footer';
@@ -22,6 +21,7 @@ const DetailPage = lazy(() => import('./pages/DetailPage').then((m) => ({ defaul
 const PlayerPage = lazy(() => import('./pages/PlayerPage').then((m) => ({ default: m.PlayerPage })));
 const HistoryPage = lazy(() => import('./pages/HistoryPage').then((m) => ({ default: m.HistoryPage })));
 const MyListPage = lazy(() => import('./pages/MyListPage').then((m) => ({ default: m.MyListPage })));
+const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage').then((m) => ({ default: m.ResetPasswordPage })));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage').then((m) => ({ default: m.NotFoundPage })));
 
 // Lazy-load heavier drawers & modals only when triggered by user
@@ -204,6 +204,7 @@ function AppLayout() {
             />
             <Route path="/history" element={<HistoryPage />} />
             <Route path="/my-list" element={<MyListPage />} />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </Suspense>

@@ -1,5 +1,8 @@
 import React, { useRef, useState, useMemo } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import {
+  IoChevronBackOutline as ChevronLeft,
+  IoChevronForwardOutline as ChevronRight,
+} from 'react-icons/io5';
 import { Link } from 'react-router-dom';
 import { Title } from '../types';
 import { MediaCard } from './MediaCard';

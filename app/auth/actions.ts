@@ -127,3 +127,48 @@ export async function updateProfile(formData: FormData): Promise<AuthActionResul
   return { success: 'Profil dan nama berhasil diperbarui!' };
 }
 
+export async function sendResetPasswordEmail(formData: FormData): Promise<AuthActionResult> {
+  const email = (formData.get('email') as string)?.trim().toLowerCase();
+
+  if (!email) {
+    return { error: 'Alamat email wajib diisi.' };
+  }
+
+  const supabase = await createClient();
+
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${process.env.NEXT_PUBLIC_APP_URL || 'https://zhafxstreaming.web.id'}/reset-password`,
+  });
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  return {
+    success:
+      'Tautan reset kata sandi telah dikirim ke email Anda! Silakan periksa kotak masuk atau folder spam Anda.',
+  };
+}
+
+export async function updatePassword(formData: FormData): Promise<AuthActionResult | void> {
+  const password = formData.get('password') as string;
+
+  if (!password || password.length < 6) {
+    return { error: 'Kata sandi baru minimal 6 karakter.' };
+  }
+
+  const supabase = await createClient();
+
+  const { error } = await supabase.auth.updateUser({
+    password,
+  });
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  revalidatePath('/', 'layout');
+  redirect('/dashboard');
+}
+
+

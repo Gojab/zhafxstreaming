@@ -1,6 +1,10 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Bookmark, Trash2, Compass } from 'lucide-react';
+import {
+  IoBookmarkOutline as Bookmark,
+  IoTrashOutline as Trash2,
+  IoCompassOutline as Compass,
+} from 'react-icons/io5';
 import { useMyList } from '../hooks/useMyList';
 import { MediaCard } from '../components/MediaCard';
 import { MediaType, Title } from '../types';

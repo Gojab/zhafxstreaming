@@ -2,15 +2,15 @@
 
 import React, { useState, useTransition } from 'react';
 import {
-  User,
-  Mail,
-  Edit3,
-  CheckCircle2,
-  AlertCircle,
-  RotateCw,
-  Save,
-  X,
-} from 'lucide-react';
+  IoPersonOutline as User,
+  IoMailOutline as Mail,
+  IoCreateOutline as Edit3,
+  IoCheckmarkCircleOutline as CheckCircle2,
+  IoAlertCircleOutline as AlertCircle,
+  IoSyncOutline as RotateCw,
+  IoCheckmarkOutline as Save,
+  IoCloseOutline as X,
+} from 'react-icons/io5';
 import { updateProfile } from '@/app/auth/actions';
 
 interface EditProfileFormProps {

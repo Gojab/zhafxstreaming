@@ -4,14 +4,14 @@ import { createClient } from '@/utils/supabase/server';
 import { signout } from '@/app/auth/actions';
 import { EditProfileForm } from '@/app/dashboard/EditProfileForm';
 import {
-  User as UserIcon,
-  LogOut,
-  ShieldCheck,
-  Mail,
-  Calendar,
-  KeyRound,
-  BadgeCheck,
-} from 'lucide-react';
+  IoPersonOutline as UserIcon,
+  IoLogOutOutline as LogOut,
+  IoShieldCheckmarkOutline as ShieldCheck,
+  IoMailOutline as Mail,
+  IoCalendarOutline as Calendar,
+  IoKeyOutline as KeyRound,
+  IoCheckmarkCircle as BadgeCheck,
+} from 'react-icons/io5';
 
 export default async function DashboardPage() {
   const supabase = await createClient();
