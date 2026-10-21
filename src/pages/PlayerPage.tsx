@@ -297,10 +297,8 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
   const [currentServerIndex, setCurrentServerIndex] = useState(0);
   const [animeAudio, setAnimeAudio] = useState<'sub' | 'dub'>('sub');
 
-  // Player mode: Anime uses 'direct' (Native HLS / Apple AVPlayer optimized) by default
-  const [playerMode, setPlayerMode] = useState<'direct' | 'embed'>(
-    mediaType === 'anime' ? 'direct' : 'embed'
-  );
+  // Player mode: Default to official FrameX Embed Server as requested
+  const [playerMode, setPlayerMode] = useState<'direct' | 'embed'>('embed');
   const [streamData, setStreamData] = useState<StreamData | null>(null);
   const [isStreamLoading, setIsStreamLoading] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -757,8 +755,8 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
         else if (targetProvider === 'dragon') targetProvider = 'dragon_dub';
       }
 
-      // Official FrameX Anime Embed (https://framextv.xyz/) - 100% Sandbox Free
-      const baseUrl = `https://framextv.xyz/embed/anime/${encodeURIComponent(cleanId)}/${encodeURIComponent(String(validEp))}`;
+      // Official FrameX Anime Embed (https://framextv.cc/) - 100% Strictly FrameX, No Ads
+      const baseUrl = `https://framextv.cc/embed/anime/${encodeURIComponent(cleanId)}/${encodeURIComponent(String(validEp))}`;
       const url = new URL(baseUrl);
       url.searchParams.set('id', cleanId);
       url.searchParams.set('episode', String(validEp));
@@ -777,8 +775,8 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
     }
 
     if (mediaType === 'tv') {
-      // Official FrameX TV Series Embed (https://framextv.xyz/) - Dimulai dari Miner 4K
-      const baseUrl = `https://framextv.xyz/embed/tv/${encodeURIComponent(cleanId)}/${encodeURIComponent(String(validSeason))}/${encodeURIComponent(String(validEp))}`;
+      // Official FrameX TV Series Embed (https://framextv.cc/)
+      const baseUrl = `https://framextv.cc/embed/tv/${encodeURIComponent(cleanId)}/${encodeURIComponent(String(validSeason))}/${encodeURIComponent(String(validEp))}`;
       const url = new URL(baseUrl);
       url.searchParams.set('id', cleanId);
       url.searchParams.set('season', String(validSeason));
@@ -794,8 +792,8 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
       return url.toString();
     }
 
-    // Official FrameX Movie Embed (https://framextv.xyz/)
-    const baseUrl = `https://framextv.xyz/embed/movie/${encodeURIComponent(cleanId)}`;
+    // Official FrameX Movie Embed (https://framextv.cc/)
+    const baseUrl = `https://framextv.cc/embed/movie/${encodeURIComponent(cleanId)}`;
     const url = new URL(baseUrl);
     url.searchParams.set('id', cleanId);
     url.searchParams.set('type', 'movie');
@@ -1408,6 +1406,7 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
                 // @ts-ignore
                 mozallowfullscreen="true"
                 allow="autoplay *; fullscreen *; picture-in-picture *; encrypted-media *; accelerometer *; gyroscope *; clipboard-write *; web-share *"
+                sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
                 referrerPolicy="origin"
                 loading="eager"
                 title={title?.title || 'Zhafx Stream Player'}

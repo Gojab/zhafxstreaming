@@ -1263,7 +1263,7 @@ export const api = {
     const ep = Math.max(1, Math.round(Number(episode) || 1));
     const s = Math.max(1, Math.round(Number(season) || 1));
 
-    // Official FrameX Anime embed player
+    // Official FrameX Anime embed player (https://framextv.cc) - no_ads=1
     if (type === 'anime') {
       const q = new URLSearchParams();
       q.set('id', String(id).trim());
@@ -1273,6 +1273,7 @@ export const api = {
       q.set('sub_type', audio || 'sub');
       q.set('autoplay', autoplay ? '1' : '0');
       q.set('muted', muted ? '1' : '0');
+      q.set('no_ads', '1');
       if (server && server !== 'auto' && server !== 'direct_stream' && server !== 'framex') {
         q.set('provider', server);
         q.set('server', server);
@@ -1280,20 +1281,27 @@ export const api = {
       if (title) q.set('title', title);
       if (poster) q.set('poster', poster);
 
-      // Official FrameX Anime Embed URL format: https://framextv.xyz/embed/anime/:id/:episode?id=...&episode=...
-      return `https://framextv.xyz/embed/anime/${cleanId}/${encodeURIComponent(String(ep))}?${q.toString()}`;
+      // Official FrameX Anime Embed URL format: https://framextv.cc/embed/anime/:id/:episode?id=...&episode=...
+      return `https://framextv.cc/embed/anime/${cleanId}/${encodeURIComponent(String(ep))}?${q.toString()}`;
     }
 
     let path = '';
     if (type === 'tv') {
-      path = `https://framextv.xyz/embed/tv/${cleanId}/${s}/${encodeURIComponent(String(ep))}`;
+      path = `https://framextv.cc/embed/tv/${cleanId}/${s}/${encodeURIComponent(String(ep))}`;
     } else {
-      path = `https://framextv.xyz/embed/movie/${cleanId}`;
+      path = `https://framextv.cc/embed/movie/${cleanId}`;
     }
 
     const query = new URLSearchParams();
+    query.set('id', String(id).trim());
+    query.set('type', type);
+    if (type === 'tv') {
+      query.set('season', String(s));
+      query.set('episode', String(ep));
+    }
     query.set('autoplay', autoplay ? '1' : '0');
     query.set('muted', muted ? '1' : '0');
+    query.set('no_ads', '1');
     if (server && server !== 'auto' && server !== 'direct_stream') {
       query.set('server', server);
     }
