@@ -203,7 +203,54 @@ export async function executeMultiModelChat(
 
   chatMessages.push({ role: 'user', content: userPrompt });
 
-  // 1. Try Google Gemini SDK if API Key is available
+  // 1. Try OpenAI GPT first when the server key is configured.
+  // Keep this server-side so OPENAI_API_KEY is never exposed to the browser.
+  const openAiKey = process.env.OPENAI_API_KEY;
+  if (openAiKey) {
+    const openAiModels = ['gpt-4o-mini', 'gpt-4o'];
+    for (const model of openAiModels) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 9000);
+        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${openAiKey}`,
+          },
+          body: JSON.stringify({
+            model,
+            messages: chatMessages,
+            temperature: 0.7,
+          }),
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          console.warn(`[AI Engine] OpenAI ${model} returned ${response.status}`);
+          continue;
+        }
+
+        const data = await response.json();
+        const text = data.choices?.[0]?.message?.content;
+        if (!text || text.trim().length < 10) continue;
+
+        onChunk(text);
+        if (!text.includes('<picks>')) {
+          const picks = extractFallbackPicks(text, contextTitle);
+          if (picks.length > 0) {
+            onChunk(`\\n\\n<picks>${JSON.stringify(picks)}</picks>`);
+          }
+        }
+        return { success: true, modelUsed: `OpenAI ${model}` };
+      } catch (err: any) {
+        console.warn(`[AI Engine] OpenAI ${model} failed:`, err?.message || err);
+      }
+    }
+  }
+
+  // 2. Try Google Gemini SDK if API Key is available
   const activeGeminiKey = geminiApiKey || process.env.GEMINI_API_KEY;
   if (activeGeminiKey) {
     try {
