@@ -35,7 +35,16 @@ export default async function handler(req: any, res: any) {
       ...(isPost && req.body ? { body: typeof req.body === 'string' ? req.body : JSON.stringify(req.body) } : {}),
     };
 
-    const upstreamRes = await fetch(targetUrl, fetchOptions);
+    let upstreamRes = await fetch(targetUrl, fetchOptions);
+
+    // FrameX may return 403 from one hostname while the alternate origin is healthy.
+    if (!upstreamRes.ok && isFrameX && (upstreamRes.status === 403 || upstreamRes.status === 404)) {
+      const alternateUrl = targetUrl.includes('api.framextv.tech')
+        ? targetUrl.replace('api.framextv.tech', 'api.framextv.xyz')
+        : targetUrl.replace('api.framextv.xyz', 'api.framextv.tech');
+      upstreamRes = await fetch(alternateUrl, fetchOptions);
+    }
+
     clearTimeout(timeoutId);
 
     const contentType = upstreamRes.headers.get('content-type') || 'application/json';

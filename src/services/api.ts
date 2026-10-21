@@ -211,8 +211,11 @@ async function fetchWithRetry<T>(
 
       try {
         let requestUrl = url;
-        // If previous attempts failed due to CORS or network, use proxy
-        if (attempt > 0 && useProxyFallback) {
+        // FrameX occasionally blocks one API hostname with HTTP 403. Try its
+        // alternate origin before routing the request through our proxy.
+        if (attempt === 1 && url.includes('api.framextv.tech')) {
+          requestUrl = url.replace('api.framextv.tech', 'api.framextv.xyz');
+        } else if (attempt > 0 && useProxyFallback) {
           requestUrl = `${CONFIG.PROXY_URL}?url=${encodeURIComponent(url)}`;
         }
 
