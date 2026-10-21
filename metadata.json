@@ -1,6 +1,6 @@
 {
   "name": "Zhafx",
-  "description": "Platform streaming film, serial TV, dan anime modern dengan rekomendasi bertenaga AI.",
+  "description": "ZHAFX Streaming adalah platform nonton anime, film, dan serial TV gratis tanpa iklan, dilengkapi AI cerdas untuk membantu menemukan tontonan favorit dengan mudah, cepat, dan personal.",
   "requestFramePermissions": [],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"

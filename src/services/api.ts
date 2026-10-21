@@ -557,19 +557,46 @@ export const api = {
   },
 
   /**
-   * Global Search across movies, TV, and anime
+   * Global Smart Search across movies, TV, and anime with typo tolerance and didYouMean suggestion
    */
-  async search(query: string, page = 1, signal?: AbortSignal): Promise<{ titles: Title[]; totalPages: number }> {
+  async search(
+    query: string,
+    page = 1,
+    signal?: AbortSignal,
+    type?: MediaType | 'all'
+  ): Promise<{ titles: Title[]; totalPages: number; totalResults?: number; didYouMean?: string }> {
     const trimmed = query.trim();
-    if (!trimmed) return { titles: [], totalPages: 0 };
+    if (!trimmed) return { titles: [], totalPages: 0, totalResults: 0 };
 
-    const url = `${CONFIG.API_BASE_URL}${CONFIG.ENDPOINTS.SEARCH}?q=${encodeURIComponent(trimmed)}&page=${page}`;
-    const data = await fetchWithRetry<any>(url, { signal, ttlMs: 2 * 60 * 1000 });
-    const results = data.results || [];
-    return {
-      titles: results.map((r: any) => normalize(r, r.type || 'movie')),
-      totalPages: data.totalPages || 1,
-    };
+    const typeQuery = type && type !== 'all' ? `&type=${encodeURIComponent(type)}` : '';
+    const url = `${CONFIG.API_BASE_URL}${CONFIG.ENDPOINTS.SEARCH}?q=${encodeURIComponent(trimmed)}&page=${page}${typeQuery}`;
+
+    try {
+      const data = await fetchWithRetry<any>(url, { signal, ttlMs: 2 * 60 * 1000 });
+      const rawResults = Array.isArray(data.results) ? data.results : [];
+      return {
+        titles: rawResults.map((r: any) => normalize(r, r.type || 'movie')),
+        totalPages: data.totalPages || 1,
+        totalResults: data.totalResults ?? rawResults.length,
+        didYouMean: data.didYouMean,
+      };
+    } catch (err: any) {
+      if (err.name === 'AbortError') throw err;
+      // Direct fallback to upstream if local endpoint returned error
+      try {
+        const fallbackUrl = `${CONFIG.API_BASE_URL_FALLBACK}${CONFIG.ENDPOINTS.SEARCH}?q=${encodeURIComponent(trimmed)}&page=${page}${typeQuery}`;
+        const fbData = await fetchWithRetry<any>(fallbackUrl, { signal, ttlMs: 2 * 60 * 1000, useProxyFallback: true });
+        const fbResults = Array.isArray(fbData.results) ? fbData.results : [];
+        return {
+          titles: fbResults.map((r: any) => normalize(r, r.type || 'movie')),
+          totalPages: fbData.totalPages || 1,
+          totalResults: fbData.totalResults ?? fbResults.length,
+          didYouMean: fbData.didYouMean,
+        };
+      } catch {
+        return { titles: [], totalPages: 0, totalResults: 0 };
+      }
+    }
   },
 
   /**

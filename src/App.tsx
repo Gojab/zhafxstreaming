@@ -27,6 +27,7 @@ const NotFoundPage = lazy(() => import('./pages/NotFoundPage').then((m) => ({ de
 const AIChatDrawer = lazy(() => import('./components/AIChatDrawer').then((m) => ({ default: m.AIChatDrawer })));
 const QuickFeaturesModal = lazy(() => import('./components/QuickFeaturesModal').then((m) => ({ default: m.QuickFeaturesModal })));
 const AuthModal = lazy(() => import('./components/AuthModal').then((m) => ({ default: m.AuthModal })));
+const DonationModal = lazy(() => import('./components/DonationModal').then((m) => ({ default: m.DonationModal })));
 
 // Stub for stripped @vercel/analytics
 const Analytics = () => null;
@@ -92,6 +93,38 @@ function AppLayout() {
   const [hasOpenedAI, setHasOpenedAI] = useState(false);
   const [hasOpenedFeatures, setHasOpenedFeatures] = useState(false);
   const [hasOpenedAuth, setHasOpenedAuth] = useState(false);
+  const [isDonationOpen, setIsDonationOpen] = useState(false);
+  const [hasOpenedDonation, setHasOpenedDonation] = useState(false);
+
+  // Automatically show the donation pop-up on visit + listen for manual button clicks
+  useEffect(() => {
+    // Check if seen in current session
+    const hasSeenThisSession = sessionStorage.getItem('zhafx_saweria_shown');
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    if (!hasSeenThisSession) {
+      timer = setTimeout(() => {
+        setHasOpenedDonation(true);
+        setIsDonationOpen(true);
+      }, 1500);
+    }
+
+    const handleOpenDonation = () => {
+      setHasOpenedDonation(true);
+      setIsDonationOpen(true);
+    };
+
+    window.addEventListener('open-zhafx-donation', handleOpenDonation);
+    return () => {
+      window.removeEventListener('open-zhafx-donation', handleOpenDonation);
+      if (timer) clearTimeout(timer);
+    };
+  }, []);
+
+  const handleCloseDonation = () => {
+    setIsDonationOpen(false);
+    sessionStorage.setItem('zhafx_saweria_shown', 'true');
+  };
 
   const handleOpenAI = () => {
     setHasOpenedAI(true);
@@ -201,6 +234,16 @@ function AppLayout() {
           <AuthModal
             isOpen={isAuthOpen}
             onClose={() => setIsAuthOpen(false)}
+          />
+        </Suspense>
+      )}
+
+      {/* Saweria QR Donation Modal - Shows cleanly with solid dark background & on click */}
+      {hasOpenedDonation && (
+        <Suspense fallback={null}>
+          <DonationModal
+            isOpen={isDonationOpen}
+            onClose={handleCloseDonation}
           />
         </Suspense>
       )}

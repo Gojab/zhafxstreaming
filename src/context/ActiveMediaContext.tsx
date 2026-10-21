@@ -16,11 +16,29 @@ const ActiveMediaContext = createContext<ActiveMediaContextType>({
 export const ActiveMediaProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [activePoster, setActivePosterState] = useState<string>(DEFAULT_POSTER);
   const [activeTitle, setActiveTitle] = useState<string | undefined>('Zhafx');
+  const debounceTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const setActiveMedia = useCallback((poster: string, title?: string) => {
     if (!poster) return;
-    setActivePosterState(poster);
-    if (title) setActiveTitle(title);
+
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+
+    // Debounce background poster update by 160ms so fast scrubbing across cards doesn't trigger rapid re-renders
+    debounceTimerRef.current = setTimeout(() => {
+      setActivePosterState((prev) => (prev === poster ? prev : poster));
+      if (title) {
+        setActiveTitle((prev) => (prev === title ? prev : title));
+      }
+    }, 160);
+  }, []);
+
+  // Cleanup on unmount
+  React.useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    };
   }, []);
 
   return (

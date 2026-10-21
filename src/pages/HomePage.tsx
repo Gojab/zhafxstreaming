@@ -5,7 +5,6 @@ import { HeroBillboard } from '../components/HeroBillboard';
 import { MediaRow } from '../components/MediaRow';
 import { HeroSkeleton, MediaRowSkeleton, MediaCardSkeleton } from '../components/Skeleton';
 import { SEOHead } from '../components/SEOHead';
-import { DonationModal } from '../components/DonationModal';
 import { useWatchHistory } from '../hooks/useWatchHistory';
 import { useMyList } from '../hooks/useMyList';
 import {
@@ -267,33 +266,9 @@ export const HomePage: React.FC = () => {
 
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isDonationOpen, setIsDonationOpen] = useState(false);
 
   const { history } = useWatchHistory();
   const { myList } = useMyList();
-
-  // One-time donation pop-up on the home page (Saweria QR)
-  useEffect(() => {
-    const hasSeenDonation = localStorage.getItem('zhafx_saweria_shown');
-    if (!hasSeenDonation) {
-      const timer = setTimeout(() => {
-        setIsDonationOpen(true);
-      }, 1200);
-      return () => clearTimeout(timer);
-    }
-  }, []);
-
-  // Listen for manual trigger to reopen donation popup
-  useEffect(() => {
-    const handleOpenDonation = () => setIsDonationOpen(true);
-    window.addEventListener('open-zhafx-donation', handleOpenDonation);
-    return () => window.removeEventListener('open-zhafx-donation', handleOpenDonation);
-  }, []);
-
-  const handleCloseDonation = () => {
-    setIsDonationOpen(false);
-    localStorage.setItem('zhafx_saweria_shown', 'true');
-  };
 
   const loadData = async (signal?: AbortSignal) => {
     setError(null);
@@ -404,7 +379,7 @@ export const HomePage: React.FC = () => {
         <SEOHead
           title=""
           canonicalPath="/"
-          description="Platform streaming film, serial TV, dan anime modern dengan rekomendasi bertenaga AI."
+          description="ZHAFX Streaming adalah platform nonton anime, film, dan serial TV gratis tanpa iklan, dilengkapi AI cerdas untuk membantu menemukan tontonan favorit dengan mudah, cepat, dan personal."
         />
         <HeroSkeleton />
         <div className="mt-4 sm:mt-10 space-y-7 sm:space-y-9">
@@ -465,7 +440,7 @@ export const HomePage: React.FC = () => {
       <SEOHead
         title=""
         canonicalPath="/"
-        description="Platform streaming film, serial TV, dan anime modern dengan rekomendasi bertenaga AI."
+        description="ZHAFX Streaming adalah platform nonton anime, film, dan serial TV gratis tanpa iklan, dilengkapi AI cerdas untuk membantu menemukan tontonan favorit dengan mudah, cepat, dan personal."
       />
       {/* Hero Billboard Carousel */}
       <HeroBillboard items={heroItems} />
@@ -579,9 +554,6 @@ export const HomePage: React.FC = () => {
         />
       )}
       </div>
-
-      {/* Once-per-visit Saweria QR Donation Popup */}
-      <DonationModal isOpen={isDonationOpen} onClose={handleCloseDonation} />
     </div>
   );
 };

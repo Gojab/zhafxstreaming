@@ -22,7 +22,7 @@ export default defineConfig(() => {
         output: {
           manualChunks: (id) => {
             if (id.includes('node_modules')) {
-              if (id.includes('lucide-react')) {
+              if (id.includes('lucide-react') || id.includes('react-icons')) {
                 return 'vendor-icons';
               }
               if (
@@ -42,8 +42,8 @@ export default defineConfig(() => {
               if (id.includes('hls.js')) {
                 return 'vendor-hls';
               }
-              if (id.includes('motion')) {
-                return 'vendor-motion';
+              if (id.includes('motion') || id.includes('framer-motion') || id.includes('gsap')) {
+                return 'vendor-animation';
               }
               if (
                 id.includes('react-dom') ||

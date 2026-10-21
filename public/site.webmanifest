@@ -1,7 +1,7 @@
 {
-  "name": "Zhafx",
-  "short_name": "Zhafx",
-  "description": "Platform streaming film, serial TV, dan anime modern dengan rekomendasi bertenaga AI.",
+  "name": "ZHAFX Streaming",
+  "short_name": "ZHAFX",
+  "description": "ZHAFX Streaming adalah platform nonton anime, film, dan serial TV gratis tanpa iklan, dilengkapi AI cerdas untuk membantu menemukan tontonan favorit dengan mudah, cepat, dan personal.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#06070B",

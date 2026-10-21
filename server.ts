@@ -647,7 +647,7 @@ app.get('/api/details', async (req: Request, res: Response) => {
   return res.status(502).json({ error: 'Gagal memuat detail tayangan dari FrameX API.' });
 });
 
-// 4. Search endpoint (Film, TV, and Anime)
+// 4. Search endpoint (Film, TV, and Anime) - Smart Multi-Source with Typo Tolerance
 app.get('/api/search', async (req: Request, res: Response) => {
   const q = req.query.q as string;
   const type = req.query.type as string;
@@ -657,18 +657,156 @@ app.get('/api/search', async (req: Request, res: Response) => {
     return res.json({ success: true, results: [], totalPages: 1, totalResults: 0 });
   }
 
-  const upstreamData = await fetchFromFrameXUpstream('/api/search', {
-    q: q.trim(),
-    ...(type ? { type } : {}),
-    page,
-  });
+  const queryClean = q.trim();
 
-  if (upstreamData) {
-    res.setHeader('Cache-Control', 'public, s-maxage=120, stale-while-revalidate=300');
-    return res.status(200).json(upstreamData);
+  // Known typo dictionary for instant resolution
+  const SERVER_TYPO_MAP: Record<string, string> = {
+    avtar: 'avatar',
+    avatr: 'avatar',
+    'demon slyer': 'demon slayer',
+    demonslayer: 'demon slayer',
+    'on peace': 'one piece',
+    onepece: 'one piece',
+    spidrman: 'spider-man',
+    spiderman: 'spider-man',
+    naruo: 'naruto',
+    narutoo: 'naruto',
+    jujutso: 'jujutsu kaisen',
+    'jujutsu kaysen': 'jujutsu kaisen',
+    'attck on titan': 'attack on titan',
+    'atack on titan': 'attack on titan',
+    'solo levelng': 'solo leveling',
+    sololeveling: 'solo leveling',
+    chainsw: 'chainsaw man',
+    chainsaw: 'chainsaw man',
+    interstelar: 'interstellar',
+    intrestellar: 'interstellar',
+    openeimer: 'oppenheimer',
+    oppenhiemer: 'oppenheimer',
+    'drgon ball': 'dragon ball',
+    dragonball: 'dragon ball',
+    'kimetsu no yaiba': 'demon slayer',
+    'shingeki no kyojin': 'attack on titan',
+  };
+
+  async function executeSearch(targetQuery: string): Promise<any[]> {
+    const tasks: Promise<any[]>[] = [];
+
+    // 1. Fetch Movie/TV if requested or general search
+    if (!type || type === 'all' || type === 'movie' || type === 'tv') {
+      tasks.push(
+        (async () => {
+          try {
+            const upstream = await fetchFromFrameXUpstream('/api/search', {
+              q: targetQuery,
+              ...(type && type !== 'all' ? { type } : {}),
+              page,
+            });
+            if (upstream && Array.isArray(upstream.results)) {
+              return upstream.results;
+            }
+          } catch {}
+          return [];
+        })()
+      );
+    } else {
+      tasks.push(Promise.resolve([]));
+    }
+
+    // 2. Fetch Anime if requested or general search
+    if (!type || type === 'all' || type === 'anime') {
+      tasks.push(
+        (async () => {
+          const animeHosts = [
+            'https://api.framextv.tech/anime/api/search',
+            'https://api.framextv.cc/anime/api/search',
+            'https://api.framextv.xyz/anime/api/search',
+          ];
+          for (const host of animeHosts) {
+            try {
+              const res = await fetch(`${host}?q=${encodeURIComponent(targetQuery)}&page=${page}`, {
+                headers: {
+                  'User-Agent':
+                    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+                  Referer: 'https://framextv.tech/',
+                  Accept: 'application/json',
+                },
+                signal: AbortSignal.timeout(5500),
+              });
+              if (res.ok) {
+                const data = await res.json();
+                const items = Array.isArray(data.results) ? data.results : [];
+                return items.map((a: any) => ({
+                  id: String(a.id),
+                  type: 'anime',
+                  title: a.title,
+                  year: String(a.year || '2024'),
+                  poster: a.poster,
+                  backdrop: a.backdrop || a.poster,
+                  rating: a.rating ? String(a.rating) : '8.5',
+                  genres: Array.isArray(a.genres) ? a.genres : ['Anime'],
+                  overview: a.synopsis || a.overview || 'Anime berkualitas tinggi di Zhafx.',
+                  anilistId: a.anilistId || a.id,
+                  status: a.status,
+                }));
+              }
+            } catch {}
+          }
+          return [];
+        })()
+      );
+    } else {
+      tasks.push(Promise.resolve([]));
+    }
+
+    const [movieTvList, animeList] = await Promise.all(tasks);
+
+    // Merge with deduplication
+    const seen = new Set<string>();
+    const combined: any[] = [];
+    const ordered = type === 'anime' ? [...animeList, ...movieTvList] : [...movieTvList, ...animeList];
+
+    for (const item of ordered) {
+      const key = `${item.type || 'movie'}-${item.id}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        if (item.overview) {
+          item.overview = getManualSynopsis(item.overview, item.title);
+        }
+        combined.push(item);
+      }
+    }
+
+    return combined;
   }
 
-  return res.status(502).json({ success: false, error: 'Gagal melakukan pencarian di FrameX.' });
+  try {
+    let results = await executeSearch(queryClean);
+    let didYouMean: string | undefined;
+
+    // Typo recovery fallback
+    const lower = queryClean.toLowerCase();
+    const correctedTerm = SERVER_TYPO_MAP[lower];
+    if (results.length === 0 && correctedTerm) {
+      const recovered = await executeSearch(correctedTerm);
+      if (recovered.length > 0) {
+        results = recovered;
+        didYouMean = correctedTerm.charAt(0).toUpperCase() + correctedTerm.slice(1);
+      }
+    }
+
+    res.setHeader('Cache-Control', 'public, s-maxage=120, stale-while-revalidate=300');
+    return res.status(200).json({
+      success: true,
+      page: parseInt(page, 10),
+      totalPages: Math.max(1, Math.ceil(results.length / 20)),
+      totalResults: results.length,
+      results,
+      didYouMean,
+    });
+  } catch (err: any) {
+    return res.status(502).json({ success: false, error: 'Gagal melakukan pencarian di Zhafx.' });
+  }
 });
 
 // 5. TV Season episodes endpoint
@@ -2165,19 +2303,19 @@ async function startServer() {
       const cleanPath = req.path === '/' ? '/' : req.path.replace(/\/+$/, '');
       const canonicalUrl = `https://zhafxstreaming.web.id${cleanPath === '/' ? '/' : cleanPath}`;
 
-      let pageTitle = 'Zhafx — Platform Streaming Film, Serial TV & Anime';
+      let pageTitle = 'ZHAFX Streaming Nonton Anime, Film & Serial TV Gratis dan Bebas Iklan';
       if (req.path.startsWith('/explore/anime')) {
-        pageTitle = 'Jelajahi Anime — Zhafx';
+        pageTitle = 'Jelajahi Anime — ZHAFX';
       } else if (req.path.startsWith('/explore/tv')) {
-        pageTitle = 'Jelajahi Serial TV — Zhafx';
+        pageTitle = 'Jelajahi Serial TV — ZHAFX';
       } else if (req.path.startsWith('/explore/movie')) {
-        pageTitle = 'Jelajahi Film — Zhafx';
+        pageTitle = 'Jelajahi Film — ZHAFX';
       } else if (req.path.startsWith('/explore')) {
-        pageTitle = 'Jelajahi Katalog Tayangan — Zhafx';
+        pageTitle = 'Jelajahi Katalog Tayangan — ZHAFX';
       } else if (req.path.startsWith('/history')) {
-        pageTitle = 'Riwayat Menonton — Zhafx';
+        pageTitle = 'Riwayat Menonton — ZHAFX';
       } else if (req.path.startsWith('/my-list')) {
-        pageTitle = 'Daftar Tontonan Saya — Zhafx';
+        pageTitle = 'Daftar Tontonan Saya — ZHAFX';
       }
 
       const customizedHtml = cachedHtml

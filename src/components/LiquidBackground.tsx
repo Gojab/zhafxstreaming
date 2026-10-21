@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useActiveMedia } from '../context/ActiveMediaContext';
+import { optimizeTmdbImage } from '../lib/image';
 
 export const LiquidBackground: React.FC = () => {
   const { activePoster } = useActiveMedia();
@@ -9,8 +10,10 @@ export const LiquidBackground: React.FC = () => {
   const [isTabActive, setIsTabActive] = useState<boolean>(() =>
     typeof document !== 'undefined' ? !document.hidden : true
   );
+  const [isScrolling, setIsScrolling] = useState<boolean>(false);
+  const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Pause heavy background animations when browser tab is inactive to eliminate CPU & TBT load
+  // Pause heavy background animations when browser tab is inactive
   useEffect(() => {
     const handleVisibility = () => {
       setIsTabActive(!document.hidden);
@@ -18,6 +21,22 @@ export const LiquidBackground: React.FC = () => {
     document.addEventListener('visibilitychange', handleVisibility, { passive: true });
     return () => document.removeEventListener('visibilitychange', handleVisibility);
   }, []);
+
+  // Pause continuous background blob animations during active scrolling for locked 60/120 FPS
+  useEffect(() => {
+    const handleScroll = () => {
+      if (!isScrolling) setIsScrolling(true);
+      if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+      scrollTimeoutRef.current = setTimeout(() => {
+        setIsScrolling(false);
+      }, 150);
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+    };
+  }, [isScrolling]);
 
   useEffect(() => {
     if (activePoster && activePoster !== currentPoster) {
@@ -28,75 +47,81 @@ export const LiquidBackground: React.FC = () => {
       const timer = setTimeout(() => {
         setIsCrossfading(false);
         setPrevPoster(null);
-      }, 1000);
+      }, 800);
 
       return () => clearTimeout(timer);
     }
   }, [activePoster, currentPoster]);
 
+  const animationPlayState = !isTabActive || isScrolling ? 'paused' : 'running';
+
   const animationStyle = {
-    animationPlayState: isTabActive ? 'running' : 'paused',
-    willChange: 'transform',
+    animationPlayState,
     transform: 'translate3d(0, 0, 0)',
     backfaceVisibility: 'hidden',
+    WebkitBackfaceVisibility: 'hidden',
   } as React.CSSProperties;
+
+  // Use ultra-lightweight w300 thumbnail for blurred background to save 95% bandwidth and decode time
+  const optimizedPrev = prevPoster ? optimizeTmdbImage(prevPoster, 'w300') : null;
+  const optimizedCurrent = currentPoster ? optimizeTmdbImage(currentPoster, 'w300') : '';
 
   return (
     <div
       aria-hidden="true"
-      style={{ contain: 'strict' }}
+      style={{ contain: 'strict', willChange: 'auto' }}
       className="fixed inset-0 pointer-events-none z-0 overflow-hidden bg-[#06070B]"
     >
       {/* Previous poster fading out during crossfade */}
-      {prevPoster && (
+      {optimizedPrev && (
         <div
-          className={`absolute inset-0 transition-opacity duration-1000 ease-out ${
-            isCrossfading ? 'opacity-0' : 'opacity-35'
+          className={`absolute inset-0 transition-opacity duration-700 ease-out ${
+            isCrossfading ? 'opacity-0' : 'opacity-30'
           }`}
-          style={{ willChange: 'opacity' }}
+          style={{ willChange: isCrossfading ? 'opacity' : 'auto' }}
         >
           <img
-            src={prevPoster}
+            src={optimizedPrev}
             alt=""
-            width={1280}
-            height={720}
+            width={300}
+            height={169}
             loading="lazy"
             decoding="async"
-            className="w-full h-full object-cover scale-110 filter blur-[45px] sm:blur-[60px] opacity-80"
+            className="w-full h-full object-cover scale-105 filter blur-[24px] sm:blur-[32px] opacity-75 transform-gpu"
           />
         </div>
       )}
 
       {/* Current active poster */}
       <div
-        className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${
-          isCrossfading ? 'opacity-35' : 'opacity-35'
+        className={`absolute inset-0 transition-opacity duration-700 ease-in-out ${
+          isCrossfading ? 'opacity-30' : 'opacity-30'
         }`}
-        style={{ willChange: 'opacity' }}
+        style={{ willChange: isCrossfading ? 'opacity' : 'auto' }}
       >
         <img
-          src={currentPoster}
+          src={optimizedCurrent}
           alt=""
-          width={1280}
-          height={720}
+          width={300}
+          height={169}
           loading="lazy"
           decoding="async"
-          className="w-full h-full object-cover scale-110 filter blur-[45px] sm:blur-[60px] opacity-80"
+          className="w-full h-full object-cover scale-105 filter blur-[24px] sm:blur-[32px] opacity-75 transform-gpu"
         />
       </div>
 
-      {/* 3 Lightweight Hardware-Accelerated Ambient Glass Blobs */}
+      {/* Hardware-Accelerated Ambient Glass Blobs (hidden on small mobile to preserve battery & high FPS) */}
       <div
         style={animationStyle}
-        className="absolute -top-28 -left-28 w-[420px] h-[420px] rounded-full bg-radial from-white/[0.05] via-white/[0.02] to-transparent filter blur-[40px] animate-blob-1"
+        className="hidden md:block absolute -top-28 -left-28 w-[380px] h-[380px] rounded-full bg-radial from-white/[0.04] via-white/[0.015] to-transparent blur-md animate-blob-1 transform-gpu"
       />
       <div
         style={animationStyle}
-        className="absolute top-1/3 -right-32 w-[480px] h-[480px] rounded-full bg-radial from-white/[0.04] via-white/[0.015] to-transparent filter blur-[50px] animate-blob-2"
+        className="hidden md:block absolute top-1/3 -right-32 w-[420px] h-[420px] rounded-full bg-radial from-white/[0.035] via-white/[0.01] to-transparent blur-md animate-blob-2 transform-gpu"
       />
       <div
         style={animationStyle}
-        className="absolute -bottom-28 left-1/4 w-[400px] h-[400px] rounded-full bg-radial from-white/[0.035] via-white/[0.01] to-transparent filter blur-[40px] animate-blob-3"
+        className="hidden md:block absolute -bottom-28 left-1/4 w-[360px] h-[360px] rounded-full bg-radial from-white/[0.03] via-white/[0.008] to-transparent blur-md animate-blob-3 transform-gpu"
       />
 
       {/* Soft dark radial & vertical gradient for perfect typography legibility */}

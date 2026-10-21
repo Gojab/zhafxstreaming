@@ -67,11 +67,12 @@ export const HeroBillboard: React.FC<HeroBillboardProps> = ({ items }) => {
     setCurrentIndex((prev) => (prev - 1 + validItems.length) % validItems.length);
   }, [validItems.length]);
 
-  // Autoplay crossfade every 8 seconds
+  // Autoplay crossfade every 8 seconds (paused when tab is hidden or user interacts)
   useEffect(() => {
     if (validItems.length <= 1 || isPaused || prefersReducedMotion) return;
 
     const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return;
       handleNext();
     }, 8000);
 

@@ -10,9 +10,9 @@ interface SEOHeadProps {
 }
 
 const BASE_CANONICAL_DOMAIN = 'https://zhafxstreaming.web.id';
-const DEFAULT_TITLE = 'Zhafx — Platform Streaming Film, Serial TV & Anime';
+const DEFAULT_TITLE = 'ZHAFX Streaming Nonton Anime, Film & Serial TV Gratis dan Bebas Iklan';
 const DEFAULT_DESC =
-  'Nonton ribuan film, serial TV, dan anime terbaru di Zhafx dengan kualitas sinematik, streaming cepat tanpa hambatan, dan rekomendasi cerdas bertenaga AI.';
+  'ZHAFX Streaming adalah platform nonton anime, film, dan serial TV gratis tanpa iklan, dilengkapi AI cerdas untuk membantu menemukan tontonan favorit dengan mudah, cepat, dan personal.';
 const DEFAULT_IMAGE = 'https://zhafxstreaming.web.id/logo.png';
 
 export const SEOHead: React.FC<SEOHeadProps> = ({
@@ -25,7 +25,7 @@ export const SEOHead: React.FC<SEOHeadProps> = ({
   const location = useLocation();
 
   useEffect(() => {
-    const finalTitle = title ? `${title} — Zhafx` : DEFAULT_TITLE;
+    const finalTitle = title ? `${title} — ZHAFX` : DEFAULT_TITLE;
     document.title = finalTitle;
 
     // Resolve pure canonical path without query strings or hashes
@@ -58,6 +58,7 @@ export const SEOHead: React.FC<SEOHeadProps> = ({
     setMeta('meta[name="description"]', 'content', description);
 
     // Update Open Graph
+    setMeta('meta[property="og:site_name"]', 'content', 'ZHAFX Streaming');
     setMeta('meta[property="og:title"]', 'content', finalTitle);
     setMeta('meta[property="og:description"]', 'content', description);
     setMeta('meta[property="og:url"]', 'content', canonicalUrl);

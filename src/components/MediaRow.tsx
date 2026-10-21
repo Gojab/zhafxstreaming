@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useMemo } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Title } from '../types';
@@ -12,7 +12,7 @@ interface MediaRowProps {
   subtitle?: string;
 }
 
-export const MediaRow: React.FC<MediaRowProps> = ({
+export const MediaRow: React.FC<MediaRowProps> = React.memo(({
   title,
   items,
   viewAllLink,
@@ -41,16 +41,25 @@ export const MediaRow: React.FC<MediaRowProps> = ({
     }
   };
 
-  if (!items || items.length === 0) return null;
+  const uniqueItems = useMemo(() => {
+    if (!items || items.length === 0) return [];
+    return items.filter((item, index, self) =>
+      index === self.findIndex((t) => t.id === item.id && t.type === item.type)
+    );
+  }, [items]);
 
-  const uniqueItems = items.filter((item, index, self) =>
-    index === self.findIndex((t) => t.id === item.id && t.type === item.type)
-  );
+  if (uniqueItems.length === 0) return null;
 
   const displayedItems = uniqueItems.slice(0, visibleCount);
 
   return (
-    <section className="relative space-y-3 sm:space-y-4 group/row">
+    <section
+      className="relative space-y-3 sm:space-y-4 group/row"
+      style={{
+        contentVisibility: 'auto',
+        containIntrinsicSize: '300px',
+      }}
+    >
       {/* Row Header - Apple SF Pro Typography */}
       <div className="flex items-end justify-between px-4 sm:px-6 md:px-8">
         <div className="space-y-0.5 sm:space-y-1">
@@ -92,8 +101,13 @@ export const MediaRow: React.FC<MediaRowProps> = ({
           tabIndex={0}
           onScroll={handleContainerScroll}
           aria-label={`Daftar tayangan ${title}`}
-          className="flex gap-3 sm:gap-5 overflow-x-auto px-4 sm:px-6 md:px-8 pb-3.5 sm:pb-5 pt-2.5 sm:pt-3 scroll-smooth snap-x snap-mandatory scrollbar-none focus:outline-none"
-          style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+          className="flex gap-3 sm:gap-5 overflow-x-auto px-4 sm:px-6 md:px-8 pb-3.5 sm:pb-5 pt-2.5 sm:pt-3 snap-x snap-mandatory scrollbar-none focus:outline-none"
+          style={{
+            scrollbarWidth: 'none',
+            msOverflowStyle: 'none',
+            WebkitOverflowScrolling: 'touch',
+            overscrollBehaviorX: 'contain',
+          }}
         >
           {displayedItems.map((item) => (
             <div
@@ -119,4 +133,5 @@ export const MediaRow: React.FC<MediaRowProps> = ({
       </div>
     </section>
   );
-};
+});
+MediaRow.displayName = 'MediaRow';
