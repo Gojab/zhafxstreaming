@@ -15,7 +15,6 @@ import {
   Sparkles,
   Volume2,
   VolumeX,
-  ShieldCheck,
   Film,
   Tv,
   Play,
@@ -363,11 +362,19 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
     return Hls;
   };
 
-  // Anti-popup guard
+  // Anti-popup & scroll-jump guard
   useEffect(() => {
     const originalOpen = window.open;
+    let popupTimer: any = null;
+
     window.open = function (...args: any[]) {
       console.warn('[Zhafx Player] Blocked popup / new tab ad attempt:', args);
+      // Freeze scrolling and prevent touch gesture displacement
+      document.body.classList.add('has-popup');
+      clearTimeout(popupTimer);
+      popupTimer = setTimeout(() => {
+        document.body.classList.remove('has-popup');
+      }, 1500);
       return null;
     };
 
@@ -381,6 +388,8 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
           e.preventDefault();
           e.stopPropagation();
           console.warn('[Zhafx Player] Blocked rogue ad anchor redirection:', href);
+          document.body.classList.add('has-popup');
+          setTimeout(() => document.body.classList.remove('has-popup'), 1500);
         }
       }
     };
@@ -389,6 +398,8 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
 
     return () => {
       window.open = originalOpen;
+      clearTimeout(popupTimer);
+      document.body.classList.remove('has-popup');
       window.removeEventListener('click', handleGlobalClick, true);
       window.removeEventListener('auxclick', handleGlobalClick, true);
     };
@@ -670,8 +681,21 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
     const video = videoRef.current as any;
     if (!video) return;
 
-    const onBegin = () => setIsFullscreen(true);
-    const onEnd = () => setIsFullscreen(false);
+    const onBegin = () => {
+      setIsFullscreen(true);
+      document.body.classList.add('player-fullscreen');
+      document.documentElement.classList.add('player-fullscreen');
+    };
+    const onEnd = () => {
+      setIsFullscreen(false);
+      document.body.classList.remove('player-fullscreen');
+      document.documentElement.classList.remove('player-fullscreen');
+      document.body.style.overflow = '';
+      document.body.style.position = '';
+      document.body.style.width = '';
+      document.body.style.height = '';
+      document.body.style.touchAction = '';
+    };
 
     video.addEventListener('webkitbeginfullscreen', onBegin);
     video.addEventListener('webkitendfullscreen', onEnd);
@@ -680,7 +704,20 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
       video.removeEventListener('webkitbeginfullscreen', onBegin);
       video.removeEventListener('webkitendfullscreen', onEnd);
     };
-  }, [mediaType, playerMode]);
+  }, [mediaType, playerMode, streamData]);
+
+  // Clean up global fullscreen lock on unmount
+  useEffect(() => {
+    return () => {
+      document.body.classList.remove('player-fullscreen');
+      document.documentElement.classList.remove('player-fullscreen');
+      document.body.style.overflow = '';
+      document.body.style.position = '';
+      document.body.style.width = '';
+      document.body.style.height = '';
+      document.body.style.touchAction = '';
+    };
+  }, []);
 
   // Iframe loading management
   useEffect(() => {
@@ -856,10 +893,14 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
     const el = playerContainerRef.current as any;
     const video = videoRef.current as any;
 
-    // 1. On iOS iPhone Safari in native direct video mode, invoke native webkitEnterFullscreen!
-    if (mediaType === 'anime' && playerMode === 'direct' && video?.webkitEnterFullscreen) {
+    // 1. If HTML5 video is available on iOS (iPhone / iPad), invoke native Apple QuickTime Fullscreen!
+    const targetVideo = video || el?.querySelector?.('video');
+    if (targetVideo && typeof targetVideo.webkitEnterFullscreen === 'function') {
       try {
-        video.webkitEnterFullscreen();
+        targetVideo.webkitEnterFullscreen();
+        setIsFullscreen(true);
+        document.body.classList.add('player-fullscreen');
+        document.documentElement.classList.add('player-fullscreen');
         return;
       } catch (err) {
         console.warn('[iOS webkitEnterFullscreen]:', err);
@@ -869,11 +910,25 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
     // 2. Standard HTML5 or responsive CSS fullscreen
     if (!isFullscreen) {
       setIsFullscreen(true);
+      document.body.classList.add('player-fullscreen');
+      document.documentElement.classList.add('player-fullscreen');
       document.body.style.overflow = 'hidden';
       document.body.style.position = 'fixed';
       document.body.style.width = '100%';
+      document.body.style.height = '100%';
       document.body.style.touchAction = 'none';
 
+      // On iOS Safari, immediately scroll to (0,0) to retract URL/toolbar
+      window.scrollTo(0, 0);
+
+      // Attempt screen orientation lock to landscape on mobile devices
+      try {
+        if (screen.orientation && typeof (screen.orientation as any).lock === 'function') {
+          (screen.orientation as any).lock('landscape').catch(() => {});
+        }
+      } catch {}
+
+      // Attempt native HTML5 element requestFullscreen (iPad, desktop, Android)
       try {
         if (el?.requestFullscreen) {
           await el.requestFullscreen();
@@ -885,13 +940,31 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
       } catch (err) {
         console.warn('[Fullscreen fallback]:', err);
       }
+
+      // Signal iframe embedded player if present
+      try {
+        const iframe = el?.querySelector?.('iframe');
+        if (iframe?.contentWindow) {
+          iframe.contentWindow.postMessage({ type: 'fullscreen', action: 'fullscreen', value: true }, '*');
+          iframe.contentWindow.postMessage('fullscreen', '*');
+        }
+      } catch {}
     } else {
       isNativeFsActive.current = false;
       setIsFullscreen(false);
+      document.body.classList.remove('player-fullscreen');
+      document.documentElement.classList.remove('player-fullscreen');
       document.body.style.overflow = '';
       document.body.style.position = '';
       document.body.style.width = '';
+      document.body.style.height = '';
       document.body.style.touchAction = '';
+
+      try {
+        if (screen.orientation && typeof (screen.orientation as any).unlock === 'function') {
+          (screen.orientation as any).unlock();
+        }
+      } catch {}
 
       try {
         if (document.fullscreenElement || (document as any).webkitFullscreenElement) {
@@ -939,7 +1012,7 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
   };
 
   return (
-    <div className="min-h-screen bg-[#06070B] text-white flex flex-col relative pb-[max(5rem,calc(env(safe-area-inset-bottom)+4.5rem))]">
+    <div className={`min-h-screen bg-[#06070B] text-white flex flex-col relative ${isFullscreen ? 'p-0 m-0 overflow-hidden bg-black' : 'pb-[max(5rem,calc(env(safe-area-inset-bottom)+4.5rem))]'}`}>
       {/* Dynamic SEO Meta */}
       {title && (
         <SEOHead
@@ -951,116 +1024,110 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
       )}
 
       {/* Breadcrumb & Top Bar Above Player with iOS Notch/Island safe area padding */}
-      <div className="w-full max-w-5xl mx-auto px-3 sm:px-6 pt-[max(5.5rem,calc(env(safe-area-inset-top)+4.5rem))] pb-3 flex items-center justify-between gap-3 text-xs text-white/70">
-        <div className="flex items-center gap-2 min-w-0">
-          <button
-            onClick={() => {
-              if (window.history.length > 1) {
-                navigate(-1);
-              } else {
-                navigate(`/detail/${mediaType}/${id}`);
-              }
-            }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/15 text-white font-medium cursor-pointer transition-all active:scale-95 shrink-0"
-            title="Kembali"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Kembali</span>
-          </button>
-
-          <span className="text-white/30 hidden sm:inline">/</span>
-
-          <span
-            className="truncate text-white/60 hover:text-white cursor-pointer hidden sm:inline"
-            onClick={() => navigate('/explore')}
-          >
-            {mediaType === 'movie' ? 'Film' : mediaType === 'tv' ? 'Serial TV' : 'Anime'}
-          </span>
-
-          <span className="text-white/30 hidden sm:inline">/</span>
-
-          <span className="truncate text-white font-semibold">
-            {title?.title || 'Memuat Pemutar...'}
-          </span>
-
-          {(mediaType === 'tv' || mediaType === 'anime') && (
-            <span className="px-2 py-0.5 rounded-full bg-white/10 text-[10px] font-bold text-white shrink-0">
-              {mediaType === 'tv' ? `S${seasonNum} E${episodeNum}` : `Ep ${episodeNum}`}
-            </span>
-          )}
-        </div>
-
-        {/* Right Top Actions */}
-        <div className="flex items-center gap-2 shrink-0">
-          {title && (
+      {!isFullscreen && (
+        <div className="w-full max-w-5xl mx-auto px-3 sm:px-6 pt-[max(5.5rem,calc(env(safe-area-inset-top)+4.5rem))] pb-3 flex items-center justify-between gap-3 text-xs text-white/70">
+          <div className="flex items-center gap-2 min-w-0">
             <button
-              onClick={() =>
-                toggle({
-                  id: title.id,
-                  type: title.type,
-                  title: title.title,
-                  poster: title.poster,
-                  year: title.year,
-                  rating: title.rating,
-                })
-              }
-              className={`p-2 rounded-full bg-white/10 hover:bg-white/15 cursor-pointer transition-all ${
-                isSaved(title.id) ? 'text-[#FFB224]' : 'text-white/80'
-              }`}
-              title={isSaved(title.id) ? 'Hapus dari Daftar Saya' : 'Simpan ke Daftar Saya'}
+              onClick={() => {
+                if (window.history.length > 1) {
+                  navigate(-1);
+                } else {
+                  navigate(`/detail/${mediaType}/${id}`);
+                }
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/15 text-white font-medium cursor-pointer transition-all active:scale-95 shrink-0"
+              title="Kembali"
             >
-              {isSaved(title.id) ? <BookmarkCheck className="w-3.5 h-3.5" /> : <Bookmark className="w-3.5 h-3.5" />}
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Kembali</span>
             </button>
-          )}
 
-          <button
-            onClick={handleShare}
-            className="p-2 rounded-full bg-white/10 hover:bg-white/15 text-white/80 hover:text-white cursor-pointer transition-all relative"
-            title="Bagikan Tayangan"
-          >
-            <Share2 className="w-3.5 h-3.5" />
-            {showShareToast && (
-              <span className="absolute -bottom-8 right-0 bg-[#FFB224] text-black text-[10px] font-bold px-2 py-0.5 rounded-md whitespace-nowrap shadow-lg">
-                Tautan disalin!
+            <span className="text-white/30 hidden sm:inline">/</span>
+
+            <span
+              className="truncate text-white/60 hover:text-white cursor-pointer hidden sm:inline"
+              onClick={() => navigate('/explore')}
+            >
+              {mediaType === 'movie' ? 'Film' : mediaType === 'tv' ? 'Serial TV' : 'Anime'}
+            </span>
+
+            <span className="text-white/30 hidden sm:inline">/</span>
+
+            <span className="truncate text-white font-semibold">
+              {title?.title || 'Memuat Pemutar...'}
+            </span>
+
+            {(mediaType === 'tv' || mediaType === 'anime') && (
+              <span className="px-2 py-0.5 rounded-full bg-white/10 text-[10px] font-bold text-white shrink-0">
+                {mediaType === 'tv' ? `S${seasonNum} E${episodeNum}` : `Ep ${episodeNum}`}
               </span>
             )}
-          </button>
+          </div>
 
-          {title && onOpenAIWithContext && (
+          {/* Right Top Actions */}
+          <div className="flex items-center gap-2 shrink-0">
+            {title && (
+              <button
+                onClick={() =>
+                  toggle({
+                    id: title.id,
+                    type: title.type,
+                    title: title.title,
+                    poster: title.poster,
+                    year: title.year,
+                    rating: title.rating,
+                  })
+                }
+                className={`p-2 rounded-full bg-white/10 hover:bg-white/15 cursor-pointer transition-all ${
+                  isSaved(title.id) ? 'text-[#FFB224]' : 'text-white/80'
+                }`}
+                title={isSaved(title.id) ? 'Hapus dari Daftar Saya' : 'Simpan ke Daftar Saya'}
+              >
+                {isSaved(title.id) ? <BookmarkCheck className="w-3.5 h-3.5" /> : <Bookmark className="w-3.5 h-3.5" />}
+              </button>
+            )}
+
             <button
-              onClick={() => onOpenAIWithContext(title)}
-              className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/10 text-white font-semibold text-xs hover:bg-white/15 cursor-pointer transition-all"
+              onClick={handleShare}
+              className="p-2 rounded-full bg-white/10 hover:bg-white/15 text-white/80 hover:text-white cursor-pointer transition-all relative"
+              title="Bagikan Tayangan"
             >
-              <Sparkles className="w-3 h-3 text-[#FFB224]" />
-              <span>Tanya AI</span>
+              <Share2 className="w-3.5 h-3.5" />
+              {showShareToast && (
+                <span className="absolute -bottom-8 right-0 bg-[#FFB224] text-black text-[10px] font-bold px-2 py-0.5 rounded-md whitespace-nowrap shadow-lg">
+                  Tautan disalin!
+                </span>
+              )}
             </button>
-          )}
 
-          <button
-            type="button"
-            onClick={toggleFullscreen}
-            aria-label={isFullscreen ? 'Keluar dari Layar Penuh' : 'Buka Layar Penuh'}
-            className="flex items-center justify-center gap-1.5 px-3 py-2 min-h-[44px] min-w-[44px] rounded-full bg-white/10 hover:bg-white/20 text-white font-medium text-xs cursor-pointer transition-all active:scale-95 border border-white/15 shadow-sm shrink-0"
-            title={isFullscreen ? 'Keluar Layar Penuh' : 'Layar Penuh (F)'}
-          >
-            {isFullscreen ? <Minimize className="w-4 h-4 text-white" /> : <Maximize className="w-4 h-4 text-white" />}
-            <span className="hidden sm:inline">{isFullscreen ? 'Keluar' : 'Layar Penuh'}</span>
-          </button>
+            {title && onOpenAIWithContext && (
+              <button
+                onClick={() => onOpenAIWithContext(title)}
+                className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/10 text-white font-semibold text-xs hover:bg-white/15 cursor-pointer transition-all"
+              >
+                <Sparkles className="w-3 h-3 text-[#FFB224]" />
+                <span>Tanya AI</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={toggleFullscreen}
+              aria-label={isFullscreen ? 'Keluar dari Layar Penuh' : 'Buka Layar Penuh'}
+              className="flex items-center justify-center gap-1.5 px-3 py-2 min-h-[44px] min-w-[44px] rounded-full bg-white/10 hover:bg-white/20 text-white font-medium text-xs cursor-pointer transition-all active:scale-95 border border-white/15 shadow-sm shrink-0"
+              title={isFullscreen ? 'Keluar Layar Penuh' : 'Layar Penuh (F)'}
+            >
+              {isFullscreen ? <Minimize className="w-4 h-4 text-white" /> : <Maximize className="w-4 h-4 text-white" />}
+              <span className="hidden sm:inline">{isFullscreen ? 'Keluar' : 'Layar Penuh'}</span>
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* =========================================================================
-          THE PLAYER CONTAINER ("Kotak Sudut Tumpul", Tidak Langsung Fullscreen)
+          THE PLAYER CONTAINER
           ========================================================================= */}
-      <div className="w-full max-w-5xl mx-auto px-3 sm:px-6 mt-1 sm:mt-2 relative">
-        {/* Soft Ambient Glow Behind the Player Box */}
-        {title?.backdrop && !isFullscreen && (
-          <div
-            className="absolute -inset-4 sm:-inset-6 bg-cover bg-center rounded-[36px] blur-3xl opacity-20 -z-10 pointer-events-none transition-all duration-700"
-            style={{ backgroundImage: `url(${title.backdrop})` }}
-          />
-        )}
-
+      <div className={isFullscreen ? 'fixed inset-0 z-[2147483647] w-full h-full p-0 m-0 bg-black flex items-center justify-center' : 'w-full max-w-5xl mx-auto px-3 sm:px-6 mt-1 sm:mt-2 relative'}>
         {/* Failover Toast Notice */}
         {failoverNotice && (
           <div className="absolute top-4 left-1/2 -translate-x-1/2 z-40 px-4 py-1.5 rounded-full bg-zinc-900/90 border border-amber-500/40 text-amber-300 text-xs font-semibold flex items-center gap-2 shadow-2xl backdrop-blur-md pointer-events-none animate-fade-in">
@@ -1071,14 +1138,33 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
 
         {/* Video Box with Rounded Corners (Kotak Sudut Tumpul, 16:9 Aspect Video) */}
         <div
+          id="player-container"
           ref={playerContainerRef}
           onMouseMove={resetControlsTimeout}
           onTouchStart={resetControlsTimeout}
-          className={`bg-black transition-all duration-300 ${
+          onDragStart={(e) => e.preventDefault()}
+          className={`transition-all duration-300 select-none overflow-hidden bg-black ${
             isFullscreen
-              ? 'fixed inset-0 z-[999999] w-full h-[100dvh] m-0 p-0 rounded-none border-0 bg-black flex items-center justify-center'
-              : 'relative w-full aspect-video rounded-2xl sm:rounded-3xl overflow-hidden border border-white/10 sm:border-white/15 shadow-[0_20px_50px_rgba(0,0,0,0.85)]'
+              ? 'fixed inset-0 z-[2147483647] w-screen h-screen h-[100dvh] m-0 p-0 rounded-none border-0 bg-black flex items-center justify-center touch-none overscroll-none'
+              : 'relative w-full aspect-video rounded-2xl sm:rounded-3xl border border-white/10 sm:border-white/15 bg-black shadow-[0_20px_50px_rgba(0,0,0,0.95)] overscroll-none'
           }`}
+          style={{
+            touchAction: isFullscreen ? 'none' : 'pan-y',
+            userSelect: 'none',
+            WebkitUserSelect: 'none',
+            ...(isFullscreen
+              ? {
+                  position: 'fixed',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  width: '100vw',
+                  height: '100dvh',
+                  zIndex: 2147483647,
+                }
+              : {}),
+          }}
         >
           {isPlayable ? (
             mediaType === 'anime' && playerMode === 'direct' ? (
@@ -1088,7 +1174,8 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
               <div className="relative w-full h-full bg-black select-none overflow-hidden group">
                 <video
                   ref={videoRef}
-                  className="w-full h-full object-contain bg-black cursor-pointer"
+                  className="w-full h-full object-contain bg-black cursor-pointer pointer-events-auto select-none"
+                  onDragStart={(e) => e.preventDefault()}
                   playsInline
                   // @ts-ignore
                   webkit-playsinline="true"
@@ -1336,6 +1423,7 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
                 width="100%"
                 height="100%"
                 frameBorder="0"
+                scrolling="no"
                 allowFullScreen={true}
                 // @ts-ignore
                 webkitallowfullscreen="true"
@@ -1347,7 +1435,11 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
                 title={title?.title || 'Zhafx Stream Player'}
                 onLoad={handleIframeLoad}
                 className="w-full h-full border-0 absolute inset-0 z-10 bg-black"
-                style={{ WebkitOverflowScrolling: 'touch' }}
+                style={{
+                  touchAction: 'none',
+                  overscrollBehavior: 'none',
+                  pointerEvents: 'auto',
+                }}
               />
             )
           ) : (
@@ -1393,7 +1485,7 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
 
           {/* Fullscreen Close / Exit Button with Safe Area Padding */}
           {isFullscreen && (
-            <div className="absolute top-[max(1rem,env(safe-area-inset-top))] right-[max(1rem,env(safe-area-inset-right))] z-50 pointer-events-auto">
+            <div className="fixed top-[max(0.75rem,env(safe-area-inset-top))] right-[max(0.75rem,env(safe-area-inset-right))] z-[2147483647] pointer-events-auto">
               <button
                 type="button"
                 onClick={toggleFullscreen}
@@ -1411,7 +1503,8 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
       {/* =========================================================================
           KETERANGAN DI BAWAH PLAYER (SEPERTI PADA FRAMEXTV)
           ========================================================================= */}
-      <div className="w-full max-w-5xl mx-auto px-3 sm:px-6 pt-4 space-y-4">
+      {!isFullscreen && (
+        <div className="w-full max-w-5xl mx-auto px-3 sm:px-6 pt-4 space-y-4">
         {/* 1. Server Tip Banner (FrameX Style) */}
         {!isTipDismissed && (
           <aside className="px-3.5 py-2.5 rounded-xl bg-zinc-900/90 border border-amber-500/25 backdrop-blur-md shadow-lg flex items-center justify-between gap-2.5 text-xs text-zinc-300 animate-in fade-in">
@@ -1519,27 +1612,6 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
                   {title?.rating || '8.5'}
                 </span>
 
-                {mediaType === 'movie' && (
-                  <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-[#FFB224] font-bold text-[10px] border border-amber-500/30">
-                    FILM 4K
-                  </span>
-                )}
-                {mediaType === 'tv' && (
-                  <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-bold text-[10px] border border-emerald-500/30">
-                    SERIAL TV HD
-                  </span>
-                )}
-                {mediaType === 'anime' && (
-                  <span className="px-2.5 py-0.5 rounded-full bg-violet-500/20 text-violet-300 font-bold text-[10px] border border-violet-500/30">
-                    ANIME HD
-                  </span>
-                )}
-
-                <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-semibold text-[10px] flex items-center gap-1">
-                  <ShieldCheck className="w-3 h-3 text-emerald-400" />
-                  100% Bebas Sandbox
-                </span>
-
                 {title?.genres && title.genres.length > 0 && (
                   <>
                     <span className="text-white/30 hidden sm:inline">•</span>
@@ -1616,7 +1688,7 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-bold text-white flex items-center gap-1.5">
                 <Server className="w-3.5 h-3.5 text-[#FFB224]" />
-                Pilihan Server Streaming (FrameX TV Engine):
+                Pilihan Server
               </span>
 
               {/* Anime Player Mode & Sub/Dub Selector */}
@@ -1929,6 +2001,7 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
           </div>
         )}
       </div>
+      )}
     </div>
   );
 };

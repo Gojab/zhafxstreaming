@@ -66,7 +66,7 @@ export const MediaRow: React.FC<MediaRowProps> = ({
           <Link
             to={viewAllLink}
             aria-label={`Lihat semua ${title}`}
-            className="text-xs font-semibold text-white/90 hover:text-white inline-flex items-center gap-1.5 transition-all py-1.5 sm:py-2 px-3 sm:px-3.5 min-h-[38px] sm:min-h-[44px] min-w-[38px] sm:min-w-[44px] rounded-full bg-white/[0.06] hover:bg-white/[0.14] border border-white/15 ios-spring"
+            className="text-xs font-semibold text-white/90 hover:text-white inline-flex items-center gap-1.5 transition-all duration-200 py-1.5 sm:py-2 px-3 sm:px-3.5 min-h-[38px] sm:min-h-[44px] min-w-[38px] sm:min-w-[44px] rounded-full bg-white/[0.06] hover:bg-white/[0.15] hover:border-white/30 border border-white/15 ios-spring active:scale-95"
           >
             <span>Lihat semua</span>
             <ChevronRight className="w-3.5 h-3.5" />
@@ -81,7 +81,7 @@ export const MediaRow: React.FC<MediaRowProps> = ({
           type="button"
           onClick={() => handleScroll('left')}
           aria-label={`Geser ${title} ke kiri`}
-          className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 z-30 w-11 h-11 min-w-[44px] min-h-[44px] rounded-full liquid-glass liquid-specular text-white flex items-center justify-center opacity-0 group-hover/row:opacity-100 transition-all duration-200 cursor-pointer hidden md:flex ios-spring shadow-xl"
+          className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 z-30 w-11 h-11 min-w-[44px] min-h-[44px] rounded-full liquid-glass liquid-specular text-white flex items-center justify-center opacity-0 group-hover/row:opacity-100 hover:bg-white/25 hover:border-white/30 hover:scale-105 active:scale-95 transition-all duration-300 cursor-pointer hidden md:flex ios-spring shadow-xl"
         >
           <ChevronLeft className="w-5 h-5" />
         </button>
@@ -92,7 +92,7 @@ export const MediaRow: React.FC<MediaRowProps> = ({
           tabIndex={0}
           onScroll={handleContainerScroll}
           aria-label={`Daftar tayangan ${title}`}
-          className="flex gap-3 sm:gap-5 overflow-x-auto px-4 sm:px-6 md:px-8 pb-3 sm:pb-4 pt-1 scroll-smooth snap-x snap-mandatory scrollbar-none focus:outline-none"
+          className="flex gap-3 sm:gap-5 overflow-x-auto px-4 sm:px-6 md:px-8 pb-3.5 sm:pb-5 pt-2.5 sm:pt-3 scroll-smooth snap-x snap-mandatory scrollbar-none focus:outline-none"
           style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
         >
           {displayedItems.map((item) => (
@@ -112,7 +112,7 @@ export const MediaRow: React.FC<MediaRowProps> = ({
           type="button"
           onClick={() => handleScroll('right')}
           aria-label={`Geser ${title} ke kanan`}
-          className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 z-30 w-11 h-11 min-w-[44px] min-h-[44px] rounded-full liquid-glass liquid-specular text-white flex items-center justify-center opacity-0 group-hover/row:opacity-100 transition-all duration-200 cursor-pointer hidden md:flex ios-spring shadow-xl"
+          className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 z-30 w-11 h-11 min-w-[44px] min-h-[44px] rounded-full liquid-glass liquid-specular text-white flex items-center justify-center opacity-0 group-hover/row:opacity-100 hover:bg-white/25 hover:border-white/30 hover:scale-105 active:scale-95 transition-all duration-300 cursor-pointer hidden md:flex ios-spring shadow-xl"
         >
           <ChevronRight className="w-5 h-5" />
         </button>

@@ -249,3 +249,59 @@
     animation: none !important;
   }
 }
+
+/* ==========================================================
+   Apple iOS & Mobile Fullscreen Mode
+   ========================================================== */
+html.player-fullscreen,
+body.player-fullscreen {
+  overflow: hidden !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  height: 100dvh !important;
+  position: fixed !important;
+  inset: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  background-color: #000000 !important;
+  touch-action: none !important;
+  -webkit-overflow-scrolling: auto !important;
+}
+
+body.player-fullscreen nav,
+body.player-fullscreen header:not(#player-container *),
+body.player-fullscreen footer,
+body.player-fullscreen .liquid-bg,
+body.player-fullscreen [data-bottom-nav] {
+  display: none !important;
+  pointer-events: none !important;
+}
+
+/* ==========================================================
+   Global Modal & Pop-up Gesture/Scroll Freeze Lock
+   When any modal or popup appears, freeze background scrolling and gestures completely
+   ========================================================== */
+html:has([role="dialog"]),
+html:has([aria-modal="true"]),
+html:has(.has-popup),
+html.modal-open,
+body:has([role="dialog"]),
+body:has([aria-modal="true"]),
+body:has(.has-popup),
+body.modal-open {
+  overflow: hidden !important;
+  touch-action: none !important;
+  overscroll-behavior: none !important;
+  -webkit-overflow-scrolling: auto !important;
+}
+
+body:has([role="dialog"]) #player-container,
+body:has([aria-modal="true"]) #player-container,
+body:has(.has-popup) #player-container,
+body.modal-open #player-container {
+  touch-action: none !important;
+  pointer-events: none !important;
+  overscroll-behavior: none !important;
+  user-select: none !important;
+}
+

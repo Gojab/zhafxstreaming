@@ -43,15 +43,28 @@ export const QuickFeaturesModal: React.FC<QuickFeaturesModalProps> = ({
     return () => window.removeEventListener('zhafx_auth_change', handleAuthChange);
   }, []);
 
-  // Close on Escape
+  // Close on Escape & freeze background scroll
   useEffect(() => {
+    if (!isOpen) return;
+
+    const prevOverflow = document.body.style.overflow;
+    const prevTouchAction = document.body.style.touchAction;
+    document.body.style.overflow = 'hidden';
+    document.body.style.touchAction = 'none';
+    document.body.classList.add('modal-open');
+
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) {
+      if (e.key === 'Escape') {
         onClose();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = prevOverflow;
+      document.body.style.touchAction = prevTouchAction;
+      document.body.classList.remove('modal-open');
+    };
   }, [isOpen, onClose]);
 
   if (!isOpen) return null;
@@ -78,7 +91,12 @@ export const QuickFeaturesModal: React.FC<QuickFeaturesModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 animate-in fade-in duration-200">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Pusat Fitur Zhafx"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 animate-in fade-in duration-200"
+    >
       {/* Blurred Backdrop */}
       <div
         className="fixed inset-0 bg-black/75 backdrop-blur-xl transition-opacity"
