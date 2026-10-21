@@ -23,8 +23,24 @@
     font-family: var(--font-ios);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
     overflow-x: hidden;
     letter-spacing: -0.015em;
+    min-height: 100dvh;
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+
+  button, a, [role="button"], input, select, textarea {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* iOS video element optimization */
+  video {
+    -webkit-transform: translateZ(0);
+    transform: translateZ(0);
   }
 
   h1, h2, h3, h4, .font-heading {

@@ -14,10 +14,12 @@ import {
   Share2,
   Sparkles,
   Volume2,
+  VolumeX,
   ShieldCheck,
   Film,
   Tv,
   Play,
+  Pause,
   Info,
   AlertTriangle,
   ChevronDown,
@@ -26,9 +28,13 @@ import {
   Layers,
   ListOrdered,
   X,
+  FastForward,
+  Rewind,
+  Subtitles,
+  Zap,
 } from 'lucide-react';
 import { api } from '../services/api';
-import { Title, MediaType, Episode } from '../types';
+import { Title, MediaType, Episode, StreamData } from '../types';
 import { storage } from '../lib/storage';
 import { useMyList } from '../hooks/useMyList';
 import { useActiveMedia } from '../context/ActiveMediaContext';
@@ -272,6 +278,18 @@ export const ANIME_SERVERS: ServerOption[] = [
   },
 ];
 
+function formatTime(sec: number): string {
+  if (isNaN(sec) || sec < 0) return '00:00';
+  const m = Math.floor(sec / 60);
+  const s = Math.floor(sec % 60);
+  const h = Math.floor(m / 60);
+  if (h > 0) {
+    const remM = m % 60;
+    return `${h}:${remM < 10 ? '0' : ''}${remM}:${s < 10 ? '0' : ''}${s}`;
+  }
+  return `${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
+}
+
 interface PlayerPageProps {
   onOpenAIWithContext?: (title: Title) => void;
 }
@@ -301,6 +319,23 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
   const [title, setTitle] = useState<Title | null>(null);
   const [currentServerIndex, setCurrentServerIndex] = useState(0);
   const [animeAudio, setAnimeAudio] = useState<'sub' | 'dub'>('sub');
+
+  // Player mode: Anime uses 'direct' (Native HLS / Apple AVPlayer optimized) by default
+  const [playerMode, setPlayerMode] = useState<'direct' | 'embed'>(
+    mediaType === 'anime' ? 'direct' : 'embed'
+  );
+  const [streamData, setStreamData] = useState<StreamData | null>(null);
+  const [isStreamLoading, setIsStreamLoading] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [bufferedTime, setBufferedTime] = useState(0);
+  const [isMuted, setIsMuted] = useState(false);
+  const [showControls, setShowControls] = useState(true);
+
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const hlsInstanceRef = useRef<any>(null);
+  const controlsTimeoutRef = useRef<any>(null);
 
   // Iframe loading and watchdog state
   const [isIframeLoading, setIsIframeLoading] = useState(true);
@@ -454,6 +489,198 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
   useEffect(() => {
     setCurrentServerIndex(0);
   }, [mediaType]);
+
+  // Auto-hide controls after 3.5s of inactivity
+  const resetControlsTimeout = useCallback(() => {
+    setShowControls(true);
+    if (controlsTimeoutRef.current) {
+      clearTimeout(controlsTimeoutRef.current);
+    }
+    controlsTimeoutRef.current = setTimeout(() => {
+      setShowControls(false);
+    }, 3500);
+  }, []);
+
+  const togglePlay = () => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (video.paused) {
+      video.play().then(() => setIsPlaying(true)).catch(() => {});
+    } else {
+      video.pause();
+      setIsPlaying(false);
+    }
+    resetControlsTimeout();
+  };
+
+  const seekRelative = (sec: number) => {
+    const video = videoRef.current;
+    if (!video) return;
+    video.currentTime = Math.max(0, Math.min(video.duration || 0, video.currentTime + sec));
+    resetControlsTimeout();
+    setFailoverNotice(`${sec > 0 ? '+' : ''}${sec}s`);
+    setTimeout(() => setFailoverNotice(null), 1200);
+  };
+
+  const handleSeekTouch = (e: React.TouchEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const touch = e.touches[0];
+    if (!touch || !videoRef.current || !duration) return;
+    const x = Math.max(0, Math.min(rect.width, touch.clientX - rect.left));
+    const targetTime = (x / rect.width) * duration;
+    videoRef.current.currentTime = targetTime;
+    setCurrentTime(targetTime);
+    resetControlsTimeout();
+  };
+
+  // Direct HLS stream loader for Anime
+  useEffect(() => {
+    if (mediaType !== 'anime' || playerMode !== 'direct' || !isPlayable || !id) {
+      return;
+    }
+
+    let isMounted = true;
+    const controller = new AbortController();
+    setIsStreamLoading(true);
+
+    const loadDirectStream = async () => {
+      try {
+        const targetProv = activeServer.provider || 'grand_warden';
+        const res = await api.getAnimeStream({
+          id,
+          episode: episodeNum,
+          provider: targetProv,
+          audio: animeAudio,
+          title: title?.title,
+          signal: controller.signal,
+        });
+
+        if (!isMounted) return;
+
+        if (res && res.success && Array.isArray(res.sources) && res.sources.length > 0) {
+          setStreamData(res);
+          setIsStreamLoading(false);
+        } else {
+          // Cascading fallback to next server
+          const nextIdx = (safeServerIndex + 1) % activeServerList.length;
+          if (nextIdx !== 0) {
+            setFailoverNotice(`Server ${activeServer.name} tidak merespons, beralih ke ${activeServerList[nextIdx].name}...`);
+            setTimeout(() => setFailoverNotice(null), 3000);
+            setCurrentServerIndex(nextIdx);
+          } else {
+            // Direct HLS exhausted, seamlessly fallback to Embed player
+            setFailoverNotice('Beralih ke pemutar embed cadangan...');
+            setTimeout(() => setFailoverNotice(null), 3000);
+            setPlayerMode('embed');
+            setIsStreamLoading(false);
+          }
+        }
+      } catch (err: any) {
+        if (!isMounted || controller.signal.aborted) return;
+        console.warn('[Direct Anime Stream Error]:', err?.message || err);
+        setPlayerMode('embed');
+        setIsStreamLoading(false);
+      }
+    };
+
+    loadDirectStream();
+
+    return () => {
+      isMounted = false;
+      controller.abort();
+    };
+  }, [id, episodeNum, safeServerIndex, animeAudio, mediaType, playerMode, isPlayable, title?.title]);
+
+  // Attach direct HLS stream to HTML5 video element (Apple Native HLS on iOS + hls.js fallback)
+  useEffect(() => {
+    if (mediaType !== 'anime' || playerMode !== 'direct' || !streamData?.sources?.length) {
+      return;
+    }
+
+    const video = videoRef.current;
+    if (!video) return;
+
+    const sourceUrl = streamData.sources[0]?.url;
+    if (!sourceUrl) return;
+
+    if (hlsInstanceRef.current) {
+      hlsInstanceRef.current.destroy();
+      hlsInstanceRef.current = null;
+    }
+
+    // 1. Apple Native HLS (iOS Safari / iPadOS Safari / macOS Safari)
+    if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      video.src = sourceUrl;
+      video.load();
+      const p = video.play();
+      if (p !== undefined) {
+        p.then(() => setIsPlaying(true)).catch(() => {
+          setIsPlaying(false);
+        });
+      }
+      return;
+    }
+
+    // 2. hls.js for Chrome, Firefox, Edge, Android
+    loadHls().then((Hls) => {
+      if (Hls.isSupported()) {
+        const hls = new Hls({
+          enableWorker: true,
+          lowLatencyMode: true,
+          backBufferLength: 90,
+        });
+        hls.loadSource(sourceUrl);
+        hls.attachMedia(video);
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          video.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
+        });
+        hls.on(Hls.Events.ERROR, (_event, data) => {
+          if (data.fatal) {
+            switch (data.type) {
+              case Hls.ErrorTypes.NETWORK_ERROR:
+                hls.startLoad();
+                break;
+              case Hls.ErrorTypes.MEDIA_ERROR:
+                hls.recoverMediaError();
+                break;
+              default:
+                hls.destroy();
+                handleNextServer();
+                break;
+            }
+          }
+        });
+        hlsInstanceRef.current = hls;
+      } else {
+        video.src = sourceUrl;
+        video.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
+      }
+    });
+
+    return () => {
+      if (hlsInstanceRef.current) {
+        hlsInstanceRef.current.destroy();
+        hlsInstanceRef.current = null;
+      }
+    };
+  }, [streamData, mediaType, playerMode]);
+
+  // Sync iOS Safari native fullscreen
+  useEffect(() => {
+    const video = videoRef.current as any;
+    if (!video) return;
+
+    const onBegin = () => setIsFullscreen(true);
+    const onEnd = () => setIsFullscreen(false);
+
+    video.addEventListener('webkitbeginfullscreen', onBegin);
+    video.addEventListener('webkitendfullscreen', onEnd);
+
+    return () => {
+      video.removeEventListener('webkitbeginfullscreen', onBegin);
+      video.removeEventListener('webkitendfullscreen', onEnd);
+    };
+  }, [mediaType, playerMode]);
 
   // Iframe loading management
   useEffect(() => {
@@ -627,37 +854,44 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
 
   const toggleFullscreen = async () => {
     const el = playerContainerRef.current as any;
-    if (!el) return;
+    const video = videoRef.current as any;
 
+    // 1. On iOS iPhone Safari in native direct video mode, invoke native webkitEnterFullscreen!
+    if (mediaType === 'anime' && playerMode === 'direct' && video?.webkitEnterFullscreen) {
+      try {
+        video.webkitEnterFullscreen();
+        return;
+      } catch (err) {
+        console.warn('[iOS webkitEnterFullscreen]:', err);
+      }
+    }
+
+    // 2. Standard HTML5 or responsive CSS fullscreen
     if (!isFullscreen) {
-      // 1. Enter fullscreen (immediate responsive CSS layout + lock background scroll)
       setIsFullscreen(true);
       document.body.style.overflow = 'hidden';
+      document.body.style.position = 'fixed';
+      document.body.style.width = '100%';
+      document.body.style.touchAction = 'none';
 
-      // 2. Attempt HTML5 native fullscreen if supported & permitted
       try {
-        if (el.requestFullscreen) {
+        if (el?.requestFullscreen) {
           await el.requestFullscreen();
           isNativeFsActive.current = true;
-        } else if (el.webkitRequestFullscreen) {
+        } else if (el?.webkitRequestFullscreen) {
           await el.webkitRequestFullscreen();
-          isNativeFsActive.current = true;
-        } else if (el.mozRequestFullScreen) {
-          await el.mozRequestFullScreen();
-          isNativeFsActive.current = true;
-        } else if (el.msRequestFullscreen) {
-          await el.msRequestFullscreen();
           isNativeFsActive.current = true;
         }
       } catch (err) {
-        // Graceful fallback to pure CSS fullscreen
-        console.warn('[Zhafx Player Fullscreen Fallback]:', err);
+        console.warn('[Fullscreen fallback]:', err);
       }
     } else {
-      // Exit fullscreen
       isNativeFsActive.current = false;
       setIsFullscreen(false);
       document.body.style.overflow = '';
+      document.body.style.position = '';
+      document.body.style.width = '';
+      document.body.style.touchAction = '';
 
       try {
         if (document.fullscreenElement || (document as any).webkitFullscreenElement) {
@@ -665,14 +899,10 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
             await document.exitFullscreen();
           } else if ((document as any).webkitExitFullscreen) {
             await (document as any).webkitExitFullscreen();
-          } else if ((document as any).mozCancelFullScreen) {
-            await (document as any).mozCancelFullScreen();
-          } else if ((document as any).msExitFullscreen) {
-            await (document as any).msExitFullscreen();
           }
         }
       } catch (err) {
-        console.warn('[Zhafx Player Exit Fullscreen Fallback]:', err);
+        console.warn('[Exit fullscreen fallback]:', err);
       }
     }
   };
@@ -709,7 +939,7 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
   };
 
   return (
-    <div className="min-h-screen bg-[#06070B] text-white flex flex-col relative pb-20">
+    <div className="min-h-screen bg-[#06070B] text-white flex flex-col relative pb-[max(5rem,calc(env(safe-area-inset-bottom)+4.5rem))]">
       {/* Dynamic SEO Meta */}
       {title && (
         <SEOHead
@@ -720,8 +950,8 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
         />
       )}
 
-      {/* Breadcrumb & Top Bar Above Player */}
-      <div className="w-full max-w-5xl mx-auto px-3 sm:px-6 pt-20 sm:pt-24 md:pt-28 pb-3 flex items-center justify-between gap-3 text-xs text-white/70">
+      {/* Breadcrumb & Top Bar Above Player with iOS Notch/Island safe area padding */}
+      <div className="w-full max-w-5xl mx-auto px-3 sm:px-6 pt-[max(5.5rem,calc(env(safe-area-inset-top)+4.5rem))] pb-3 flex items-center justify-between gap-3 text-xs text-white/70">
         <div className="flex items-center gap-2 min-w-0">
           <button
             onClick={() => {
@@ -842,32 +1072,284 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
         {/* Video Box with Rounded Corners (Kotak Sudut Tumpul, 16:9 Aspect Video) */}
         <div
           ref={playerContainerRef}
+          onMouseMove={resetControlsTimeout}
+          onTouchStart={resetControlsTimeout}
           className={`bg-black transition-all duration-300 ${
             isFullscreen
-              ? 'fixed inset-0 z-[999999] w-full h-full m-0 p-0 rounded-none border-0'
+              ? 'fixed inset-0 z-[999999] w-full h-[100dvh] m-0 p-0 rounded-none border-0 bg-black flex items-center justify-center'
               : 'relative w-full aspect-video rounded-2xl sm:rounded-3xl overflow-hidden border border-white/10 sm:border-white/15 shadow-[0_20px_50px_rgba(0,0,0,0.85)]'
           }`}
         >
-          {/* Iframe Pemutar Resmi FrameX (100% Bebas Sandbox & Fullscreen Delegated) */}
           {isPlayable ? (
-            <iframe
-              key={`${id}-${mediaType}-${seasonNum}-${episodeNum}-${safeServerIndex}-${iframeKey}-${animeAudio}`}
-              src={embedUrl}
-              width="100%"
-              height="100%"
-              frameBorder="0"
-              allowFullScreen={true}
-              // @ts-ignore
-              webkitallowfullscreen="true"
-              // @ts-ignore
-              mozallowfullscreen="true"
-              allow="autoplay *; fullscreen *; picture-in-picture *; encrypted-media *; accelerometer *; gyroscope *; clipboard-write *; web-share *"
-              referrerPolicy="origin"
-              loading="eager"
-              title={title?.title || 'Zhafx Stream Player'}
-              onLoad={handleIframeLoad}
-              className="w-full h-full border-0 absolute inset-0 z-10 bg-black"
-            />
+            mediaType === 'anime' && playerMode === 'direct' ? (
+              /* =========================================================
+                 1. HLS Native Video Player (iOS Optimized, 0 Ads, AirPlay)
+                 ========================================================= */
+              <div className="relative w-full h-full bg-black select-none overflow-hidden group">
+                <video
+                  ref={videoRef}
+                  className="w-full h-full object-contain bg-black cursor-pointer"
+                  playsInline
+                  // @ts-ignore
+                  webkit-playsinline="true"
+                  // @ts-ignore
+                  x5-playsinline="true"
+                  preload="auto"
+                  onClick={togglePlay}
+                  onPlay={() => setIsPlaying(true)}
+                  onPause={() => setIsPlaying(false)}
+                  onTimeUpdate={() => {
+                    if (videoRef.current) {
+                      setCurrentTime(videoRef.current.currentTime);
+                      setDuration(videoRef.current.duration || 0);
+                      if (videoRef.current.buffered.length > 0) {
+                        setBufferedTime(videoRef.current.buffered.end(videoRef.current.buffered.length - 1));
+                      }
+                    }
+                  }}
+                  onLoadedMetadata={() => {
+                    if (videoRef.current) {
+                      setDuration(videoRef.current.duration || 0);
+                    }
+                  }}
+                  onWaiting={() => setIsStreamLoading(true)}
+                  onPlaying={() => setIsStreamLoading(false)}
+                  onError={() => {
+                    console.warn('[Zhafx Video Error]: Failover to next server');
+                    handleNextServer();
+                  }}
+                >
+                  {streamData?.subtitles?.map((sub, idx) => (
+                    <track
+                      key={sub.url}
+                      kind="subtitles"
+                      src={sub.url}
+                      srcLang={sub.lang || (sub.label?.toLowerCase().includes('indo') ? 'id' : 'en')}
+                      label={sub.label || `Subtitle ${idx + 1}`}
+                      default={sub.label?.toLowerCase().includes('indo') || idx === 0}
+                    />
+                  ))}
+                </video>
+
+                {/* Direct Stream Loading Spinner */}
+                {isStreamLoading && (
+                  <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm pointer-events-none space-y-3">
+                    <div className="w-12 h-12 border-3 border-white/20 border-t-[#FFB224] rounded-full animate-spin" />
+                    <span className="text-xs font-mono text-white/90 tracking-wider">
+                      Menghubungkan ke {activeServer.name}...
+                    </span>
+                  </div>
+                )}
+
+                {/* Big Center Play/Pause button on pause */}
+                {!isPlaying && !isStreamLoading && (
+                  <div
+                    onClick={togglePlay}
+                    className="absolute inset-0 z-20 flex items-center justify-center bg-black/40 cursor-pointer backdrop-blur-[2px] transition-opacity"
+                  >
+                    <button
+                      type="button"
+                      aria-label="Putar Video"
+                      className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-[#FFB224] text-black flex items-center justify-center shadow-2xl active:scale-90 transition-transform hover:scale-105 cursor-pointer pl-1"
+                    >
+                      <Play className="w-8 h-8 sm:w-10 sm:h-10 fill-black text-black" />
+                    </button>
+                  </div>
+                )}
+
+                {/* Custom Overlay Controls (Visible on hover or tap) */}
+                <div
+                  className={`absolute inset-0 z-30 flex flex-col justify-between pointer-events-none transition-opacity duration-300 ${
+                    showControls || !isPlaying ? 'opacity-100' : 'opacity-0'
+                  }`}
+                >
+                  {/* Top Bar inside Player */}
+                  <div className="p-3 sm:p-4 bg-gradient-to-b from-black/80 via-black/40 to-transparent flex items-center justify-between pointer-events-auto">
+                    <div className="flex items-center gap-2 truncate pr-2">
+                      <span className="text-xs sm:text-sm font-bold text-white truncate">
+                        {title?.title || 'Anime Stream'}
+                      </span>
+                      <span className="px-2 py-0.5 rounded-full bg-white/15 text-[10px] font-bold text-[#FFB224] shrink-0">
+                        Ep {episodeNum}
+                      </span>
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-bold shrink-0 hidden xs:inline">
+                        HLS Native iOS
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      {/* Player Mode Switcher: Switch to Embed */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPlayerMode('embed');
+                          setIsIframeLoading(true);
+                          setIframeKey((k) => k + 1);
+                        }}
+                        className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/15 hover:bg-white/25 text-white text-[11px] font-semibold border border-white/20 transition-all active:scale-95 cursor-pointer shadow-md"
+                        title="Beralih ke Pemutar Embed Server"
+                      >
+                        <Server className="w-3 h-3 text-[#FFB224]" />
+                        <span className="hidden sm:inline">Mode Embed</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Middle Area with -10s and +10s Buttons */}
+                  <div className="flex items-center justify-center gap-10 sm:gap-16 pointer-events-auto">
+                    <button
+                      type="button"
+                      onClick={() => seekRelative(-10)}
+                      aria-label="Mundur 10 Detik"
+                      className="p-3 rounded-full bg-black/50 hover:bg-black/80 text-white/90 hover:text-white transition-all active:scale-90 cursor-pointer backdrop-blur-sm border border-white/10"
+                      title="Mundur 10 detik"
+                    >
+                      <Rewind className="w-5 h-5 sm:w-6 sm:h-6" />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={togglePlay}
+                      aria-label={isPlaying ? 'Jeda' : 'Putar'}
+                      className="p-4 sm:p-5 rounded-full bg-white/20 hover:bg-white/30 text-white transition-all active:scale-90 cursor-pointer backdrop-blur-md border border-white/20"
+                    >
+                      {isPlaying ? (
+                        <Pause className="w-7 h-7 sm:w-8 sm:h-8 fill-white text-white" />
+                      ) : (
+                        <Play className="w-7 h-7 sm:w-8 sm:h-8 fill-white text-white pl-0.5" />
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => seekRelative(10)}
+                      aria-label="Maju 10 Detik"
+                      className="p-3 rounded-full bg-black/50 hover:bg-black/80 text-white/90 hover:text-white transition-all active:scale-90 cursor-pointer backdrop-blur-sm border border-white/10"
+                      title="Maju 10 detik"
+                    >
+                      <FastForward className="w-5 h-5 sm:w-6 sm:h-6" />
+                    </button>
+                  </div>
+
+                  {/* Bottom Bar Controls */}
+                  <div className="p-3 sm:p-4 bg-gradient-to-t from-black/90 via-black/50 to-transparent space-y-2 pointer-events-auto">
+                    {/* Scrubber Progress Slider */}
+                    <div
+                      className="relative w-full h-3 flex items-center cursor-pointer group/seek"
+                      onClick={(e) => {
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        const x = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
+                        if (duration > 0 && videoRef.current) {
+                          const targetTime = (x / rect.width) * duration;
+                          videoRef.current.currentTime = targetTime;
+                          setCurrentTime(targetTime);
+                        }
+                      }}
+                      onTouchMove={handleSeekTouch}
+                      onTouchStart={handleSeekTouch}
+                    >
+                      {/* Track background */}
+                      <div className="w-full h-1 bg-white/25 rounded-full overflow-hidden relative group-hover/seek:h-1.5 transition-all">
+                        {/* Buffered bar */}
+                        <div
+                          className="absolute inset-y-0 left-0 bg-white/30"
+                          style={{ width: `${duration > 0 ? (bufferedTime / duration) * 100 : 0}%` }}
+                        />
+                        {/* Played progress */}
+                        <div
+                          className="absolute inset-y-0 left-0 bg-[#FFB224]"
+                          style={{ width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%` }}
+                        />
+                      </div>
+                      {/* Scrubber handle knob */}
+                      <div
+                        className="absolute w-3.5 h-3.5 rounded-full bg-white shadow-md -translate-x-1/2 scale-100 group-hover/seek:scale-125 transition-transform pointer-events-none"
+                        style={{ left: `${duration > 0 ? (currentTime / duration) * 100 : 0}%` }}
+                      />
+                    </div>
+
+                    {/* Bottom Actions Row */}
+                    <div className="flex items-center justify-between text-xs text-white">
+                      <div className="flex items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={togglePlay}
+                          aria-label={isPlaying ? 'Jeda' : 'Putar'}
+                          className="min-w-[40px] min-h-[40px] flex items-center justify-center p-1 rounded-full hover:bg-white/15 transition-all cursor-pointer"
+                        >
+                          {isPlaying ? <Pause className="w-4 h-4 fill-white" /> : <Play className="w-4 h-4 fill-white" />}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (videoRef.current) {
+                              videoRef.current.muted = !isMuted;
+                              setIsMuted(!isMuted);
+                            }
+                          }}
+                          aria-label={isMuted ? 'Bunyikan' : 'Senyapkan'}
+                          className="min-w-[40px] min-h-[40px] flex items-center justify-center p-1 rounded-full hover:bg-white/15 transition-all cursor-pointer"
+                        >
+                          {isMuted ? <VolumeX className="w-4 h-4 text-red-400" /> : <Volume2 className="w-4 h-4" />}
+                        </button>
+
+                        {/* Timestamp */}
+                        <span className="font-mono text-[11px] text-white/80 select-none">
+                          {formatTime(currentTime)} / {formatTime(duration)}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        {/* Audio Sub/Dub Selector */}
+                        <button
+                          type="button"
+                          onClick={() => setAnimeAudio(animeAudio === 'sub' ? 'dub' : 'sub')}
+                          className="px-2.5 py-1 rounded-full bg-white/15 hover:bg-white/25 text-[10px] font-bold text-white transition-all cursor-pointer"
+                          title="Ganti Audio Sub / Dub"
+                        >
+                          {animeAudio.toUpperCase()}
+                        </button>
+
+                        {/* Fullscreen Button */}
+                        <button
+                          type="button"
+                          onClick={toggleFullscreen}
+                          aria-label={isFullscreen ? 'Keluar Layar Penuh' : 'Layar Penuh'}
+                          className="min-w-[40px] min-h-[40px] flex items-center justify-center p-1 rounded-full hover:bg-white/15 transition-all cursor-pointer"
+                          title="Layar Penuh (F)"
+                        >
+                          {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              /* =========================================================
+                 2. Official FrameX Embed Iframe (With iOS optimizations)
+                 ========================================================= */
+              <iframe
+                key={`${id}-${mediaType}-${seasonNum}-${episodeNum}-${safeServerIndex}-${iframeKey}-${animeAudio}`}
+                src={embedUrl}
+                width="100%"
+                height="100%"
+                frameBorder="0"
+                allowFullScreen={true}
+                // @ts-ignore
+                webkitallowfullscreen="true"
+                // @ts-ignore
+                mozallowfullscreen="true"
+                allow="autoplay *; fullscreen *; picture-in-picture *; encrypted-media *; accelerometer *; gyroscope *; clipboard-write *; web-share *"
+                referrerPolicy="origin"
+                loading="eager"
+                title={title?.title || 'Zhafx Stream Player'}
+                onLoad={handleIframeLoad}
+                className="w-full h-full border-0 absolute inset-0 z-10 bg-black"
+                style={{ WebkitOverflowScrolling: 'touch' }}
+              />
+            )
           ) : (
             <div className="absolute inset-0 z-20 flex flex-col items-center justify-center p-6 text-center space-y-3 bg-[#0E1017]">
               <AlertTriangle className="w-10 h-10 text-[#FFB224]" />
@@ -884,8 +1366,8 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
             </div>
           )}
 
-          {/* Loading Indicator Spinner */}
-          {isIframeLoading && isPlayable && (
+          {/* Loading Indicator Spinner (for iframe mode) */}
+          {isIframeLoading && isPlayable && (playerMode === 'embed' || mediaType !== 'anime') && (
             <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-[#06070B]/85 backdrop-blur-sm space-y-3 pointer-events-none">
               <div className="w-10 h-10 border-3 border-white/20 border-t-[#FFB224] rounded-full animate-spin" />
               <span className="text-xs font-mono text-white/80 tracking-wider">
@@ -894,8 +1376,8 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
             </div>
           )}
 
-          {/* Quick Floating Fullscreen Button on Video Player Container (Bottom-Right, min 44x44px) */}
-          {!isFullscreen && isPlayable && (
+          {/* Floating Fullscreen button on Player box (Bottom-Right) */}
+          {!isFullscreen && isPlayable && (playerMode === 'embed' || mediaType !== 'anime') && (
             <div className="absolute bottom-3 right-3 z-30 pointer-events-auto">
               <button
                 type="button"
@@ -909,9 +1391,9 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
             </div>
           )}
 
-          {/* Fullscreen Close / Exit Button */}
+          {/* Fullscreen Close / Exit Button with Safe Area Padding */}
           {isFullscreen && (
-            <div className="absolute top-4 right-4 z-40 pointer-events-auto">
+            <div className="absolute top-[max(1rem,env(safe-area-inset-top))] right-[max(1rem,env(safe-area-inset-right))] z-50 pointer-events-auto">
               <button
                 type="button"
                 onClick={toggleFullscreen}
@@ -1137,31 +1619,69 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
                 Pilihan Server Streaming (FrameX TV Engine):
               </span>
 
-              {/* Anime Sub/Dub Selector */}
+              {/* Anime Player Mode & Sub/Dub Selector */}
               {mediaType === 'anime' && (
-                <div className="flex items-center p-0.5 rounded-full bg-white/10 border border-white/15 text-[11px]">
-                  <button
-                    onClick={() => setAnimeAudio('sub')}
-                    className={`px-2.5 py-1 rounded-full font-bold transition-all cursor-pointer ${
-                      animeAudio === 'sub' ? 'bg-[#FFB224] text-black' : 'text-white/70 hover:text-white'
-                    }`}
-                  >
-                    SUB (Jepang)
-                  </button>
-                  <button
-                    onClick={() => setAnimeAudio('dub')}
-                    className={`px-2.5 py-1 rounded-full font-bold transition-all cursor-pointer ${
-                      animeAudio === 'dub' ? 'bg-[#FFB224] text-black' : 'text-white/70 hover:text-white'
-                    }`}
-                  >
-                    DUB (Inggris)
-                  </button>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {/* Mode Selector */}
+                  <div className="flex items-center p-0.5 rounded-full bg-white/10 border border-white/15 text-[11px]">
+                    <button
+                      type="button"
+                      onClick={() => setPlayerMode('direct')}
+                      className={`px-2.5 py-1 rounded-full font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                        playerMode === 'direct' ? 'bg-[#FFB224] text-black shadow-sm' : 'text-white/70 hover:text-white'
+                      }`}
+                      title="Mode HLS Native (Optimal untuk iOS & bebas iklan)"
+                    >
+                      <Zap className="w-3 h-3" />
+                      <span>HLS Native (iOS)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPlayerMode('embed');
+                        setIsIframeLoading(true);
+                        setIframeKey((k) => k + 1);
+                      }}
+                      className={`px-2.5 py-1 rounded-full font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                        playerMode === 'embed' ? 'bg-[#FFB224] text-black shadow-sm' : 'text-white/70 hover:text-white'
+                      }`}
+                      title="Mode FrameX Embed Server"
+                    >
+                      <Server className="w-3 h-3" />
+                      <span>Embed Server</span>
+                    </button>
+                  </div>
+
+                  {/* Sub/Dub Selector */}
+                  <div className="flex items-center p-0.5 rounded-full bg-white/10 border border-white/15 text-[11px]">
+                    <button
+                      type="button"
+                      onClick={() => setAnimeAudio('sub')}
+                      className={`px-2.5 py-1 rounded-full font-bold transition-all cursor-pointer ${
+                        animeAudio === 'sub' ? 'bg-[#FFB224] text-black' : 'text-white/70 hover:text-white'
+                      }`}
+                    >
+                      SUB (Jepang)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAnimeAudio('dub')}
+                      className={`px-2.5 py-1 rounded-full font-bold transition-all cursor-pointer ${
+                        animeAudio === 'dub' ? 'bg-[#FFB224] text-black' : 'text-white/70 hover:text-white'
+                      }`}
+                    >
+                      DUB (Inggris)
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
 
-            {/* Horizontal Server Pills */}
-            <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
+            {/* Horizontal Server Pills with iOS momentum scrolling */}
+            <div
+              className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none"
+              style={{ WebkitOverflowScrolling: 'touch' }}
+            >
               {activeServerList.map((server, idx) => {
                 const isActive = idx === safeServerIndex;
                 return (
@@ -1238,9 +1758,12 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
               </div>
             </div>
 
-            {/* Episode Content */}
+            {/* Episode Content with iOS momentum scrolling */}
             {episodeViewMode === 'visual' ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 max-h-[460px] overflow-y-auto pr-1">
+              <div
+                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 max-h-[460px] overflow-y-auto pr-1"
+                style={{ WebkitOverflowScrolling: 'touch' }}
+              >
                 {Array.from({ length: episodesList.length || totalEpisodes }, (_, i) => i + 1).map((ep) => {
                   const isCurrent = ep === episodeNum;
                   const matchingEp = episodesList.find((e) => e.number === ep);
@@ -1250,7 +1773,7 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
                     <button
                       key={ep}
                       onClick={() => navigateEpisode(ep)}
-                      className={`flex items-start gap-3 p-2.5 rounded-2xl border text-left transition-all cursor-pointer group relative overflow-hidden ${
+                      className={`flex items-start gap-3 p-2.5 rounded-2xl border text-left transition-all cursor-pointer group relative overflow-hidden min-h-[56px] active:scale-[0.98] ${
                         isCurrent
                           ? 'bg-[#FFB224]/15 border-[#FFB224] shadow-lg scale-[1.01]'
                           : 'bg-white/[0.04] border-white/10 hover:bg-white/[0.08] hover:border-white/20'
@@ -1301,8 +1824,11 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
                 })}
               </div>
             ) : (
-              /* Grid View (Quick Numbers) */
-              <div className="grid grid-cols-6 sm:grid-cols-10 md:grid-cols-12 gap-2 max-h-[300px] overflow-y-auto pr-1">
+              /* Grid View (Quick Numbers with iOS touch momentum scrolling) */
+              <div
+                className="grid grid-cols-6 sm:grid-cols-10 md:grid-cols-12 gap-2 max-h-[300px] overflow-y-auto pr-1"
+                style={{ WebkitOverflowScrolling: 'touch' }}
+              >
                 {Array.from({ length: episodesList.length || totalEpisodes }, (_, i) => i + 1).map((ep) => {
                   const isCurrent = ep === episodeNum;
                   return (
