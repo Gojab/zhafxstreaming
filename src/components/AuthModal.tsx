@@ -250,65 +250,31 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
     }, 600);
   };
 
-  // Google Sign-In Trigger (OAuth 2.0 token client)
-  const triggerGoogleGIS = () => {
+  // Google login is handled by Supabase OAuth. This keeps the client secret
+  // on Supabase and avoids browser-origin errors from the Google GIS token flow.
+  const triggerGoogleGIS = async () => {
     setIsLoading(true);
     setError(null);
+    setSuccessMessage(null);
 
-    if (!window.google?.accounts?.oauth2) {
-      // Fallback to server-side OAuth flow
-      triggerGoogleOAuthFlow();
-      return;
-    }
-
-    try {
-      const client = window.google.accounts.oauth2.initTokenClient({
-        client_id: CONFIG.GOOGLE_CLIENT_ID,
-        scope: 'email profile openid',
-        callback: async (tokenRes: any) => {
-          if (tokenRes && tokenRes.access_token) {
-            try {
-              const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-                headers: { Authorization: `Bearer ${tokenRes.access_token}` },
-              });
-              const info = await res.json();
-              if (info && info.email) {
-                await handleGoogleAuthBackend({
-                  email: info.email,
-                  name: info.name,
-                  avatar: info.picture,
-                  googleId: info.sub,
-                });
-                return;
-              }
-            } catch (e: any) {
-              setError(`Gagal mengambil data profil Google: ${e?.message || 'Error'}`);
-              setIsLoading(false);
-            }
-          } else {
-            setIsLoading(false);
-          }
+    const { error: oauthError } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin,
+        queryParams: {
+          access_type: 'offline',
+          prompt: 'select_account',
         },
-        error_callback: (err: any) => {
-          setIsLoading(false);
-          const errType = err?.type || err?.error || '';
-          if (errType === 'idpiframe_initialization_failed' || errType === 'origin_mismatch') {
-            setError(
-              `Domain (${window.location.origin}) belum terdaftar di Google Cloud Console. Silakan gunakan opsi 'Masuk Cepat 1-Klik' di atas.`
-            );
-            setShowConsoleHelp(true);
-          } else if (errType === 'popup_closed_by_user') {
-            setError('Jendela login Google ditutup sebelum selesai.');
-          } else {
-            // Auto fallback to server-side OAuth flow
-            triggerGoogleOAuthFlow();
-          }
-        },
-      });
+      },
+    });
 
-      client.requestAccessToken({ prompt: 'select_account' });
-    } catch {
-      triggerGoogleOAuthFlow();
+    if (oauthError) {
+      setIsLoading(false);
+      setError(
+        oauthError.message.includes('provider is not enabled')
+          ? 'Google OAuth belum diaktifkan di Supabase Authentication > Providers > Google.'
+          : `Login Google gagal: ${oauthError.message}`
+      );
     }
   };
 
