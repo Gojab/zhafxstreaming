@@ -112,22 +112,201 @@
   }
 }
 
-/* Apple Spring Physics for interactive elements */
+/* Apple & Fluid Spring Physics for interactive elements */
 .ios-spring {
-  transition: transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.2s ease, opacity 0.2s ease, border-color 0.2s ease;
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.18s ease, opacity 0.18s ease, border-color 0.18s ease, box-shadow 0.22s cubic-bezier(0.16, 1, 0.3, 1);
   will-change: transform;
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
 }
 
 .ios-spring:active {
-  transform: scale(0.93) !important;
+  transform: scale(0.95) translate3d(0, 0, 0) !important;
 }
 
 .ios-spring-soft {
-  transition: transform 0.3s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.2s ease;
+  transition: transform 0.26s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.18s ease, box-shadow 0.22s ease;
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
 }
 
 .ios-spring-soft:active {
-  transform: scale(0.96) !important;
+  transform: scale(0.97) translate3d(0, 0, 0) !important;
+}
+
+/* ==========================================================
+   Unique Navigation Hover Interactions (Ultra Smooth & Light)
+   ========================================================== */
+
+/* Link wrapper with micro elevation */
+.nav-unique-link {
+  position: relative;
+  transition: color 0.18s ease, transform 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+  transform: translate3d(0, 0, 0);
+  will-change: transform;
+  backface-visibility: hidden;
+}
+
+.nav-unique-link:hover {
+  transform: translate3d(0, -1.5px, 0);
+}
+
+.nav-unique-link:active {
+  transform: translate3d(0, 0.5px, 0) scale(0.97);
+}
+
+/* Dynamic Aurora Glow Backdrop that smoothly expands on hover */
+.nav-hover-pill {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(255, 255, 255, 0.16) 0%,
+    rgba(255, 255, 255, 0.06) 60%,
+    transparent 100%
+  );
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 
+    0 4px 16px -2px rgba(0, 0, 0, 0.4),
+    0 0 12px 0 rgba(255, 255, 255, 0.12),
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.45);
+  opacity: 0;
+  transform: scale(0.92) translate3d(0, 0, 0);
+  transition: opacity 0.22s cubic-bezier(0.16, 1, 0.3, 1), transform 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: none;
+  z-index: 0;
+  will-change: transform, opacity;
+}
+
+.group:hover .nav-hover-pill,
+.nav-unique-link:hover .nav-hover-pill {
+  opacity: 1;
+  transform: scale(1) translate3d(0, 0, 0);
+}
+
+/* Active Nav Pill State (Refined liquid glass with subtle internal reflection) */
+.nav-active-pill {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 
+    0 2px 14px -1px rgba(0, 0, 0, 0.45),
+    0 0 14px 0 rgba(255, 255, 255, 0.2),
+    inset 0 1px 1.5px 0 rgba(255, 255, 255, 0.55);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Kinetic Underline Glow Beam: expanding laser droplet */
+.nav-kinetic-beam {
+  position: absolute;
+  bottom: 2px;
+  left: 20%;
+  right: 20%;
+  height: 2px;
+  border-radius: 9999px;
+  background: linear-gradient(90deg, transparent, #FFFFFF, transparent);
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.9), 0 0 16px rgba(120, 180, 255, 0.6);
+  opacity: 0;
+  transform: scaleX(0.2) translate3d(0, 0, 0);
+  transition: transform 0.26s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease;
+  pointer-events: none;
+  z-index: 10;
+  will-change: transform, opacity;
+}
+
+.group:hover .nav-kinetic-beam,
+.nav-unique-link:hover .nav-kinetic-beam {
+  opacity: 1;
+  transform: scaleX(1) translate3d(0, 0, 0);
+}
+
+/* Luminous Sheen sweep on hover for glass buttons and nav items */
+.nav-shimmer {
+  position: relative;
+  overflow: hidden;
+  transform: translate3d(0, 0, 0);
+}
+
+.nav-shimmer::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    105deg,
+    transparent 20%,
+    rgba(255, 255, 255, 0.22) 50%,
+    transparent 80%
+  );
+  transform: translateX(-130%) translate3d(0, 0, 0);
+  transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: none;
+  border-radius: inherit;
+  z-index: 2;
+  will-change: transform;
+}
+
+.nav-shimmer:hover::after {
+  transform: translateX(130%) translate3d(0, 0, 0);
+}
+
+/* Unique Hover States for Header Actions */
+.btn-features-x {
+  transition: transform 0.32s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.btn-features-x:hover {
+  transform: scale(1.1) translate3d(0, 0, 0);
+  border-color: rgba(255, 255, 255, 0.5);
+  box-shadow: 
+    0 0 20px rgba(255, 255, 255, 0.4),
+    0 0 35px rgba(96, 165, 250, 0.25),
+    inset 0 1px 1px rgba(255, 255, 255, 0.6);
+}
+
+.btn-features-x:active {
+  transform: scale(0.92) translate3d(0, 0, 0);
+}
+
+.btn-ai-sparkle {
+  transition: transform 0.26s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.26s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.btn-ai-sparkle:hover {
+  transform: translateY(-1px) scale(1.03) translate3d(0, 0, 0);
+  border-color: rgba(251, 191, 36, 0.45);
+  box-shadow: 
+    0 0 16px rgba(251, 191, 36, 0.3),
+    0 4px 16px rgba(0, 0, 0, 0.3),
+    inset 0 1px 1px rgba(255, 255, 255, 0.5);
+}
+
+.btn-ai-sparkle:active {
+  transform: scale(0.96) translate3d(0, 0, 0);
+}
+
+.btn-intro-cinema {
+  transition: transform 0.26s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.26s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.btn-intro-cinema:hover {
+  transform: translateY(-1px) scale(1.03) translate3d(0, 0, 0);
+  border-color: rgba(147, 197, 253, 0.45);
+  box-shadow: 
+    0 0 16px rgba(147, 197, 253, 0.3),
+    0 4px 16px rgba(0, 0, 0, 0.3),
+    inset 0 1px 1px rgba(255, 255, 255, 0.5);
+}
+
+.btn-intro-cinema:active {
+  transform: scale(0.96) translate3d(0, 0, 0);
 }
 
 /* Custom Minimalist Native Scrollbars */
@@ -156,50 +335,53 @@
   background: rgba(255, 255, 255, 0.3);
 }
 
-/* Ambient liquid background keyframes */
+/* Ambient liquid background keyframes (Hardware-accelerated with translate3d) */
 @keyframes floatBlob1 {
   0%, 100% {
-    transform: translate(0px, 0px) scale(1);
+    transform: translate3d(0px, 0px, 0) scale(1);
   }
   33% {
-    transform: translate(40px, -50px) scale(1.12);
+    transform: translate3d(35px, -35px, 0) scale(1.06);
   }
   66% {
-    transform: translate(-30px, 35px) scale(0.92);
+    transform: translate3d(-25px, 25px, 0) scale(0.95);
   }
 }
 
 @keyframes floatBlob2 {
   0%, 100% {
-    transform: translate(0px, 0px) scale(1);
+    transform: translate3d(0px, 0px, 0) scale(1);
   }
   33% {
-    transform: translate(-45px, 40px) scale(1.08);
+    transform: translate3d(-35px, 30px, 0) scale(1.05);
   }
   66% {
-    transform: translate(35px, -30px) scale(0.95);
+    transform: translate3d(28px, -22px, 0) scale(0.96);
   }
 }
 
 @keyframes floatBlob3 {
   0%, 100% {
-    transform: translate(0px, 0px) scale(1);
+    transform: translate3d(0px, 0px, 0) scale(1);
   }
   50% {
-    transform: translate(25px, 30px) scale(1.06);
+    transform: translate3d(20px, 22px, 0) scale(1.04);
   }
 }
 
 .animate-blob-1 {
-  animation: floatBlob1 28s ease-in-out infinite;
+  animation: floatBlob1 30s ease-in-out infinite;
+  will-change: transform;
 }
 
 .animate-blob-2 {
-  animation: floatBlob2 34s ease-in-out infinite;
+  animation: floatBlob2 36s ease-in-out infinite;
+  will-change: transform;
 }
 
 .animate-blob-3 {
-  animation: floatBlob3 40s ease-in-out infinite;
+  animation: floatBlob3 42s ease-in-out infinite;
+  will-change: transform;
 }
 
 /* Smooth UI animations */

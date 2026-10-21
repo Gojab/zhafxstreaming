@@ -81,7 +81,7 @@ export const MediaRow: React.FC<MediaRowProps> = ({
           type="button"
           onClick={() => handleScroll('left')}
           aria-label={`Geser ${title} ke kiri`}
-          className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 z-30 w-11 h-11 min-w-[44px] min-h-[44px] rounded-full liquid-glass liquid-specular text-white flex items-center justify-center opacity-0 group-hover/row:opacity-100 hover:bg-white/25 hover:border-white/30 hover:scale-105 active:scale-95 transition-all duration-300 cursor-pointer hidden md:flex ios-spring shadow-xl"
+          className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 z-30 w-11 h-11 min-w-[44px] min-h-[44px] rounded-full liquid-glass liquid-specular text-white flex items-center justify-center opacity-0 group-hover/row:opacity-100 hover:bg-white/25 hover:border-white/30 hover:scale-110 active:scale-95 transition-[transform,opacity,background-color,border-color] duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] cursor-pointer hidden md:flex ios-spring shadow-xl transform-gpu"
         >
           <ChevronLeft className="w-5 h-5" />
         </button>
@@ -112,7 +112,7 @@ export const MediaRow: React.FC<MediaRowProps> = ({
           type="button"
           onClick={() => handleScroll('right')}
           aria-label={`Geser ${title} ke kanan`}
-          className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 z-30 w-11 h-11 min-w-[44px] min-h-[44px] rounded-full liquid-glass liquid-specular text-white flex items-center justify-center opacity-0 group-hover/row:opacity-100 hover:bg-white/25 hover:border-white/30 hover:scale-105 active:scale-95 transition-all duration-300 cursor-pointer hidden md:flex ios-spring shadow-xl"
+          className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 z-30 w-11 h-11 min-w-[44px] min-h-[44px] rounded-full liquid-glass liquid-specular text-white flex items-center justify-center opacity-0 group-hover/row:opacity-100 hover:bg-white/25 hover:border-white/30 hover:scale-110 active:scale-95 transition-[transform,opacity,background-color,border-color] duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] cursor-pointer hidden md:flex ios-spring shadow-xl transform-gpu"
         >
           <ChevronRight className="w-5 h-5" />
         </button>

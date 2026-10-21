@@ -1,5 +1,6 @@
 import { CONFIG } from '../config';
 import { Title, Episode, Season, Provider, MediaType, StreamData } from '../types';
+import { translateToIndonesian } from '../lib/translator';
 
 // In-memory TTL Cache
 interface CacheEntry<T> {
@@ -324,15 +325,28 @@ export const api = {
 
     const rails = data.rails || {};
     const hero = data.hero ? normalize(data.hero, data.hero.type || 'movie') : null;
+    if (hero && hero.overview) {
+      hero.overview = await translateToIndonesian(hero.overview, hero.title);
+    }
 
     const parseList = (list: any, defType: MediaType): Title[] => {
       const items = Array.isArray(list) ? list : list?.results || [];
       return items.map((item: any) => normalize(item, defType));
     };
 
+    const trending = parseList(rails.trending_movies, 'movie');
+    // Translate top trending titles' overviews in parallel
+    await Promise.all(
+      trending.slice(0, 8).map(async (t) => {
+        if (t.overview) {
+          t.overview = await translateToIndonesian(t.overview, t.title);
+        }
+      })
+    );
+
     return {
       hero,
-      trending: parseList(rails.trending_movies, 'movie'),
+      trending,
       popularMovies: parseList(rails.popular_movies, 'movie'),
       popularTv: parseList(rails.popular_tv, 'tv'),
       popularAnime: parseList(rails.popular_anime, 'anime'),
@@ -715,9 +729,12 @@ export const api = {
             backdrop: media.bannerImage || aniMeta?.bannerImage || media.coverImage?.extraLarge || CONFIG.PLACEHOLDER_BACKDROP,
             year: String(media.startDate?.year || aniMeta?.seasonYear || '2024'),
             rating: media.averageScore ? (media.averageScore / 10).toFixed(1) : (aniMeta?.averageScore ? (aniMeta.averageScore / 10).toFixed(1) : '8.5'),
-            overview: media.description
-              ? media.description.replace(/<[^>]*>/g, '').trim()
-              : (aniMeta?.description ? aniMeta.description.replace(/<[^>]*>/g, '').trim() : 'Sinopsis belum tersedia.'),
+            overview: await translateToIndonesian(
+              media.description
+                ? media.description.replace(/<[^>]*>/g, '').trim()
+                : (aniMeta?.description ? aniMeta.description.replace(/<[^>]*>/g, '').trim() : 'Sinopsis belum tersedia.'),
+              animeTitle
+            ),
             genres: media.genres || aniMeta?.genres || ['Action', 'Fantasy'],
             numberOfEpisodes: Math.max(animeEpisodes.length, epCount),
             status: media.status || aniMeta?.status,
@@ -738,7 +755,10 @@ export const api = {
         backdrop: aniMeta?.bannerImage || CONFIG.PLACEHOLDER_BACKDROP,
         year: String(aniMeta?.seasonYear || '2024'),
         rating: aniMeta?.averageScore ? (aniMeta.averageScore / 10).toFixed(1) : '8.5',
-        overview: aniMeta?.description ? aniMeta.description.replace(/<[^>]*>/g, '').trim() : 'Tayangan anime berkualitas tinggi siap diputar di Zhafx.',
+        overview: await translateToIndonesian(
+          aniMeta?.description ? aniMeta.description.replace(/<[^>]*>/g, '').trim() : 'Tayangan anime berkualitas tinggi siap diputar di Zhafx.',
+          aniMeta?.title?.english || aniMeta?.title?.romaji
+        ),
         genres: aniMeta?.genres || ['Action', 'Anime'],
         numberOfEpisodes: aniMeta?.episodes || 24,
         status: aniMeta?.status,
@@ -749,6 +769,10 @@ export const api = {
     const url = `${CONFIG.API_BASE_URL}${CONFIG.ENDPOINTS.DETAILS}?id=${encodeURIComponent(id)}&type=${type}`;
     const data = await fetchWithRetry<any>(url, { signal });
     const normalized = normalize(data, type);
+
+    if (normalized.overview) {
+      normalized.overview = await translateToIndonesian(normalized.overview, normalized.title);
+    }
 
     // If TV show, ensure seasons are properly populated with clean numbers
     if (data.seasons && Array.isArray(data.seasons) && data.seasons.length > 0) {
@@ -815,24 +839,30 @@ export const api = {
     if (!data || !Array.isArray(data.episodes)) {
       return [];
     }
-    return data.episodes.map((ep: any) => {
-      let stillImage = ep.still || ep.still_path || '';
-      if (stillImage && !stillImage.startsWith('http')) {
-        stillImage = `https://image.tmdb.org/t/p/w500${stillImage.startsWith('/') ? '' : '/'}${stillImage}`;
-      }
-      return {
-        id: ep.id || `${id}-${seasonNumber}-${ep.number ?? ep.episode_number ?? 1}`,
-        number: ep.number ?? ep.episode_number ?? 1,
-        seasonNumber: ep.season_number ?? seasonNumber,
-        name: ep.name || `Episode ${ep.number ?? ep.episode_number ?? 1}`,
-        overview: ep.overview || '',
-        still: stillImage,
-        stillPath: stillImage,
-        airDate: ep.airDate || ep.air_date,
-        voteAverage: ep.vote_average ? Number(ep.vote_average) : undefined,
-        runtime: ep.runtime,
-      };
-    });
+    return Promise.all(
+      data.episodes.map(async (ep: any) => {
+        let stillImage = ep.still || ep.still_path || '';
+        if (stillImage && !stillImage.startsWith('http')) {
+          stillImage = `https://image.tmdb.org/t/p/w500${stillImage.startsWith('/') ? '' : '/'}${stillImage}`;
+        }
+        let epOverview = ep.overview || '';
+        if (epOverview) {
+          epOverview = await translateToIndonesian(epOverview, `${ep.name || 'Episode'}`);
+        }
+        return {
+          id: ep.id || `${id}-${seasonNumber}-${ep.number ?? ep.episode_number ?? 1}`,
+          number: ep.number ?? ep.episode_number ?? 1,
+          seasonNumber: ep.season_number ?? seasonNumber,
+          name: ep.name || `Episode ${ep.number ?? ep.episode_number ?? 1}`,
+          overview: epOverview,
+          still: stillImage,
+          stillPath: stillImage,
+          airDate: ep.airDate || ep.air_date,
+          voteAverage: ep.vote_average ? Number(ep.vote_average) : undefined,
+          runtime: ep.runtime,
+        };
+      })
+    );
   },
 
   /**

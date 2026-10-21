@@ -86,7 +86,7 @@ export const MediaCard: React.FC<MediaCardProps> = ({ item, className = '', show
           if ((e.target as HTMLElement).closest('button')) return;
           navigate(detailPath);
         }}
-        className="relative aspect-[2/3] w-full overflow-hidden rounded-[16px] sm:rounded-[20px] bg-[#0E1017] border border-white/[0.08] shadow-[0_4px_16px_rgba(0,0,0,0.45)] transition-all duration-350 ease-[cubic-bezier(0.25,1,0.5,1)] group-hover:-translate-y-1.5 group-hover:scale-[1.035] group-hover:border-white/30 group-hover:shadow-[0_20px_40px_-10px_rgba(0,0,0,0.85),0_0_24px_rgba(255,255,255,0.08)] active:scale-[0.98] select-none cursor-pointer will-change-transform"
+        className="relative aspect-[2/3] w-full overflow-hidden rounded-[16px] sm:rounded-[20px] bg-[#0E1017] border border-white/[0.08] shadow-[0_4px_16px_rgba(0,0,0,0.45)] transition-[transform,border-color,box-shadow] duration-250 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:-translate-y-1.5 group-hover:scale-[1.03] group-hover:border-white/30 group-hover:shadow-[0_16px_36px_-10px_rgba(0,0,0,0.85),0_0_20px_rgba(255,255,255,0.08)] active:scale-[0.98] select-none cursor-pointer will-change-transform transform-gpu"
       >
         {/* Clickable Poster Link to Detail (z-10) */}
         <Link
@@ -105,7 +105,7 @@ export const MediaCard: React.FC<MediaCardProps> = ({ item, className = '', show
               loading="lazy"
               decoding="async"
               onError={() => setImageError(true)}
-              className="w-full h-full object-cover transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-[1.08] group-hover:brightness-[1.05] pointer-events-none"
+              className="w-full h-full object-cover transition-transform duration-350 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-[1.06] pointer-events-none transform-gpu"
             />
           ) : (
             <div className="w-full h-full flex flex-col items-center justify-center p-3 text-center bg-[#0E1017] pointer-events-none">

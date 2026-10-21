@@ -217,6 +217,68 @@ app.all('/api/proxy', async (req: Request, res: Response) => {
 });
 
 // ==========================================
+// Indonesian Synopsis Translation API
+// ==========================================
+const serverTranslationCache = new Map<string, string>();
+
+async function translateTextToIndonesian(text: string): Promise<string> {
+  const trimmed = (text || '').trim();
+  if (!trimmed || trimmed.length < 3) return trimmed;
+
+  if (serverTranslationCache.has(trimmed)) {
+    return serverTranslationCache.get(trimmed)!;
+  }
+
+  try {
+    const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=id&dt=t&q=${encodeURIComponent(trimmed)}`;
+    const res = await fetch(url, {
+      signal: AbortSignal.timeout(5000),
+      headers: {
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+      },
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data) && Array.isArray(data[0])) {
+        const translated = data[0].map((item: any) => item[0] || '').join('').trim();
+        if (translated) {
+          serverTranslationCache.set(trimmed, translated);
+          return translated;
+        }
+      }
+    }
+  } catch (err: any) {
+    console.warn('[Translate] Upstream error:', err?.message || err);
+  }
+
+  return trimmed;
+}
+
+app.all('/api/translate', async (req: Request, res: Response) => {
+  const text = (req.query.text as string) || req.body?.text;
+  const texts = req.body?.texts;
+
+  if (Array.isArray(texts)) {
+    const translatedList = await Promise.all(
+      texts.map(async (t: string) => {
+        if (!t || typeof t !== 'string') return '';
+        return translateTextToIndonesian(t);
+      })
+    );
+    return res.json({ success: true, results: translatedList });
+  }
+
+  if (!text || typeof text !== 'string') {
+    return res.status(400).json({ success: false, error: 'Teks wajib diisi.' });
+  }
+
+  const translated = await translateTextToIndonesian(text);
+  return res.json({ success: true, translated });
+});
+
+// ==========================================
 // FrameX Streaming Providers (Separated by Movie, TV, & Anime)
 // ==========================================
 
@@ -269,30 +331,30 @@ app.get('/api/providers', async (req: Request, res: Response) => {
   if (type === 'tv') {
     return res.json({
       providers: [
-        { id: 'miner', name: 'Miner XIX', tagline: 'Movy Multi-City TV Series 4K', category: 'tv', status: 'available' },
-        { id: 'headhunter', name: 'Headhunter XXXI', tagline: 'VidLink TV Series Multi-Sub', category: 'tv', status: 'available' },
-        { id: 'valkyrie', name: 'Valkyrie VI', tagline: '4K Ultra TV Multi-Server', category: 'tv', status: 'available' },
-        { id: 'titan', name: 'Titan VII', tagline: 'Films365 Direct MP4 1080p Server', category: 'tv', status: 'available' },
-        { id: 'hog_rider', name: 'Hog Rider XI', tagline: '4K TV Server', category: 'tv', status: 'available' },
-        { id: 'lavahound', name: 'Lava Hound XII', tagline: '4K Fast TV Series Stream', category: 'tv', status: 'available' },
-        { id: 'super_barbarian', name: 'Super Barbarian XVI', tagline: 'Direct Auto HLS TV Stream', category: 'tv', status: 'available' },
-        { id: 'bowler', name: 'Bowler XVIII', tagline: 'Multi-Language TV Episodes', category: 'tv', status: 'available' },
-        { id: 'giant', name: 'Giant XI', tagline: 'Multi-Audio TV Stream Cepat', category: 'tv', status: 'available' },
+        { id: 'miner', name: 'Server 1', tagline: 'Server Utama', category: 'tv', status: 'available' },
+        { id: 'headhunter', name: 'Server 2', tagline: 'Server Cadangan Multi-Sub', category: 'tv', status: 'available' },
+        { id: 'valkyrie', name: 'Server 3', tagline: 'Server Cadangan Cepat', category: 'tv', status: 'available' },
+        { id: 'titan', name: 'Server 4', tagline: 'Server Cadangan Direct', category: 'tv', status: 'available' },
+        { id: 'hog_rider', name: 'Server 5', tagline: 'Server Cadangan Stabil', category: 'tv', status: 'available' },
+        { id: 'lavahound', name: 'Server 6', tagline: 'Server Cadangan Multi-CDN', category: 'tv', status: 'available' },
+        { id: 'super_barbarian', name: 'Server 7', tagline: 'Server Cadangan HLS', category: 'tv', status: 'available' },
+        { id: 'bowler', name: 'Server 8', tagline: 'Server Cadangan Multi-Bahasa', category: 'tv', status: 'available' },
+        { id: 'giant', name: 'Server 9', tagline: 'Server Cadangan Audio', category: 'tv', status: 'available' },
       ],
     });
   }
 
   return res.json({
     providers: [
-      { id: 'miner', name: 'Miner XIX', tagline: 'Movy Multi-City 4K Server', category: 'movie', status: 'available' },
-      { id: 'headhunter', name: 'Headhunter XXXI', tagline: 'VidLink Server Multi-Sub', category: 'movie', status: 'available' },
-      { id: 'valkyrie', name: 'Valkyrie VI', tagline: '4K Ultra Multi-Server', category: 'movie', status: 'available' },
-      { id: 'titan', name: 'Titan VII', tagline: 'Films365 Direct MP4 1080p Server', category: 'movie', status: 'available' },
-      { id: 'hog_rider', name: 'Hog Rider XI', tagline: '4K Pilled Server', category: 'movie', status: 'available' },
-      { id: 'lavahound', name: 'Lava Hound XII', tagline: '4K Fast Multi-Server Stream', category: 'movie', status: 'available' },
-      { id: 'super_barbarian', name: 'Super Barbarian XVI', tagline: 'Direct Auto HLS Stream', category: 'movie', status: 'available' },
-      { id: 'bowler', name: 'Bowler XVIII', tagline: 'Multi-Language', category: 'movie', status: 'available' },
-      { id: 'giant', name: 'Giant XI', tagline: 'Multi-Audio Direct Stream', category: 'movie', status: 'available' },
+      { id: 'miner', name: 'Server 1', tagline: 'Server Utama', category: 'movie', status: 'available' },
+      { id: 'headhunter', name: 'Server 2', tagline: 'Server Cadangan Multi-Sub', category: 'movie', status: 'available' },
+      { id: 'valkyrie', name: 'Server 3', tagline: 'Server Cadangan Cepat', category: 'movie', status: 'available' },
+      { id: 'titan', name: 'Server 4', tagline: 'Server Cadangan Direct', category: 'movie', status: 'available' },
+      { id: 'hog_rider', name: 'Server 5', tagline: 'Server Cadangan Stabil', category: 'movie', status: 'available' },
+      { id: 'lavahound', name: 'Server 6', tagline: 'Server Cadangan Multi-CDN', category: 'movie', status: 'available' },
+      { id: 'super_barbarian', name: 'Server 7', tagline: 'Server Cadangan HLS', category: 'movie', status: 'available' },
+      { id: 'bowler', name: 'Server 8', tagline: 'Server Cadangan Multi-Bahasa', category: 'movie', status: 'available' },
+      { id: 'giant', name: 'Server 9', tagline: 'Server Cadangan Audio', category: 'movie', status: 'available' },
     ],
   });
 });

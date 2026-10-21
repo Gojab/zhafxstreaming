@@ -53,227 +53,205 @@ export interface ServerOption {
 // =========================================================================
 // 1. Dedicated Servers Khusus FILM (Movie) — FrameX API Engine
 // =========================================================================
+// 1. Dedicated Servers Khusus FILM (Movie) — FrameX API Engine
+// =========================================================================
 export const MOVIE_SERVERS: ServerOption[] = [
   {
     id: 'server-movie-1',
-    name: 'Server Film 1 — Miner 4K',
-    tagline: 'Movy Multi-City 4K Server • Ultra HD',
+    name: 'Server 1',
+    tagline: 'Server Utama • Pemutaran Cepat & Stabil',
     type: 'movie_embed',
     provider: 'miner',
-    badge: '4K ULTRA',
+    badge: 'Utama',
   },
   {
     id: 'server-movie-2',
-    name: 'Server Film 2 — Headhunter HD',
-    tagline: 'VidLink Server Multi-Sub Kualitas Tinggi',
+    name: 'Server 2',
+    tagline: 'Server Cadangan • Multi-Subtitle',
     type: 'movie_embed',
     provider: 'headhunter',
-    badge: 'HD MULTI-SUB',
   },
   {
     id: 'server-movie-3',
-    name: 'Server Film 3 — Valkyrie 4K Ultra',
-    tagline: '4K Ultra Multi-Server Stabil & Cepat',
+    name: 'Server 3',
+    tagline: 'Server Cadangan • Multi-Server',
     type: 'movie_embed',
     provider: 'valkyrie',
-    badge: 'ULTRA STABIL',
   },
   {
     id: 'server-movie-4',
-    name: 'Server Film 4 — Titan Direct',
-    tagline: 'Films365 Direct MP4 1080p Server',
+    name: 'Server 4',
+    tagline: 'Server Cadangan • Direct Stream',
     type: 'movie_embed',
     provider: 'titan',
-    badge: 'DIRECT 1080P',
   },
   {
     id: 'server-movie-5',
-    name: 'Server Film 5 — Hog Rider 4K',
-    tagline: '4K Pilled Server Cadangan Super Cepat',
+    name: 'Server 5',
+    tagline: 'Server Cadangan • Jalur Cepat',
     type: 'movie_embed',
     provider: 'hog_rider',
-    badge: '4K FAST',
   },
   {
     id: 'server-movie-6',
-    name: 'Server Film 6 — Lava Hound',
-    tagline: '4K Fast Multi-Server Stream',
+    name: 'Server 6',
+    tagline: 'Server Cadangan • Multi-CDN',
     type: 'movie_embed',
     provider: 'lavahound',
-    badge: 'MULTI-CDN',
   },
   {
     id: 'server-movie-7',
-    name: 'Server Film 7 — Super Barbarian',
-    tagline: 'Direct Auto HLS Stream Cadangan',
+    name: 'Server 7',
+    tagline: 'Server Cadangan • Auto Stream',
     type: 'movie_embed',
     provider: 'super_barbarian',
-    badge: 'AUTO HLS',
   },
   {
     id: 'server-movie-8',
-    name: 'Server Film 8 — Bowler Multi-Lang',
-    tagline: 'Multi-Language Audio & Subtitle',
+    name: 'Server 8',
+    tagline: 'Server Cadangan • Multi-Bahasa',
     type: 'movie_embed',
     provider: 'bowler',
-    badge: 'MULTI-LANG',
   },
   {
     id: 'server-movie-9',
-    name: 'Server Film 9 — Giant Multi-Audio',
-    tagline: 'Multi-Audio Direct Stream',
+    name: 'Server 9',
+    tagline: 'Server Cadangan • Multi-Audio',
     type: 'movie_embed',
     provider: 'giant',
-    badge: 'MULTI-AUDIO',
   },
 ];
 
 // =========================================================================
-// 2. Dedicated Servers Khusus SERIAL TV — FrameX API Engine (Dimulai dari Miner 4K)
-// Mengikuti konfigurasi Film dengan Miner 4K di urutan pertama
+// 2. Dedicated Servers Khusus SERIAL TV — FrameX API Engine
 // =========================================================================
 export const TV_SERVERS: ServerOption[] = [
   {
     id: 'server-tv-1',
-    name: 'Server TV 1 — Miner 4K',
-    tagline: 'Movy Multi-City TV Series 4K Server • Ultra HD',
+    name: 'Server 1',
+    tagline: 'Server Utama • Serial TV Lengkap',
     type: 'tv_embed',
     provider: 'miner',
-    badge: '4K ULTRA',
+    badge: 'Utama',
   },
   {
     id: 'server-tv-2',
-    name: 'Server TV 2 — Headhunter HD',
-    tagline: 'VidLink TV Series Multi-Sub & Episode Lengkap',
+    name: 'Server 2',
+    tagline: 'Server Cadangan • Multi-Subtitle & Episode Lengkap',
     type: 'tv_embed',
     provider: 'headhunter',
-    badge: 'HD MULTI-SUB',
   },
   {
     id: 'server-tv-3',
-    name: 'Server TV 3 — Valkyrie 4K Ultra',
-    tagline: '4K Ultra Multi-Server Stabil & Cepat',
+    name: 'Server 3',
+    tagline: 'Server Cadangan • Multi-Server Stabil',
     type: 'tv_embed',
     provider: 'valkyrie',
-    badge: 'ULTRA STABIL',
   },
   {
     id: 'server-tv-4',
-    name: 'Server TV 4 — Titan Direct',
-    tagline: 'Films365 Direct MP4 1080p Server',
+    name: 'Server 4',
+    tagline: 'Server Cadangan • Direct Stream',
     type: 'tv_embed',
     provider: 'titan',
-    badge: 'DIRECT 1080P',
   },
   {
     id: 'server-tv-5',
-    name: 'Server TV 5 — Hog Rider 4K',
-    tagline: '4K TV Server Dedicated Cadangan',
+    name: 'Server 5',
+    tagline: 'Server Cadangan • Dedicated',
     type: 'tv_embed',
     provider: 'hog_rider',
-    badge: '4K FAST',
   },
   {
     id: 'server-tv-6',
-    name: 'Server TV 6 — Lava Hound',
-    tagline: '4K Fast TV Series Multi-Server Stream',
+    name: 'Server 6',
+    tagline: 'Server Cadangan • Multi-CDN',
     type: 'tv_embed',
     provider: 'lavahound',
-    badge: 'MULTI-CDN',
   },
   {
     id: 'server-tv-7',
-    name: 'Server TV 7 — Super Barbarian',
-    tagline: 'Direct Auto HLS TV Series Stream',
+    name: 'Server 7',
+    tagline: 'Server Cadangan • Auto Stream',
     type: 'tv_embed',
     provider: 'super_barbarian',
-    badge: 'AUTO HLS',
   },
   {
     id: 'server-tv-8',
-    name: 'Server TV 8 — Bowler Multi-Lang',
-    tagline: 'Multi-Language TV Episodes & Softsub',
+    name: 'Server 8',
+    tagline: 'Server Cadangan • Multi-Bahasa',
     type: 'tv_embed',
     provider: 'bowler',
-    badge: 'MULTI-LANG',
   },
   {
     id: 'server-tv-9',
-    name: 'Server TV 9 — Giant Multi-Audio',
-    tagline: 'Multi-Audio TV Stream Cepat',
+    name: 'Server 9',
+    tagline: 'Server Cadangan • Multi-Audio',
     type: 'tv_embed',
     provider: 'giant',
-    badge: 'MULTI-AUDIO',
   },
 ];
 
 // =========================================================================
-// 3. Dedicated Servers Khusus ANIME — FrameX API Engine (100% Bebas Sandbox)
+// 3. Dedicated Servers Khusus ANIME — FrameX API Engine (Bebas Sandbox)
 // =========================================================================
 export const ANIME_SERVERS: ServerOption[] = [
   {
     id: 'server-anime-1',
-    name: 'Server Anime 1 — Grand Warden',
-    tagline: 'Multi-Source Cloud • 1080p Ultra Fast',
+    name: 'Server 1',
+    tagline: 'Server Utama • Cloud Cepat',
     type: 'anime_embed',
     provider: 'grand_warden',
-    badge: 'CLOUD UTAMA',
+    badge: 'Utama',
   },
   {
     id: 'server-anime-2',
-    name: 'Server Anime 2 — Wizard Dual Audio',
-    tagline: 'Dual Audio & Softsub • Ultra Fast',
+    name: 'Server 2',
+    tagline: 'Server Cadangan • Dual Audio & Softsub',
     type: 'anime_embed',
     provider: 'wizard',
-    badge: 'DUAL AUDIO',
   },
   {
     id: 'server-anime-3',
-    name: 'Server Anime 3 — Valkyrie FlixCloud',
-    tagline: 'FlixCloud HD • Fast Stream',
+    name: 'Server 3',
+    tagline: 'Server Cadangan • FlixCloud Fast Stream',
     type: 'anime_embed',
     provider: 'valkyrie',
-    badge: 'FLIXCLOUD',
   },
   {
     id: 'server-anime-4',
-    name: 'Server Anime 4 — Super PEKKA Ultra',
-    tagline: '1080p Ultra High Bitrate Multi-Source',
+    name: 'Server 4',
+    tagline: 'Server Cadangan • High Bitrate',
     type: 'anime_embed',
     provider: 'super_pekka',
-    badge: 'HIGH BITRATE',
   },
   {
     id: 'server-anime-5',
-    name: 'Server Anime 5 — Giant Cloud',
-    tagline: 'Ultra High Speed Cloud Server',
+    name: 'Server 5',
+    tagline: 'Server Cadangan • Cloud Server',
     type: 'anime_embed',
     provider: 'giant',
-    badge: 'HIGH SPEED',
   },
   {
     id: 'server-anime-6',
-    name: 'Server Anime 6 — Archer Multi-Audio',
-    tagline: 'Multi-Audio & Fast Stream',
+    name: 'Server 6',
+    tagline: 'Server Cadangan • Multi-Audio',
     type: 'anime_embed',
     provider: 'archer',
-    badge: 'MULTI-AUDIO',
   },
   {
     id: 'server-anime-7',
-    name: 'Server Anime 7 — Goblin Direct',
-    tagline: 'Direct Fast Auto Stream',
+    name: 'Server 7',
+    tagline: 'Server Cadangan • Direct Auto',
     type: 'anime_embed',
     provider: 'goblin',
-    badge: 'DIRECT AUTO',
   },
   {
     id: 'server-anime-8',
-    name: 'Server Anime 8 — Dragon VidNest',
-    tagline: 'VidNest Multi-Source Server',
+    name: 'Server 8',
+    tagline: 'Server Cadangan • VidNest Multi-Source',
     type: 'anime_embed',
     provider: 'dragon',
-    badge: 'VIDNEST',
   },
 ];
 
@@ -1017,7 +995,7 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
       {title && (
         <SEOHead
           title={`Nonton ${title.title} ${mediaType === 'tv' ? `Musim ${seasonNum} Ep ${episodeNum}` : mediaType === 'anime' ? `Episode ${episodeNum}` : ''}`}
-          description={title.overview || `Streaming ${title.title} kualitas 4K Ultra HD di Zhafx.`}
+          description={title.overview || `Streaming ${title.title} kualitas HD di Zhafx.`}
           canonicalPath={`/detail/${mediaType}/${id}`}
           ogType="video.movie"
         />
