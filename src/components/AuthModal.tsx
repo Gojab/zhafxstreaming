@@ -19,6 +19,7 @@ import {
 import { storage } from '../lib/storage';
 import { User } from '../types';
 import { CONFIG } from '../config';
+import { supabase } from '../lib/supabase';
 
 declare global {
   interface Window {
@@ -326,48 +327,54 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
     await handleGoogleAuthBackend({ email: cleanEmail, name: cleanName });
   };
 
-  // Direct Password Login / Register
+  // Email/password auth is handled directly by Supabase Auth.
   const handlePasswordAuth = async (e: React.FormEvent) => {
     e.preventDefault();
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail || !password) {
+      setError('Email dan kata sandi wajib diisi.');
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
     setSuccessMessage(null);
 
-    const endpoint = isRegister ? '/api/auth/register' : '/api/auth/login';
-    const payload = isRegister
-      ? { name: name.trim() || email.split('@')[0], email: email.trim(), password }
-      : { login: email.trim(), password, rememberMe: true };
-
     try {
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      const data = await safeJsonParse(res);
+      const result = isRegister
+        ? await supabase.auth.signUp({
+            email: cleanEmail,
+            password,
+            options: { data: { name: name.trim() || cleanEmail.split('@')[0] } },
+          })
+        : await supabase.auth.signInWithPassword({ email: cleanEmail, password });
 
-      if (data && data.success && data.user) {
-        handleFinishAuth(
-          data.user,
-          data.token,
-          isRegister
-            ? `Pendaftaran berhasil! Selamat datang, ${data.user.name}.`
-            : `Berhasil masuk! Selamat datang kembali, ${data.user.name}.`
-        );
-        return;
-      }
+      if (result.error) throw result.error;
+      const session = result.data.session;
+      const authUser = result.data.user;
 
-      if (data && data.error) {
-        setError(data.error);
+      if (!authUser) throw new Error('Akun tidak dapat dibuat atau ditemukan.');
+      if (!session) {
         setIsLoading(false);
+        setSuccessMessage('Pendaftaran berhasil. Silakan cek email untuk verifikasi akun.');
         return;
       }
 
-      setError('Terjadi kesalahan saat memproses autentikasi.');
-      setIsLoading(false);
+      const user: User = {
+        id: authUser.id,
+        email: authUser.email || cleanEmail,
+        name: String(authUser.user_metadata?.name || cleanEmail.split('@')[0]),
+        avatar: authUser.user_metadata?.avatar_url,
+        joinedAt: new Date(authUser.created_at).getTime(),
+      };
+      handleFinishAuth(
+        user,
+        session.access_token,
+        isRegister ? `Pendaftaran berhasil! Selamat datang, ${user.name}.` : `Berhasil masuk! Selamat datang kembali, ${user.name}.`
+      );
     } catch (err: any) {
-      setError(err?.message || 'Terjadi kesalahan sistem.');
       setIsLoading(false);
+      setError(err?.message || 'Login email gagal. Periksa email dan kata sandi Anda.');
     }
   };
 
