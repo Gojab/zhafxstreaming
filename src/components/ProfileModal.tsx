@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   IoCloseOutline as CloseIcon,
   IoPersonOutline as UserIcon,
@@ -14,6 +14,9 @@ import {
   IoLockClosedOutline as Lock,
   IoCopyOutline as CopyIcon,
   IoSparkles as Sparkles,
+  IoCameraOutline as CameraIcon,
+  IoCloudUploadOutline as UploadIcon,
+  IoTrashOutline as TrashIcon,
 } from 'react-icons/io5';
 import { storage } from '../lib/storage';
 import { supabase } from '../lib/supabase';
@@ -50,6 +53,51 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setError('Harap pilih file gambar (JPG, PNG, WebP).');
+      return;
+    }
+
+    if (file.size > 8 * 1024 * 1024) {
+      setError('Ukuran gambar maksimal 8MB.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const size = 300;
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        const minDim = Math.min(img.width, img.height);
+        const startX = (img.width - minDim) / 2;
+        const startY = (img.height - minDim) / 2;
+
+        ctx.drawImage(img, startX, startY, minDim, minDim, 0, 0, size, size);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.88);
+        setAvatar(dataUrl);
+        setError(null);
+      };
+      img.src = event.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  const handleRemovePhoto = () => {
+    setAvatar('');
+  };
 
   // Sync user on open
   useEffect(() => {
@@ -251,23 +299,44 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
           </button>
         </div>
 
+        {/* Hidden File Input for Avatar Photo Upload */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/png,image/jpeg,image/webp,image/gif"
+          onChange={handleFileUpload}
+          className="hidden"
+          aria-hidden="true"
+        />
+
         {/* User Snapshot Banner */}
         <div className="p-4 rounded-2xl bg-white/[0.04] border border-white/10 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
-            {avatar ? (
-              <img
-                src={avatar}
-                alt={name || 'Avatar'}
-                className="w-12 h-12 rounded-full object-cover border-2 border-white/30 shadow-md shrink-0"
-                onError={(e) => {
-                  (e.currentTarget as HTMLElement).style.display = 'none';
-                }}
-              />
-            ) : (
-              <div className="w-12 h-12 rounded-full bg-white text-black font-extrabold text-base flex items-center justify-center uppercase shadow-md shrink-0">
-                {name?.charAt(0) || email?.charAt(0) || 'U'}
-              </div>
-            )}
+            <div className="relative group/avatar shrink-0">
+              {avatar ? (
+                <img
+                  src={avatar}
+                  alt={name || 'Avatar'}
+                  className="w-13 h-13 rounded-full object-cover border-2 border-white/30 shadow-md"
+                  onError={(e) => {
+                    (e.currentTarget as HTMLElement).style.display = 'none';
+                  }}
+                />
+              ) : (
+                <div className="w-13 h-13 rounded-full bg-white text-black font-extrabold text-base flex items-center justify-center uppercase shadow-md">
+                  {name?.charAt(0) || email?.charAt(0) || 'U'}
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                title="Ganti Foto Profil"
+                className="absolute inset-0 rounded-full bg-black/60 opacity-0 group-hover/avatar:opacity-100 flex flex-col items-center justify-center transition-all cursor-pointer backdrop-blur-xs text-white"
+              >
+                <CameraIcon className="w-4 h-4 text-white" />
+                <span className="text-[8px] font-bold text-white tracking-wider">UBAH</span>
+              </button>
+            </div>
             <div className="min-w-0">
               <p className="text-sm font-bold text-white truncate">{name || 'Pengguna Zhafx'}</p>
               <p className="text-xs text-white/60 truncate flex items-center gap-1.5 mt-0.5">
@@ -300,34 +369,62 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
         {/* Form */}
         <form onSubmit={handleSaveProfile} className="space-y-4">
-          {/* Avatar Selector */}
-          <div className="space-y-2">
-            <label className="text-xs font-semibold text-zinc-300 flex items-center justify-between">
-              <span>Pilih Avatar Karakter</span>
-              <span className="text-[10px] text-zinc-400">Klik untuk mengganti</span>
-            </label>
-            <div className="flex items-center gap-2 overflow-x-auto pb-1.5 scrollbar-thin">
-              {PRESET_AVATARS.map((presetUrl, idx) => {
-                const isSelected = avatar === presetUrl;
-                return (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => setAvatar(presetUrl)}
-                    className={`relative w-10 h-10 sm:w-11 sm:h-11 rounded-full p-0.5 transition-all cursor-pointer shrink-0 ${
-                      isSelected
-                        ? 'ring-2 ring-white ring-offset-2 ring-offset-black scale-105'
-                        : 'opacity-65 hover:opacity-100 hover:scale-105 border border-white/20'
-                    }`}
-                  >
-                    <img
-                      src={presetUrl}
-                      alt={`Avatar Preset ${idx + 1}`}
-                      className="w-full h-full rounded-full object-cover"
-                    />
-                  </button>
-                );
-              })}
+          {/* Avatar & Photo Upload Section */}
+          <div className="p-3.5 rounded-2xl bg-white/[0.03] border border-white/10 space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold text-white block">
+                Foto Profil Akun
+              </label>
+              <span className="text-[10px] text-zinc-400">JPG, PNG, WebP</span>
+            </div>
+
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="px-3.5 py-2 rounded-xl bg-white hover:bg-zinc-200 text-black font-semibold text-xs flex items-center gap-2 cursor-pointer shadow-sm transition-all"
+              >
+                <UploadIcon className="w-4 h-4 text-black" />
+                <span>Upload Foto Profil</span>
+              </button>
+
+              {avatar && (
+                <button
+                  type="button"
+                  onClick={handleRemovePhoto}
+                  className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-zinc-300 hover:text-white font-medium text-xs flex items-center gap-1.5 cursor-pointer transition-colors"
+                >
+                  <TrashIcon className="w-3.5 h-3.5 text-zinc-400" />
+                  <span>Hapus Foto</span>
+                </button>
+              )}
+            </div>
+
+            <div className="space-y-2 pt-2 border-t border-white/10">
+              <span className="text-[11px] text-zinc-400 block">Atau pilih avatar karakter siap pakai:</span>
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin">
+                {PRESET_AVATARS.map((presetUrl, idx) => {
+                  const isSelected = avatar === presetUrl;
+                  return (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => setAvatar(presetUrl)}
+                      className={`relative w-10 h-10 rounded-full p-0.5 transition-all cursor-pointer shrink-0 ${
+                        isSelected
+                          ? 'ring-2 ring-white ring-offset-2 ring-offset-black scale-105'
+                          : 'opacity-65 hover:opacity-100 hover:scale-105 border border-white/20'
+                      }`}
+                    >
+                      <img
+                        src={presetUrl}
+                        alt={`Avatar Preset ${idx + 1}`}
+                        className="w-full h-full rounded-full object-cover"
+                      />
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
 
