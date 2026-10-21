@@ -1,12 +1,28 @@
 {
   "rewrites": [
     {
-      "source": "/api/anime/:action",
+      "source": "/api/anime/:action*",
       "destination": "/api/anime/[action]"
     },
     {
-      "source": "/api/auth/:action",
+      "source": "/api/auth/:action*",
       "destination": "/api/auth/[action]"
+    },
+    {
+      "source": "/api/trending",
+      "destination": "/api/discover?trending=true"
+    },
+    {
+      "source": "/api/season",
+      "destination": "/api/stream?action=season"
+    },
+    {
+      "source": "/api/providers",
+      "destination": "/api/stream?action=providers"
+    },
+    {
+      "source": "/api/ai/chat",
+      "destination": "/api/chat"
     },
     {
       "source": "/api/(.*)",

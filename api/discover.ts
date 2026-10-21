@@ -7,6 +7,51 @@ export default async function handler(req: any, res: any) {
     return res.status(200).end();
   }
 
+  const isTrending = Boolean(
+    req.query?.trending ||
+    req.query?.action === 'trending' ||
+    req.url?.includes('/trending')
+  );
+
+  const backends = ['https://api.framextv.xyz', 'https://api.framextv.tech', 'https://api.framextv.cc'];
+
+  // Handle Trending Requests
+  if (isTrending) {
+    const page = (req.query.page as string) || '1';
+    const type = req.query.type as string;
+    const q = new URLSearchParams();
+    q.set('page', page);
+    if (type) q.set('type', type);
+
+    for (const backend of backends) {
+      try {
+        const upstreamRes = await fetch(`${backend}/api/trending?${q.toString()}`, {
+          headers: {
+            'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+            Referer: 'https://framextv.xyz/',
+            Origin: 'https://framextv.xyz',
+            Accept: 'application/json',
+          },
+          signal: AbortSignal.timeout(6000),
+        });
+
+        if (upstreamRes.ok) {
+          const data = await upstreamRes.json();
+          res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
+          return res.status(200).json(data);
+        }
+      } catch {}
+    }
+
+    return res.status(502).json({
+      success: false,
+      error: 'Gagal memuat tayangan trending.',
+      results: [],
+    });
+  }
+
+  // Handle Discover Requests
   const type = (req.query.type as string) || 'movie';
   const genre = req.query.genre as string;
   const year = req.query.year as string;
@@ -56,7 +101,6 @@ export default async function handler(req: any, res: any) {
     } catch {}
   }
 
-  const backends = ['https://api.framextv.xyz', 'https://api.framextv.tech', 'https://api.framextv.cc'];
   const q = new URLSearchParams();
   q.set('type', type);
   if (genre && genre !== 'all') q.set('genre', genre);
