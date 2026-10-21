@@ -2282,6 +2282,20 @@ async function startServer() {
       appType: 'spa',
     });
     app.use(vite.middlewares);
+
+    // Fallback handler for SPA client routing in development
+    app.use('*', async (req: Request, res: Response, next) => {
+      const url = req.originalUrl;
+      try {
+        const indexPath = path.resolve(__dirname, 'index.html');
+        if (!fs.existsSync(indexPath)) return next();
+        let template = fs.readFileSync(indexPath, 'utf-8');
+        template = await vite.transformIndexHtml(url, template);
+        res.status(200).set({ 'Content-Type': 'text/html; charset=utf-8' }).end(template);
+      } catch (e) {
+        next(e);
+      }
+    });
   } else {
     app.use(express.static(path.resolve(__dirname, 'dist')));
 
