@@ -6,6 +6,7 @@ import { useMyList } from '../hooks/useMyList';
 import { useActiveMedia } from '../context/ActiveMediaContext';
 import { storage } from '../lib/storage';
 import { optimizeTmdbImage, getTmdbBackdropSrcSet } from '../lib/image';
+import { translateToIndonesian, isIndonesian } from '../lib/translator';
 
 interface HeroBillboardProps {
   items: Title[];
@@ -17,6 +18,7 @@ export const HeroBillboard: React.FC<HeroBillboardProps> = ({ items }) => {
   const { setActiveMedia } = useActiveMedia();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
+  const [translatedOverview, setTranslatedOverview] = useState<string>('');
   const touchStartX = useRef<number | null>(null);
 
   const prefersReducedMotion =
@@ -25,6 +27,27 @@ export const HeroBillboard: React.FC<HeroBillboardProps> = ({ items }) => {
       : false;
 
   const validItems = items && items.length > 0 ? items.slice(0, 6) : [];
+  const current = validItems[currentIndex];
+
+  // Keep Indonesian synopsis updated whenever current item changes
+  useEffect(() => {
+    if (!current) return;
+    let isMounted = true;
+    const raw = current.overview || '';
+    if (isIndonesian(raw)) {
+      setTranslatedOverview(raw);
+    } else {
+      setTranslatedOverview(raw);
+      translateToIndonesian(raw, current.title).then((trans) => {
+        if (isMounted && trans) {
+          setTranslatedOverview(trans);
+        }
+      });
+    }
+    return () => {
+      isMounted = false;
+    };
+  }, [current]);
 
   // Synchronize active background poster whenever current item changes
   useEffect(() => {
@@ -70,9 +93,8 @@ export const HeroBillboard: React.FC<HeroBillboardProps> = ({ items }) => {
     touchStartX.current = null;
   };
 
-  if (validItems.length === 0) return null;
+  if (validItems.length === 0 || !current) return null;
 
-  const current = validItems[currentIndex];
   const typeLabel = current.type === 'anime' ? 'Anime' : current.type === 'tv' ? 'Serial TV' : 'Film';
   const saved = isSaved(current.id);
 
@@ -158,7 +180,7 @@ export const HeroBillboard: React.FC<HeroBillboardProps> = ({ items }) => {
 
           {/* Synopsis */}
           <p className="text-xs sm:text-sm text-white/75 line-clamp-2 sm:line-clamp-3 leading-relaxed max-w-xl font-normal">
-            {current.overview || 'Sinopsis belum tersedia untuk tayangan ini.'}
+            {translatedOverview || current.overview || 'Sinopsis belum tersedia untuk tayangan ini.'}
           </p>
 
           {/* Liquid Glass Action Buttons with Apple Spring Physics */}

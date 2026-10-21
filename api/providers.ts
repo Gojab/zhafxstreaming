@@ -52,30 +52,30 @@ export default async function handler(req: any, res: any) {
   if (type === 'tv') {
     return res.status(200).json({
       providers: [
-        { id: 'miner', name: 'Miner XIX', tagline: 'Movy Multi-City TV Series 4K', category: 'tv', status: 'available' },
-        { id: 'headhunter', name: 'Headhunter XXXI', tagline: 'VidLink TV Series Multi-Sub', category: 'tv', status: 'available' },
-        { id: 'valkyrie', name: 'Valkyrie VI', tagline: '4K Ultra TV Multi-Server', category: 'tv', status: 'available' },
-        { id: 'titan', name: 'Titan VII', tagline: 'Films365 Direct MP4 1080p Server', category: 'tv', status: 'available' },
-        { id: 'hog_rider', name: 'Hog Rider XI', tagline: '4K TV Server', category: 'tv', status: 'available' },
-        { id: 'lavahound', name: 'Lava Hound XII', tagline: '4K Fast TV Series Stream', category: 'tv', status: 'available' },
-        { id: 'super_barbarian', name: 'Super Barbarian XVI', tagline: 'Direct Auto HLS TV Stream', category: 'tv', status: 'available' },
-        { id: 'bowler', name: 'Bowler XVIII', tagline: 'Multi-Language TV Episodes', category: 'tv', status: 'available' },
-        { id: 'giant', name: 'Giant XI', tagline: 'Multi-Audio TV Stream Cepat', category: 'tv', status: 'available' },
+        { id: 'miner', name: 'Server 1', tagline: 'Server Utama', category: 'tv', status: 'available' },
+        { id: 'headhunter', name: 'Server 2', tagline: 'Server Cadangan Multi-Sub', category: 'tv', status: 'available' },
+        { id: 'valkyrie', name: 'Server 3', tagline: 'Server Cadangan Cepat', category: 'tv', status: 'available' },
+        { id: 'titan', name: 'Server 4', tagline: 'Server Cadangan Direct', category: 'tv', status: 'available' },
+        { id: 'hog_rider', name: 'Server 5', tagline: 'Server Cadangan Stabil', category: 'tv', status: 'available' },
+        { id: 'lavahound', name: 'Server 6', tagline: 'Server Cadangan Multi-CDN', category: 'tv', status: 'available' },
+        { id: 'super_barbarian', name: 'Server 7', tagline: 'Server Cadangan HLS', category: 'tv', status: 'available' },
+        { id: 'bowler', name: 'Server 8', tagline: 'Server Cadangan Multi-Bahasa', category: 'tv', status: 'available' },
+        { id: 'giant', name: 'Server 9', tagline: 'Server Cadangan Audio', category: 'tv', status: 'available' },
       ],
     });
   }
 
   return res.status(200).json({
     providers: [
-      { id: 'miner', name: 'Miner XIX', tagline: 'Movy Multi-City 4K Server', category: 'movie', status: 'available' },
-      { id: 'headhunter', name: 'Headhunter XXXI', tagline: 'VidLink Server Multi-Sub', category: 'movie', status: 'available' },
-      { id: 'valkyrie', name: 'Valkyrie VI', tagline: '4K Ultra Multi-Server', category: 'movie', status: 'available' },
-      { id: 'titan', name: 'Titan VII', tagline: 'Films365 Direct MP4 1080p Server', category: 'movie', status: 'available' },
-      { id: 'hog_rider', name: 'Hog Rider XI', tagline: '4K Pilled Server', category: 'movie', status: 'available' },
-      { id: 'lavahound', name: 'Lava Hound XII', tagline: '4K Fast Multi-Server Stream', category: 'movie', status: 'available' },
-      { id: 'super_barbarian', name: 'Super Barbarian XVI', tagline: 'Direct Auto HLS Stream', category: 'movie', status: 'available' },
-      { id: 'bowler', name: 'Bowler XVIII', tagline: 'Multi-Language', category: 'movie', status: 'available' },
-      { id: 'giant', name: 'Giant XI', tagline: 'Multi-Audio Direct Stream', category: 'movie', status: 'available' },
+      { id: 'miner', name: 'Server 1', tagline: 'Server Utama', category: 'movie', status: 'available' },
+      { id: 'headhunter', name: 'Server 2', tagline: 'Server Cadangan Multi-Sub', category: 'movie', status: 'available' },
+      { id: 'valkyrie', name: 'Server 3', tagline: 'Server Cadangan Cepat', category: 'movie', status: 'available' },
+      { id: 'titan', name: 'Server 4', tagline: 'Server Cadangan Direct', category: 'movie', status: 'available' },
+      { id: 'hog_rider', name: 'Server 5', tagline: 'Server Cadangan Stabil', category: 'movie', status: 'available' },
+      { id: 'lavahound', name: 'Server 6', tagline: 'Server Cadangan Multi-CDN', category: 'movie', status: 'available' },
+      { id: 'super_barbarian', name: 'Server 7', tagline: 'Server Cadangan HLS', category: 'movie', status: 'available' },
+      { id: 'bowler', name: 'Server 8', tagline: 'Server Cadangan Multi-Bahasa', category: 'movie', status: 'available' },
+      { id: 'giant', name: 'Server 9', tagline: 'Server Cadangan Audio', category: 'movie', status: 'available' },
     ],
   });
 }

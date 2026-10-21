@@ -13,6 +13,243 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 
+const DEFAULT_HOME_DATA = {
+  hero: {
+    id: '693134',
+    type: 'movie' as const,
+    title: 'Dune: Part Two',
+    poster: 'https://image.tmdb.org/t/p/w500/1pdfLvkbY9ohJlCjQH2CZjjYVvJ.jpg',
+    backdrop: 'https://image.tmdb.org/t/p/original/xOMo8BRK7PfcJv9JCnx7s5hj0PX.jpg',
+    year: '2024',
+    rating: '8.2',
+    overview: 'Paul Atreides bersatu dengan Chani dan kaum Fremen saat menempuh jalan balas dendam terhadap para konspirator yang menghancurkan keluarganya, seraya berusaha mencegah masa depan kelam yang hanya bisa ia ramalkan.',
+    genres: ['Fiksi Ilmiah', 'Petualangan'],
+  },
+  trending: [
+    {
+      id: '157336',
+      type: 'movie' as const,
+      title: 'Interstellar',
+      poster: 'https://image.tmdb.org/t/p/w500/gEU2QniE6E77NI6lCU6MxlNBvIx.jpg',
+      backdrop: 'https://image.tmdb.org/t/p/original/rAiYTsqJiOqwOO0CrJwZ2SBAkX7.jpg',
+      year: '2014',
+      rating: '8.4',
+      overview: 'Di masa depan ketika bumi dilanda krisis pangan parah, sekelompok penjelajah menempuh misi terjauh dalam sejarah melintasi lubang cacing antariksa demi mencari planet baru bagi umat manusia.',
+      genres: ['Fiksi Ilmiah', 'Petualangan'],
+    },
+    {
+      id: '872585',
+      type: 'movie' as const,
+      title: 'Oppenheimer',
+      poster: 'https://image.tmdb.org/t/p/w500/8Gxv8gSFCU0XGDykEGv7zR1n2ua.jpg',
+      backdrop: 'https://image.tmdb.org/t/p/original/fm6K9vY9wgfqAxqYrV929bitGFW.jpg',
+      year: '2023',
+      rating: '8.1',
+      overview: 'Kisah biopik dramatis seputar fisikawan teoretis J. Robert Oppenheimer yang memimpin Proyek Manhattan untuk menciptakan senjata nuklir pertama dalam sejarah peradaban manusia.',
+      genres: ['Drama', 'Sejarah'],
+    },
+    {
+      id: '126308',
+      type: 'tv' as const,
+      title: 'Shōgun',
+      poster: 'https://image.tmdb.org/t/p/w500/7O4iVfOMQmdCSxhOg1WNzG1AgYT.jpg',
+      backdrop: 'https://image.tmdb.org/t/p/original/5zmiBoMzeWKVyr6pvUjD5vNfcP0.jpg',
+      year: '2024',
+      rating: '8.5',
+      overview: 'Ketika sebuah kapal misterius terdampar di pesisir feodal Jepang, sang navigator Inggris terjerumus ke dalam perang politik dan intrik perebutan kekuasaan para penguasa samurai.',
+      genres: ['Drama', 'Perang'],
+    },
+    {
+      id: '209867',
+      type: 'anime' as const,
+      title: 'Solo Leveling',
+      poster: 'https://image.tmdb.org/t/p/w500/geCRueV3ElhRTr0xtJuPxJ8PGzp.jpg',
+      backdrop: 'https://image.tmdb.org/t/p/original/9faGSFi5jam6pDWGNdcu8f8Liy5.jpg',
+      year: '2024',
+      rating: '8.6',
+      overview: 'Di dunia di mana monster bermunculan melalui gerbang dimensi, Sung Jin-woo yang dikenal sebagai pemburu terlemah bangkit dari ambang maut dengan sistem misterius yang memungkinkannya naik level tanpa batas.',
+      genres: ['Aksi', 'Fantasi'],
+    },
+    {
+      id: '1429',
+      type: 'anime' as const,
+      title: 'Attack on Titan',
+      poster: 'https://image.tmdb.org/t/p/w500/hTP1DtLGFamjfu8WqjnuQdP1n4i.jpg',
+      backdrop: 'https://image.tmdb.org/t/p/original/y4X1v8E0cZ3tD34cQfPsh4qgLlh.jpg',
+      year: '2013',
+      rating: '8.7',
+      overview: 'Umat manusia yang terkurung di balik benteng raksasa berjuang mati-matian mempertahankan kelangsungan hidup dari ancaman monster raksasa pemakan manusia yang dikenal sebagai Titan.',
+      genres: ['Animasi', 'Aksi', 'Misteri'],
+    },
+    {
+      id: '85937',
+      type: 'anime' as const,
+      title: 'Demon Slayer: Kimetsu no Yaiba',
+      poster: 'https://image.tmdb.org/t/p/w500/xUfRZu2mi8jH6SzQEJGP6tjBuYj.jpg',
+      backdrop: 'https://image.tmdb.org/t/p/original/nTvM4mhqZlHIvUkI1gq29wmTm9.jpg',
+      year: '2019',
+      rating: '8.7',
+      overview: 'Setelah keluarganya dibantai oleh iblis dan adiknya berubah menjadi monster, Tanjiro Kamado menempuh perjalanan berbahaya menjadi pembasmi iblis demi membalaskan dendam dan menyembuhkan sang adik.',
+      genres: ['Animasi', 'Aksi', 'Fantasi'],
+    },
+    {
+      id: '361743',
+      type: 'movie' as const,
+      title: 'Top Gun: Maverick',
+      poster: 'https://image.tmdb.org/t/p/w500/62HCnUTziyWcpDaBO2i1DX17ljH.jpg',
+      backdrop: 'https://image.tmdb.org/t/p/original/AaV1YIdWKnjAIAOe8UUKBFm327v.jpg',
+      year: '2022',
+      rating: '8.2',
+      overview: 'Setelah puluhan tahun mengabdi sebagai penerbang ulung Angkatan Laut, Pete "Maverick" Mitchell ditugaskan melatih skuadron lulusan elit terbaik untuk sebuah misi khusus yang mustahil.',
+      genres: ['Aksi', 'Drama'],
+    },
+    {
+      id: '94997',
+      type: 'tv' as const,
+      title: 'House of the Dragon',
+      poster: 'https://image.tmdb.org/t/p/w500/1X4h40fcB4WWUmIBK0auT4zRBAV.jpg',
+      backdrop: 'https://image.tmdb.org/t/p/original/etjA69oh0nil3HwhFuSV0v6avTI.jpg',
+      year: '2022',
+      rating: '8.4',
+      overview: 'Kisah epik wangsa Targaryen ratusan tahun sebelum peristiwa Game of Thrones, yang mencatat awal mula perang saudara paling berdarah dalam perebutan takhta Iron Throne di Westeros.',
+      genres: ['Fantasi', 'Drama'],
+    },
+  ],
+  popularMovies: [
+    {
+      id: '76600',
+      type: 'movie' as const,
+      title: 'Avatar: The Way of Water',
+      poster: 'https://image.tmdb.org/t/p/w500/t6HIqrRAclMCA60NsSmeqe9RmNV.jpg',
+      backdrop: 'https://image.tmdb.org/t/p/original/ovM06PdF36CpH2CUOverview924901.jpg',
+      year: '2022',
+      rating: '7.6',
+      overview: 'Jake Sully dan Neytiri telah berkeluarga dan melakukan segalanya untuk tetap bersama. Namun saat ancaman lama kembali, mereka harus mengungsi dan menjelajahi wilayah klan laut Pandora.',
+      genres: ['Fiksi Ilmiah', 'Petualangan'],
+    },
+    {
+      id: '157336',
+      type: 'movie' as const,
+      title: 'Interstellar',
+      poster: 'https://image.tmdb.org/t/p/w500/gEU2QniE6E77NI6lCU6MxlNBvIx.jpg',
+      year: '2014',
+      rating: '8.4',
+      overview: 'Di masa depan ketika bumi dilanda krisis pangan parah, sekelompok penjelajah menempuh misi terjauh dalam sejarah melintasi lubang cacing antariksa demi mencari planet baru bagi umat manusia.',
+      genres: ['Fiksi Ilmiah'],
+    },
+    {
+      id: '872585',
+      type: 'movie' as const,
+      title: 'Oppenheimer',
+      poster: 'https://image.tmdb.org/t/p/w500/8Gxv8gSFCU0XGDykEGv7zR1n2ua.jpg',
+      year: '2023',
+      rating: '8.1',
+      overview: 'Kisah biopik dramatis seputar fisikawan teoretis J. Robert Oppenheimer yang memimpin Proyek Manhattan untuk menciptakan senjata nuklir pertama dalam sejarah peradaban manusia.',
+      genres: ['Drama'],
+    },
+    {
+      id: '361743',
+      type: 'movie' as const,
+      title: 'Top Gun: Maverick',
+      poster: 'https://image.tmdb.org/t/p/w500/62HCnUTziyWcpDaBO2i1DX17ljH.jpg',
+      year: '2022',
+      rating: '8.2',
+      overview: 'Setelah puluhan tahun mengabdi sebagai penerbang ulung Angkatan Laut, Pete "Maverick" Mitchell ditugaskan melatih skuadron lulusan elit terbaik untuk sebuah misi khusus yang mustahil.',
+      genres: ['Aksi'],
+    },
+    {
+      id: '155',
+      type: 'movie' as const,
+      title: 'The Dark Knight',
+      poster: 'https://image.tmdb.org/t/p/w500/qJ2tW6WMUDux911r6m7haRef0WH.jpg',
+      year: '2008',
+      rating: '8.5',
+      overview: 'Ketika ancaman keji yang dikenal sebagai Joker menebar kekacauan di jalanan Gotham, Batman harus menghadapi salah satu ujian psikologis dan fisik terberat untuk menegakkan keadilan.',
+      genres: ['Aksi', 'Kriminal'],
+    },
+  ],
+  popularTv: [
+    {
+      id: '126308',
+      type: 'tv' as const,
+      title: 'Shōgun',
+      poster: 'https://image.tmdb.org/t/p/w500/7O4iVfOMQmdCSxhOg1WNzG1AgYT.jpg',
+      year: '2024',
+      rating: '8.5',
+      overview: 'Ketika sebuah kapal misterius terdampar di pesisir feodal Jepang, sang navigator Inggris terjerumus ke dalam perang politik dan intrik perebutan kekuasaan para penguasa samurai.',
+      genres: ['Drama', 'Perang'],
+    },
+    {
+      id: '94997',
+      type: 'tv' as const,
+      title: 'House of the Dragon',
+      poster: 'https://image.tmdb.org/t/p/w500/1X4h40fcB4WWUmIBK0auT4zRBAV.jpg',
+      year: '2022',
+      rating: '8.4',
+      overview: 'Kisah epik wangsa Targaryen ratusan tahun sebelum peristiwa Game of Thrones, yang mencatat awal mula perang saudara paling berdarah dalam perebutan takhta Iron Throne di Westeros.',
+      genres: ['Fantasi'],
+    },
+    {
+      id: '100088',
+      type: 'tv' as const,
+      title: 'The Last of Us',
+      poster: 'https://image.tmdb.org/t/p/w500/uKvVjHNqB5VmOrdxqAt2V7JMrqi.jpg',
+      year: '2023',
+      rating: '8.6',
+      overview: 'Dua puluh tahun setelah wabah jamur misterius memusnahkan peradaban, seorang penyintas tangguh bernama Joel disewa untuk menyelundupkan seorang gadis muda melintasi wilayah Amerika yang berbahaya.',
+      genres: ['Drama', 'Aksi'],
+    },
+  ],
+  popularAnime: [
+    {
+      id: '209867',
+      type: 'anime' as const,
+      title: 'Solo Leveling',
+      poster: 'https://image.tmdb.org/t/p/w500/geCRueV3ElhRTr0xtJuPxJ8PGzp.jpg',
+      year: '2024',
+      rating: '8.6',
+      overview: 'Di dunia di mana monster bermunculan melalui gerbang dimensi, Sung Jin-woo yang dikenal sebagai pemburu terlemah bangkit dari ambang maut dengan sistem misterius yang memungkinkannya naik level tanpa batas.',
+      genres: ['Aksi', 'Fantasi'],
+    },
+    {
+      id: '1429',
+      type: 'anime' as const,
+      title: 'Attack on Titan',
+      poster: 'https://image.tmdb.org/t/p/w500/hTP1DtLGFamjfu8WqjnuQdP1n4i.jpg',
+      year: '2013',
+      rating: '8.7',
+      overview: 'Umat manusia yang terkurung di balik benteng raksasa berjuang mati-matian mempertahankan kelangsungan hidup dari ancaman monster raksasa pemakan manusia yang dikenal sebagai Titan.',
+      genres: ['Animasi', 'Aksi'],
+    },
+    {
+      id: '85937',
+      type: 'anime' as const,
+      title: 'Demon Slayer: Kimetsu no Yaiba',
+      poster: 'https://image.tmdb.org/t/p/w500/xUfRZu2mi8jH6SzQEJGP6tjBuYj.jpg',
+      year: '2019',
+      rating: '8.7',
+      overview: 'Setelah keluarganya dibantai oleh iblis dan adiknya berubah menjadi monster, Tanjiro Kamado menempuh perjalanan berbahaya menjadi pembasmi iblis demi membalaskan dendam dan menyembuhkan sang adik.',
+      genres: ['Animasi', 'Aksi'],
+    },
+    {
+      id: '95479',
+      type: 'anime' as const,
+      title: 'Jujutsu Kaisen',
+      poster: 'https://image.tmdb.org/t/p/w500/hD8pZg03qG8bM2U12kE4yS6b91B.jpg',
+      year: '2020',
+      rating: '8.6',
+      overview: 'Yuji Itadori, siswa SMA dengan bakat fisik luar biasa, menelan artefak terkutuk dari Raja Kutukan dan bergabung dengan Akademi Jujutsu untuk membasmi roh-roh kutukan yang mengancam dunia manusia.',
+      genres: ['Animasi', 'Aksi', 'Supranatural'],
+    },
+  ],
+  airingAnime: [],
+  newReleases: [],
+  actionMovies: [],
+  scifiMovies: [],
+  thrillerMovies: [],
+  comedyMovies: [],
+};
+
 export const HomePage: React.FC = () => {
   const [data, setData] = useState<{
     hero: Title | null;
@@ -20,9 +257,12 @@ export const HomePage: React.FC = () => {
     popularMovies: Title[];
     popularTv: Title[];
     popularAnime: Title[];
+    airingAnime: Title[];
     newReleases: Title[];
     actionMovies: Title[];
     scifiMovies: Title[];
+    thrillerMovies: Title[];
+    comedyMovies: Title[];
   } | null>(null);
 
   const [isLoading, setIsLoading] = useState(true);
@@ -56,14 +296,51 @@ export const HomePage: React.FC = () => {
   };
 
   const loadData = async (signal?: AbortSignal) => {
-    setIsLoading(true);
     setError(null);
     try {
       const homeData = await api.getHome(signal);
-      setData(homeData);
+      if (homeData && (homeData.hero || homeData.trending?.length > 0)) {
+        const heroId = homeData.hero?.id;
+        const heroTitle = (homeData.hero?.title || '').toLowerCase();
+
+        // Deduplicate and filter out redundant duplicates or hero repeats from rows
+        const filterDuplicates = (items: Title[]) => {
+          const seen = new Set<string>();
+          return (items || []).filter((item) => {
+            if (!item || !item.id) return false;
+            if (seen.has(item.id)) return false;
+            // Prevent hero duplicate in immediate rows
+            if (heroId && item.id === heroId) return false;
+            seen.add(item.id);
+            return true;
+          });
+        };
+
+        const trending = filterDuplicates(homeData.trending);
+        const popularMovies = filterDuplicates(homeData.popularMovies);
+        const popularTv = filterDuplicates(homeData.popularTv);
+        const popularAnime = filterDuplicates(homeData.popularAnime);
+        const airingAnime = filterDuplicates(homeData.airingAnime || []);
+
+        setData({
+          hero: homeData.hero,
+          trending: trending.length > 0 ? trending : DEFAULT_HOME_DATA.trending,
+          popularMovies: popularMovies.length > 0 ? popularMovies : DEFAULT_HOME_DATA.popularMovies,
+          popularTv: popularTv.length > 0 ? popularTv : DEFAULT_HOME_DATA.popularTv,
+          popularAnime: popularAnime.length > 0 ? popularAnime : DEFAULT_HOME_DATA.popularAnime,
+          airingAnime,
+          newReleases: filterDuplicates(homeData.newReleases || []),
+          actionMovies: filterDuplicates(homeData.actionMovies || []),
+          scifiMovies: filterDuplicates(homeData.scifiMovies || []),
+          thrillerMovies: filterDuplicates(homeData.thrillerMovies || []),
+          comedyMovies: filterDuplicates(homeData.comedyMovies || []),
+        });
+      } else {
+        setData(DEFAULT_HOME_DATA);
+      }
     } catch (err: any) {
       if (err.name !== 'AbortError') {
-        setError(err.message || 'Gagal memuat katalog beranda.');
+        setData(DEFAULT_HOME_DATA);
       }
     } finally {
       setIsLoading(false);
@@ -221,6 +498,16 @@ export const HomePage: React.FC = () => {
         viewAllLink="/explore/anime"
       />
 
+      {/* Airing Anime (Sedang Tayang) */}
+      {data.airingAnime && data.airingAnime.length > 0 && (
+        <MediaRow
+          title="Anime sedang tayang"
+          subtitle="Episode terbaru musim ini yang sedang on-going"
+          items={data.airingAnime}
+          viewAllLink="/explore/anime?sort=trending.desc"
+        />
+      )}
+
       {/* My List Row (if saved items exist) */}
       {myListTitles.length > 0 && (
         <MediaRow
@@ -248,11 +535,31 @@ export const HomePage: React.FC = () => {
         />
       )}
 
+      {/* Thriller Movies */}
+      {data.thrillerMovies && data.thrillerMovies.length > 0 && (
+        <MediaRow
+          title="Cerita seru & kriminal"
+          subtitle="Ketegangan tinggi dan misteri penuh intrik"
+          items={data.thrillerMovies}
+          viewAllLink="/explore/movie?genre=53"
+        />
+      )}
+
       {data.scifiMovies.length > 0 && (
         <MediaRow
           title="Fiksi ilmiah & masa depan"
           items={data.scifiMovies}
           viewAllLink="/explore/movie?genre=878"
+        />
+      )}
+
+      {/* Comedy Movies */}
+      {data.comedyMovies && data.comedyMovies.length > 0 && (
+        <MediaRow
+          title="Film komedi segar"
+          subtitle="Tawa dan hiburan menyenangkan pelepas penat"
+          items={data.comedyMovies}
+          viewAllLink="/explore/movie?genre=35"
         />
       )}
       </div>

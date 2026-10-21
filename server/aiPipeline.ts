@@ -20,14 +20,12 @@ export interface ModelProvider {
 
 // 16 Multi-tier AI Models for instant fallback
 export const AI_MODELS: ModelProvider[] = [
-  // 1-5: Google Gemini Official SDK
-  { id: 'gemini_2_5_flash', name: 'Gemini 2.5 Flash', type: 'gemini', modelId: 'gemini-2.5-flash' },
-  { id: 'gemini_3_flash', name: 'Gemini 3 Flash', type: 'gemini', modelId: 'gemini-3-flash' },
-  { id: 'gemini_2_5_flash_lite', name: 'Gemini 2.5 Flash Lite', type: 'gemini', modelId: 'gemini-2.5-flash-lite' },
+  // 1-3: Google Gemini Official SDK (Latest 3.8 & Flash Latest)
+  { id: 'gemini_3_8_flash', name: 'Gemini 3.8 Flash', type: 'gemini', modelId: 'gemini-3.8-flash' },
+  { id: 'gemini_flash_latest', name: 'Gemini Flash Latest', type: 'gemini', modelId: 'gemini-flash-latest' },
   { id: 'gemini_3_1_flash_lite', name: 'Gemini 3.1 Flash Lite', type: 'gemini', modelId: 'gemini-3.1-flash-lite' },
-  { id: 'gemini_3_5_flash', name: 'Gemini 3.5 Flash', type: 'gemini', modelId: 'gemini-3.5-flash' },
 
-  // 6-13: Free Public Multi-Cloud LLMs (No API Key required)
+  // 4-11: Free Public Multi-Cloud LLMs (No API Key required)
   { id: 'poll_openai', name: 'OpenAI GPT-4o Mini', type: 'pollinations', modelId: 'openai' },
   { id: 'poll_deepseek', name: 'DeepSeek V3', type: 'pollinations', modelId: 'deepseek' },
   { id: 'poll_mistral', name: 'Mistral Nemo', type: 'pollinations', modelId: 'mistral' },
@@ -37,10 +35,10 @@ export const AI_MODELS: ModelProvider[] = [
   { id: 'poll_searchgpt', name: 'SearchGPT Web', type: 'pollinations', modelId: 'searchgpt' },
   { id: 'poll_claude', name: 'Claude Hybrid', type: 'pollinations', modelId: 'claude-hybrid' },
 
-  // 14-16: High-Speed Secondary APIs (if keys configured)
+  // 12-14: High-Speed Secondary APIs (if keys configured)
   { id: 'groq_llama', name: 'Groq Llama 3.3 70B', type: 'groq', modelId: 'llama-3.3-70b-versatile' },
-  { id: 'openrouter_gemini', name: 'OpenRouter Gemini Free', type: 'openrouter', modelId: 'google/gemini-2.0-flash-exp:free' },
-  { id: 'openrouter_deepseek', name: 'OpenRouter DeepSeek Free', type: 'openrouter', modelId: 'deepseek/deepseek-r1:free' },
+  { id: 'openrouter_deepseek', name: 'OpenRouter DeepSeek Free', type: 'openrouter', modelId: 'deepseek/deepseek-chat-v3-0324:free' },
+  { id: 'openrouter_llama', name: 'OpenRouter Llama Free', type: 'openrouter', modelId: 'meta-llama/llama-3.3-70b-instruct:free' },
 ];
 
 export function extractFallbackPicks(text: string, contextTitle?: any): Array<{ title: string; type: string; year: string }> {
@@ -290,9 +288,8 @@ export async function executeMultiModelChat(
         },
       });
 
-      // Only use currently supported Gemini model IDs. Invalid IDs here used to
-      // make the whole provider look broken before fallback could start.
-      const geminiModels = ['gemini-2.5-flash', 'gemini-3.1-flash-lite', 'gemini-2.0-flash'];
+      // Only use currently supported Gemini model IDs (gemini-3.8-flash recommended)
+      const geminiModels = ['gemini-3.8-flash', 'gemini-flash-latest', 'gemini-3.1-flash-lite'];
 
       for (const gModel of geminiModels) {
         try {
@@ -357,7 +354,6 @@ export async function executeMultiModelChat(
   // 2. Try configured OpenAI-compatible providers before public fallbacks.
   // Each model is isolated: a timeout or provider error moves to the next one.
   const gatewayModels = [
-    { name: 'OpenRouter Gemini', model: 'google/gemini-2.5-flash' },
     { name: 'OpenRouter DeepSeek', model: 'deepseek/deepseek-chat-v3-0324:free' },
     { name: 'OpenRouter Llama', model: 'meta-llama/llama-3.3-70b-instruct:free' },
   ];

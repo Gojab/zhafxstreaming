@@ -2,6 +2,7 @@ import express from 'express';
 import type { Request, Response } from 'express';
 import dotenv from 'dotenv';
 import path from 'path';
+import { GoogleGenAI } from '@google/genai';
 import { fileURLToPath } from 'url';
 import crypto from 'crypto';
 import fs from 'fs';
@@ -41,6 +42,12 @@ app.use((_req, res, next) => {
     'Permissions-Policy',
     'fullscreen=*, autoplay=*, encrypted-media=*, picture-in-picture=*'
   );
+  next();
+});
+
+// Protect API routes from being indexed as duplicate or thin content
+app.use('/api', (_req, res, next) => {
+  res.setHeader('X-Robots-Tag', 'noindex, nofollow');
   next();
 });
 
@@ -175,38 +182,233 @@ app.all('/api/proxy', async (req: Request, res: Response) => {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 12000);
 
-  try {
-    const isPost = req.method === 'POST';
-    const isFrameX = targetUrl.includes('framextv.tech') || targetUrl.includes('framextv.xyz');
-    const upstreamRes = await fetch(targetUrl, {
-      method: req.method,
-      signal: controller.signal,
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-        'Accept': 'application/json, text/plain, */*',
-        ...(isFrameX ? {
-          'Referer': 'https://framextv.xyz/',
-          'Origin': 'https://framextv.xyz',
-        } : {}),
-        ...(isPost ? { 'Content-Type': 'application/json' } : {}),
-      },
-      ...(isPost && req.body ? { body: JSON.stringify(req.body) } : {}),
-    });
-    clearTimeout(timeoutId);
+  const candidateUrls = [targetUrl];
+  if (targetUrl.includes('framextv.tech')) {
+    candidateUrls.push(targetUrl.replace('framextv.tech', 'framextv.xyz'));
+  } else if (targetUrl.includes('framextv.xyz')) {
+    candidateUrls.push(targetUrl.replace('framextv.xyz', 'framextv.tech'));
+  }
 
-    const contentType = upstreamRes.headers.get('content-type') || 'application/json';
-    res.setHeader('Content-Type', contentType);
-    res.status(upstreamRes.status);
-    
-    const body = await upstreamRes.text();
-    res.send(body);
+  const isPost = req.method === 'POST';
+  const isFrameX = targetUrl.includes('framextv.tech') || targetUrl.includes('framextv.xyz');
+
+  for (const candidate of candidateUrls) {
+    try {
+      const upstreamRes = await fetch(candidate, {
+        method: req.method,
+        signal: controller.signal,
+        headers: {
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+          'Accept': 'application/json, text/plain, */*',
+          ...(isFrameX
+            ? {
+                'Referer': 'https://framextv.xyz/',
+                'Origin': 'https://framextv.xyz',
+              }
+            : {}),
+          ...(isPost ? { 'Content-Type': 'application/json' } : {}),
+        },
+        ...(isPost && req.body ? { body: JSON.stringify(req.body) } : {}),
+      });
+
+      if (upstreamRes.status >= 500 && candidateUrls.indexOf(candidate) < candidateUrls.length - 1) {
+        continue;
+      }
+
+      clearTimeout(timeoutId);
+      const contentType = upstreamRes.headers.get('content-type') || 'application/json';
+      res.setHeader('Content-Type', contentType);
+      res.status(upstreamRes.status);
+
+      const body = await upstreamRes.text();
+      return res.send(body);
+    } catch {
+      // Try next candidate
+    }
+  }
+
+  clearTimeout(timeoutId);
+  return res.status(502).json({
+    error: 'Gagal menghubungi server hulu.',
+    details: 'Semua server FrameX (xyz & tech) telah dicoba.',
+  });
+});
+
+// ==========================================
+// Indonesian Synopsis Manual Dictionary
+// ==========================================
+const SERVER_MANUAL_SYNOPSES: Record<string, string> = {
+  'clayface': 'Kisah kebangkitan Matt Hagen dari pemuda jalanan kota Gotham menjadi aktor terkemuka Hollywood yang terhenti secara tragis saat bos mafia lokal membuatnya cacat mengerikan. Ditinggalkan dan hancur, Matt mencari perawatan mutakhir yang secara ajaib memulihkan tubuhnya, namun merusak kesadarannya dan menyeretnya ke dalam spiral balas dendam mematikan.',
+  'by any means': 'Di Mississippi era 1960-an, seorang agen FBI muda berkulit hitam terpaksa bekerja sama dengan pembunuh bayaran mafia yang terkenal kejam demi menyelidiki rentetan pembunuhan brutal bermotif hak-hak sipil.',
+  'dune: part two': 'Paul Atreides bersatu dengan Chani dan kaum Fremen saat menempuh jalan balas dendam terhadap para konspirator yang menghancurkan keluarganya, seraya berusaha mencegah masa depan kelam yang hanya bisa ia ramalkan.',
+  'dune': 'Paul Atreides, pemuda brilian yang lahir dengan takdir besar melampaui pemahamannya, harus melakukan perjalanan ke planet paling berbahaya di alam semesta demi memastikan masa depan keluarga dan rakyatnya.',
+  'interstellar': 'Di masa depan ketika bumi dilanda krisis pangan parah, sekelompok penjelajah menempuh misi terjauh dalam sejarah melintasi lubang cacing antariksa demi mencari planet baru yang layak huni bagi kelangsungan umat manusia.',
+  'oppenheimer': 'Kisah biopik dramatis seputar fisikawan teoretis J. Robert Oppenheimer yang memimpin Proyek Manhattan untuk menciptakan senjata nuklir pertama dalam sejarah peradaban manusia.',
+  'shōgun': 'Ketika sebuah kapal misterius terdampar di pesisir feodal Jepang, sang navigator Inggris terjerumus ke dalam perang politik dan intrik perebutan kekuasaan para penguasa samurai.',
+  'solo leveling': 'Di dunia di mana monster bermunculan melalui gerbang dimensi, Sung Jin-woo yang dikenal sebagai pemburu terlemah bangkit dari ambang maut dengan sistem misterius yang memungkinkannya meningkatkan kekuatan tanpa batas.',
+  'attack on titan': 'Umat manusia yang terkurung di balik benteng raksasa berjuang mati-matian mempertahankan kelangsungan hidup dari ancaman monster raksasa pemakan manusia yang dikenal sebagai Titan.',
+  'demon slayer': 'Setelah keluarganya dibantai oleh iblis dan adiknya berubah menjadi monster, Tanjiro Kamado menempuh perjalanan berbahaya menjadi pembasmi iblis demi membalaskan dendam dan menyembuhkan sang adik.',
+  'top gun: maverick': 'Setelah puluhan tahun mengabdi sebagai penerbang ulung Angkatan Laut, Pete "Maverick" Mitchell ditugaskan melatih skuadron lulusan elit terbaik untuk menjalankan misi berisiko tinggi yang menuntut pengorbanan tertinggi.',
+  'house of the dragon': 'Kisah epik wangsa Targaryen ratusan tahun sebelum peristiwa Game of Thrones, yang mencatat awal mula perang saudara paling berdarah dalam perebutan takhta Iron Throne di Westeros.',
+  'the last of us': 'Dua puluh tahun setelah wabah jamur misterius memusnahkan peradaban, seorang penyintas tangguh bernama Joel disewa untuk menyelundupkan seorang gadis muda melintasi wilayah Amerika yang berbahaya.',
+  'jujutsu kaisen': 'Yuji Itadori, siswa SMA dengan bakat fisik luar biasa, menelan artefak terkutuk dari Raja Kutukan dan bergabung dengan Akademi Jujutsu untuk membasmi roh-roh kutukan yang mengancam dunia manusia.',
+  'avatar': 'Jake Sully dan Neytiri telah berkeluarga dan melakukan segalanya untuk tetap bersama. Namun saat ancaman lama kembali, mereka harus mengungsi dan menjelajahi wilayah klan laut Pandora.',
+  'the dark knight': 'Ketika ancaman keji yang dikenal sebagai Joker menebar kekacauan di jalanan Gotham, Batman harus menghadapi salah satu ujian psikologis dan fisik terberat untuk menegakkan keadilan.',
+  'spider-man': 'Miles Morales terlempar melintasi Multiverse, di mana ia bertemu dengan tim Spider-People yang bertugas melindungi keberadaan semesta dari ancaman besar yang tak terduga.',
+  'deadpool': 'Wade Wilson yang lesu menghadapi krisis eksistensial terseret ke dalam petualangan lintas dimensi bersama Wolverine untuk menyelamatkan dunianya.',
+  'gladiator': 'Bertahun-tahun setelah menyaksikan kematian pahlawan Maximus di tangan pamannya, Lucius harus memasuki Colosseum setelah rumahnya ditaklukkan oleh kaisar tirani yang memerintah Roma.',
+  'fallout': 'Dua ratus tahun setelah kiamat nuklir, seorang penghuni bungker yang damai terpaksa keluar ke permukaan bumi yang liar, berbahaya, dan aneh untuk mencari ayahnya.',
+  'arcane': 'Di tengah ketegangan antara kota utopia Piltover dan kota bawah tanah Zaun yang tertindas, dua saudara perempuan bertarung di pihak yang berseberangan dalam perang teknologi dan sihir.',
+  'one piece': 'Monkey D. Luffy bersama kru Bajak Laut Topi Jerami mengarungi samudra Grand Line yang penuh bahaya untuk menemukan harta karun legendaris dan menjadi Raja Bajak Laut berikutnya.'
+};
+
+function getManualSynopsis(text: string, title?: string): string {
+  if (title) {
+    const cleanTitle = title.toLowerCase().trim();
+    for (const [key, val] of Object.entries(SERVER_MANUAL_SYNOPSES)) {
+      if (cleanTitle.includes(key) || key.includes(cleanTitle)) {
+        return val;
+      }
+    }
+  }
+  return text || 'Sinopsis tayangan ini tersedia di Zhafx Streaming.';
+}
+
+// ==========================================
+// FrameX Home Catalog API with Auto Failover & Indonesian Translation
+// ==========================================
+let serverCachedHomeData: any = null;
+let serverCacheExpiry = 0;
+
+app.get('/api/home', async (_req: Request, res: Response) => {
+  const now = Date.now();
+  if (serverCachedHomeData && serverCacheExpiry > now) {
+    res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
+    return res.status(200).json(serverCachedHomeData);
+  }
+
+  const backends = ['https://api.framextv.xyz', 'https://api.framextv.tech'];
+  let rawHomeData: any = null;
+
+  for (const backend of backends) {
+    try {
+      const upstreamRes = await fetch(`${backend}/api/home`, {
+        headers: {
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+          Referer: 'https://framextv.xyz/',
+          Origin: 'https://framextv.xyz',
+          Accept: 'application/json',
+        },
+        signal: AbortSignal.timeout(6000),
+      });
+
+      if (upstreamRes.ok) {
+        const data = await upstreamRes.json();
+        if (data && (data.hero || data.rails)) {
+          rawHomeData = data;
+          break;
+        }
+      }
+    } catch {
+      // try next backend
+    }
+  }
+
+  if (!rawHomeData) {
+    if (serverCachedHomeData) {
+      return res.status(200).json(serverCachedHomeData);
+    }
+    return res.status(502).json({ error: 'Gagal memuat katalog FrameX.' });
+  }
+
+  try {
+    const rails = rawHomeData.rails || {};
+
+    // Manual Hero Overview translation to Indonesian
+    if (rawHomeData.hero && rawHomeData.hero.overview) {
+      rawHomeData.hero.overview = getManualSynopsis(
+        rawHomeData.hero.overview,
+        rawHomeData.hero.title
+      );
+    }
+
+    // Populate Anime if FrameX upstream anime rails are empty
+    const currentAnime = rails.popular_anime?.results || [];
+    if (!Array.isArray(currentAnime) || currentAnime.length === 0) {
+      try {
+        const animeQuery = `query {
+          popular: Page(page: 1, perPage: 16) {
+            media(type: ANIME, sort: POPULARITY_DESC) {
+              id
+              title { romaji english native }
+              coverImage { extraLarge large }
+              bannerImage
+              averageScore
+              seasonYear
+              description
+              genres
+            }
+          }
+          airing: Page(page: 1, perPage: 16) {
+            media(type: ANIME, status: RELEASING, sort: TRENDING_DESC) {
+              id
+              title { romaji english native }
+              coverImage { extraLarge large }
+              bannerImage
+              averageScore
+              seasonYear
+              description
+              genres
+            }
+          }
+        }`;
+
+        const aniRes = await fetch('https://graphql.anilist.co', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify({ query: animeQuery }),
+          signal: AbortSignal.timeout(5000),
+        });
+
+        if (aniRes.ok) {
+          const aniJson = await aniRes.json();
+          const mapAnime = (item: any) => ({
+            id: String(item.id),
+            type: 'anime',
+            title: item.title?.english || item.title?.romaji || 'Anime',
+            originalTitle: item.title?.native,
+            poster: item.coverImage?.extraLarge || item.coverImage?.large,
+            backdrop: item.bannerImage || item.coverImage?.extraLarge,
+            year: String(item.seasonYear || '2025'),
+            rating: item.averageScore ? (item.averageScore / 10).toFixed(1) : '8.5',
+            overview: item.description ? item.description.replace(/<[^>]*>/g, '').trim() : 'Anime terpopuler di Zhafx.',
+            genres: item.genres || ['Action', 'Fantasy'],
+          });
+
+          rails.popular_anime = {
+            success: true,
+            results: (aniJson.data?.popular?.media || []).map(mapAnime),
+          };
+          rails.airing_anime = {
+            success: true,
+            results: (aniJson.data?.airing?.media || []).map(mapAnime),
+          };
+        }
+      } catch {
+        // Safe fallback
+      }
+    }
+
+    serverCachedHomeData = rawHomeData;
+    serverCacheExpiry = now + 5 * 60 * 1000;
+
+    res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
+    return res.status(200).json(rawHomeData);
   } catch (err: any) {
-    clearTimeout(timeoutId);
-    console.error('[API Proxy] Error fetching:', targetUrl, err?.message);
-    res.status(502).json({
-      error: 'Gagal menghubungi server hulu.',
-      details: err?.name === 'AbortError' ? 'Koneksi timeout setelah 12 detik.' : (err?.message || 'Error jaringan')
-    });
+    console.warn('[Home Endpoint Error]:', err?.message || err);
+    return res.status(200).json(rawHomeData);
   }
 });
 
@@ -263,30 +465,30 @@ app.get('/api/providers', async (req: Request, res: Response) => {
   if (type === 'tv') {
     return res.json({
       providers: [
-        { id: 'miner', name: 'Miner XIX', tagline: 'Movy Multi-City TV Series 4K', category: 'tv', status: 'available' },
-        { id: 'headhunter', name: 'Headhunter XXXI', tagline: 'VidLink TV Series Multi-Sub', category: 'tv', status: 'available' },
-        { id: 'valkyrie', name: 'Valkyrie VI', tagline: '4K Ultra TV Multi-Server', category: 'tv', status: 'available' },
-        { id: 'titan', name: 'Titan VII', tagline: 'Films365 Direct MP4 1080p Server', category: 'tv', status: 'available' },
-        { id: 'hog_rider', name: 'Hog Rider XI', tagline: '4K TV Server', category: 'tv', status: 'available' },
-        { id: 'lavahound', name: 'Lava Hound XII', tagline: '4K Fast TV Series Stream', category: 'tv', status: 'available' },
-        { id: 'super_barbarian', name: 'Super Barbarian XVI', tagline: 'Direct Auto HLS TV Stream', category: 'tv', status: 'available' },
-        { id: 'bowler', name: 'Bowler XVIII', tagline: 'Multi-Language TV Episodes', category: 'tv', status: 'available' },
-        { id: 'giant', name: 'Giant XI', tagline: 'Multi-Audio TV Stream Cepat', category: 'tv', status: 'available' },
+        { id: 'miner', name: 'Server 1', tagline: 'Server Utama', category: 'tv', status: 'available' },
+        { id: 'headhunter', name: 'Server 2', tagline: 'Server Cadangan Multi-Sub', category: 'tv', status: 'available' },
+        { id: 'valkyrie', name: 'Server 3', tagline: 'Server Cadangan Cepat', category: 'tv', status: 'available' },
+        { id: 'titan', name: 'Server 4', tagline: 'Server Cadangan Direct', category: 'tv', status: 'available' },
+        { id: 'hog_rider', name: 'Server 5', tagline: 'Server Cadangan Stabil', category: 'tv', status: 'available' },
+        { id: 'lavahound', name: 'Server 6', tagline: 'Server Cadangan Multi-CDN', category: 'tv', status: 'available' },
+        { id: 'super_barbarian', name: 'Server 7', tagline: 'Server Cadangan HLS', category: 'tv', status: 'available' },
+        { id: 'bowler', name: 'Server 8', tagline: 'Server Cadangan Multi-Bahasa', category: 'tv', status: 'available' },
+        { id: 'giant', name: 'Server 9', tagline: 'Server Cadangan Audio', category: 'tv', status: 'available' },
       ],
     });
   }
 
   return res.json({
     providers: [
-      { id: 'miner', name: 'Miner XIX', tagline: 'Movy Multi-City 4K Server', category: 'movie', status: 'available' },
-      { id: 'headhunter', name: 'Headhunter XXXI', tagline: 'VidLink Server Multi-Sub', category: 'movie', status: 'available' },
-      { id: 'valkyrie', name: 'Valkyrie VI', tagline: '4K Ultra Multi-Server', category: 'movie', status: 'available' },
-      { id: 'titan', name: 'Titan VII', tagline: 'Films365 Direct MP4 1080p Server', category: 'movie', status: 'available' },
-      { id: 'hog_rider', name: 'Hog Rider XI', tagline: '4K Pilled Server', category: 'movie', status: 'available' },
-      { id: 'lavahound', name: 'Lava Hound XII', tagline: '4K Fast Multi-Server Stream', category: 'movie', status: 'available' },
-      { id: 'super_barbarian', name: 'Super Barbarian XVI', tagline: 'Direct Auto HLS Stream', category: 'movie', status: 'available' },
-      { id: 'bowler', name: 'Bowler XVIII', tagline: 'Multi-Language', category: 'movie', status: 'available' },
-      { id: 'giant', name: 'Giant XI', tagline: 'Multi-Audio Direct Stream', category: 'movie', status: 'available' },
+      { id: 'miner', name: 'Server 1', tagline: 'Server Utama', category: 'movie', status: 'available' },
+      { id: 'headhunter', name: 'Server 2', tagline: 'Server Cadangan Multi-Sub', category: 'movie', status: 'available' },
+      { id: 'valkyrie', name: 'Server 3', tagline: 'Server Cadangan Cepat', category: 'movie', status: 'available' },
+      { id: 'titan', name: 'Server 4', tagline: 'Server Cadangan Direct', category: 'movie', status: 'available' },
+      { id: 'hog_rider', name: 'Server 5', tagline: 'Server Cadangan Stabil', category: 'movie', status: 'available' },
+      { id: 'lavahound', name: 'Server 6', tagline: 'Server Cadangan Multi-CDN', category: 'movie', status: 'available' },
+      { id: 'super_barbarian', name: 'Server 7', tagline: 'Server Cadangan HLS', category: 'movie', status: 'available' },
+      { id: 'bowler', name: 'Server 8', tagline: 'Server Cadangan Multi-Bahasa', category: 'movie', status: 'available' },
+      { id: 'giant', name: 'Server 9', tagline: 'Server Cadangan Audio', category: 'movie', status: 'available' },
     ],
   });
 });
@@ -1655,6 +1857,9 @@ app.get(['/ai-catalog.json', '/.well-known/ai-catalog.json'], (_req: Request, re
 async function startServer() {
   const isProd = process.env.NODE_ENV === 'production';
 
+  // Serve static assets from public directly (favicons, logos, manifests, robots, sitemap)
+  app.use(express.static(path.resolve(__dirname, 'public')));
+
   if (!isProd) {
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
@@ -1664,8 +1869,49 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     app.use(express.static(path.resolve(__dirname, 'dist')));
-    app.get('*', (_req, res) => {
-      res.sendFile(path.resolve(__dirname, 'dist', 'index.html'));
+
+    let cachedHtml: string | null = null;
+    app.get('*', (req: Request, res: Response) => {
+      const indexPath = path.resolve(__dirname, 'dist', 'index.html');
+      if (!fs.existsSync(indexPath)) {
+        return res.status(404).send('Not Found');
+      }
+
+      if (!cachedHtml) {
+        try {
+          cachedHtml = fs.readFileSync(indexPath, 'utf-8');
+        } catch {
+          return res.sendFile(indexPath);
+        }
+      }
+
+      const cleanPath = req.path === '/' ? '/' : req.path.replace(/\/+$/, '');
+      const canonicalUrl = `https://zhafxstreaming.web.id${cleanPath === '/' ? '/' : cleanPath}`;
+
+      let pageTitle = 'Zhafx — Platform Streaming Film, Serial TV & Anime';
+      if (req.path.startsWith('/explore/anime')) {
+        pageTitle = 'Jelajahi Anime — Zhafx';
+      } else if (req.path.startsWith('/explore/tv')) {
+        pageTitle = 'Jelajahi Serial TV — Zhafx';
+      } else if (req.path.startsWith('/explore/movie')) {
+        pageTitle = 'Jelajahi Film — Zhafx';
+      } else if (req.path.startsWith('/explore')) {
+        pageTitle = 'Jelajahi Katalog Tayangan — Zhafx';
+      } else if (req.path.startsWith('/history')) {
+        pageTitle = 'Riwayat Menonton — Zhafx';
+      } else if (req.path.startsWith('/my-list')) {
+        pageTitle = 'Daftar Tontonan Saya — Zhafx';
+      }
+
+      const customizedHtml = cachedHtml
+        .replace(/<link rel="canonical" href="[^"]*"/, `<link rel="canonical" href="${canonicalUrl}"`)
+        .replace(/<meta property="og:url" content="[^"]*"/, `<meta property="og:url" content="${canonicalUrl}"`)
+        .replace(/<title>[^<]*<\/title>/, `<title>${pageTitle}</title>`)
+        .replace(/<meta property="og:title" content="[^"]*"/, `<meta property="og:title" content="${pageTitle}"`);
+
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.setHeader('X-Robots-Tag', 'index, follow');
+      res.send(customizedHtml);
     });
   }
 

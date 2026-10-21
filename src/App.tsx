@@ -87,7 +87,7 @@ function AppLayout() {
   }, []);
 
   // Hide Navbar, BottomNav, and Footer in player mode for true cinematic fullscreen
-  const isPlayerMode = false;
+  const isPlayerMode = location.pathname.startsWith('/watch');
 
   const [hasOpenedAI, setHasOpenedAI] = useState(false);
   const [hasOpenedFeatures, setHasOpenedFeatures] = useState(false);

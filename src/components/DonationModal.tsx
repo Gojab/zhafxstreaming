@@ -9,9 +9,15 @@ interface DonationModalProps {
 export const DonationModal: React.FC<DonationModalProps> = ({ isOpen, onClose }) => {
   const QR_IMAGE_PATH = '/assets/aistudio/image_99da0401.png';
 
-  // Handle ESC key to close
+  // Handle ESC key to close & freeze background scroll
   useEffect(() => {
     if (!isOpen) return;
+
+    const prevOverflow = document.body.style.overflow;
+    const prevTouchAction = document.body.style.touchAction;
+    document.body.style.overflow = 'hidden';
+    document.body.style.touchAction = 'none';
+    document.body.classList.add('modal-open');
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -20,7 +26,12 @@ export const DonationModal: React.FC<DonationModalProps> = ({ isOpen, onClose })
     };
 
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = prevOverflow;
+      document.body.style.touchAction = prevTouchAction;
+      document.body.classList.remove('modal-open');
+    };
   }, [isOpen, onClose]);
 
   if (!isOpen) return null;

@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { Search, Sparkles, User as UserIcon, LogOut, Bookmark, History, ChevronDown, Clapperboard } from 'lucide-react';
 import { Logo } from './Logo';
+import { PillBase, NavItem } from '@/components/ui/3d-adaptive-navigation-bar';
 import { storage } from '../lib/storage';
 import { User } from '../types';
 
@@ -11,12 +12,40 @@ interface NavbarProps {
   onOpenAuth: () => void;
 }
 
+const NAV_ITEMS: NavItem[] = [
+  { label: 'Beranda', id: '/' },
+  { label: 'Film', id: '/explore/movie' },
+  { label: 'Serial TV', id: '/explore/tv' },
+  { label: 'Anime', id: '/explore/anime' },
+  { label: 'Daftar Saya', id: '/my-list' },
+  { label: 'Riwayat', id: '/history' },
+];
+
 export const Navbar: React.FC<NavbarProps> = ({ onOpenAI, onOpenFeatures, onOpenAuth }) => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const currentPath = location.pathname;
   const [hasScrolled, setHasScrolled] = useState(false);
   const [user, setUser] = useState<User | null>(() => storage.getUser());
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const profileMenuRef = useRef<HTMLDivElement | null>(null);
+
+  // Active item resolution for the 3D Adaptive Pill
+  const currentActiveId =
+    NAV_ITEMS.find((item) => item.id === currentPath)?.id ||
+    (currentPath.startsWith('/explore/movie')
+      ? '/explore/movie'
+      : currentPath.startsWith('/explore/tv')
+      ? '/explore/tv'
+      : currentPath.startsWith('/explore/anime')
+      ? '/explore/anime'
+      : currentPath.startsWith('/detail') || currentPath.startsWith('/watch')
+      ? currentPath.includes('/tv/')
+        ? '/explore/tv'
+        : currentPath.includes('/anime/')
+        ? '/explore/anime'
+        : '/explore/movie'
+      : '/');
 
   // Sync auth state
   useEffect(() => {
@@ -79,13 +108,6 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAI, onOpenFeatures, onOpen
     setIsProfileMenuOpen(false);
   };
 
-  const navLinkStyle = ({ isActive }: { isActive: boolean }) =>
-    `text-xs sm:text-[13px] font-medium transition-all px-3.5 py-2 min-h-[44px] inline-flex items-center rounded-full ios-spring ${
-      isActive
-        ? 'text-white font-semibold liquid-glass-active shadow-sm'
-        : 'text-white/80 hover:text-white hover:bg-white/[0.06]'
-    }`;
-
   return (
     <header className="fixed top-2.5 sm:top-4 left-2.5 right-2.5 sm:left-6 sm:right-6 max-w-7xl mx-auto z-40 transition-all duration-300">
       <div
@@ -95,87 +117,69 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAI, onOpenFeatures, onOpen
             : 'liquid-glass liquid-specular shadow-lg'
         }`}
       >
-        {/* Left: Official ZHAFX Logo & Desktop Navigation */}
-        <div className="flex items-center gap-4 sm:gap-6 shrink-0">
+        {/* Left: Official ZHAFX Logo & Desktop 3D Adaptive Navigation Bar */}
+        <div className="flex items-center gap-3 sm:gap-5 shrink-0">
           <Logo size="md" />
 
-          {/* Desktop iOS Glass Navigation Pills */}
-          <nav className="hidden md:flex items-center gap-0.5" aria-label="Menu Utama">
-            <NavLink to="/" className={navLinkStyle}>
-              Beranda
-            </NavLink>
-            <NavLink to="/explore/movie" className={navLinkStyle}>
-              Film
-            </NavLink>
-            <NavLink to="/explore/tv" className={navLinkStyle}>
-              Serial TV
-            </NavLink>
-            <NavLink to="/explore/anime" className={navLinkStyle}>
-              Anime
-            </NavLink>
-            <NavLink to="/my-list" className={navLinkStyle}>
-              Daftar Saya
-            </NavLink>
-            <NavLink to="/history" className={navLinkStyle}>
-              Riwayat
-            </NavLink>
-          </nav>
+          {/* 3D Adaptive Navigation Pill - Hover expands with spring physics */}
+          <div className="hidden md:flex items-center">
+            <PillBase
+              items={NAV_ITEMS}
+              activeId={currentActiveId}
+              onChange={(id) => navigate(id)}
+              theme="glass"
+              height={42}
+              collapsedWidth={134}
+              expandedWidth={560}
+            />
+          </div>
         </div>
 
-        {/* Right Action Buttons */}
+        {/* Right Action Buttons with Specular Shimmer and Fluid Spring */}
         <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
-          {/* Glass Search Button (min 44x44px) */}
+          {/* Glass Search Button with Unique Lens Float */}
           <button
             onClick={() => navigate('/search')}
             aria-label="Pencarian tayangan"
-            className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-full bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-white/80 hover:text-white text-xs transition-all cursor-pointer min-h-[44px] min-w-[44px] ios-spring"
+            className="group flex items-center justify-center gap-1.5 px-3 py-2 rounded-full bg-white/[0.06] hover:bg-white/[0.14] border border-white/10 hover:border-white/25 text-white/80 hover:text-white text-xs transition-all duration-200 cursor-pointer min-h-[44px] min-w-[44px] ios-spring nav-shimmer shadow-sm"
           >
-            <Search className="w-3.5 h-3.5 text-white" />
-            <span className="hidden sm:inline text-[12px]">Cari</span>
-            <kbd className="hidden lg:inline-block px-1.5 py-0.2 rounded-full bg-white/10 text-[9px] text-white/70">
+            <Search className="w-3.5 h-3.5 text-white transition-transform duration-200 group-hover:scale-115 group-hover:-translate-y-0.5" />
+            <span className="hidden sm:inline text-[12px] group-hover:text-white transition-colors">Cari</span>
+            <kbd className="hidden lg:inline-block px-1.5 py-0.2 rounded-full bg-white/10 text-[9px] text-white/70 group-hover:bg-white/20 transition-colors">
               /
             </kbd>
           </button>
 
-          {/* Logo X (Features Modal - Single X) */}
+          {/* Logo X (Features Modal - Unique Gyro Spin & Prismatic Glow) */}
           <button
             type="button"
             onClick={onOpenFeatures}
             aria-label="Fitur Utama X"
             title="Menu Fitur Zhafx X"
-            className="flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-white/[0.08] hover:bg-white/[0.16] border border-white/20 text-white font-black text-sm transition-all cursor-pointer min-h-[36px] min-w-[36px] ios-spring shadow-sm"
+            className="group btn-features-x flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-white/[0.08] hover:bg-white/[0.18] border border-white/20 text-white font-black text-sm cursor-pointer min-h-[36px] min-w-[36px] shadow-md nav-shimmer"
           >
-            <span className="leading-none">X</span>
+            <span className="leading-none transition-transform duration-300 group-hover:rotate-90 group-hover:scale-110 block">
+              X
+            </span>
           </button>
 
-          {/* Tanya AI Glass Pill (min 44x44px) */}
+          {/* Tanya AI Glass Pill - Unique Amber Breathing Glow */}
           <button
             onClick={onOpenAI}
-            className="hidden sm:inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-full bg-white/[0.08] hover:bg-white/[0.16] border border-white/15 text-white font-medium text-xs transition-all cursor-pointer min-h-[44px] min-w-[44px] ios-spring shadow-sm"
+            className="group btn-ai-sparkle hidden sm:inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-full bg-white/[0.08] hover:bg-white/[0.16] border border-white/15 text-white font-medium text-xs cursor-pointer min-h-[44px] min-w-[44px] shadow-sm nav-shimmer"
             title="Buka Tanya Zhafx AI"
           >
-            <Sparkles className="w-3.5 h-3.5 text-white" />
-            <span className="text-[12px]">Tanya AI</span>
+            <Sparkles className="w-3.5 h-3.5 text-amber-300 transition-transform duration-300 group-hover:rotate-12 group-hover:scale-120" />
+            <span className="text-[12px] group-hover:text-amber-100 transition-colors">Tanya AI</span>
           </button>
 
-          {/* Tombol Pemutar Intro Sinematik */}
-          <button
-            type="button"
-            onClick={() => window.dispatchEvent(new Event('play-zhafx-intro'))}
-            aria-label="Putar Intro Sinematik"
-            title="Putar Intro Sinematik ZHAFX"
-            className="hidden sm:inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-full bg-white/[0.08] hover:bg-white/[0.16] border border-white/15 text-white font-medium text-xs transition-all cursor-pointer min-h-[44px] min-w-[44px] ios-spring shadow-sm"
-          >
-            <Clapperboard className="w-3.5 h-3.5 text-white" />
-            <span className="text-[12px] hidden lg:inline">Intro</span>
-          </button>
 
           {/* Gmail / Google Login Button or User Profile Dropdown */}
           {user ? (
             <div className="relative" ref={profileMenuRef}>
               <button
                 onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
-                className="flex items-center justify-center gap-1.5 pl-2.5 pr-3 py-1.5 rounded-full liquid-glass hover:bg-white/[0.16] border border-white/20 text-white text-xs transition-all cursor-pointer min-h-[44px] min-w-[44px] ios-spring"
+                className="flex items-center justify-center gap-1.5 pl-2.5 pr-3 py-1.5 rounded-full liquid-glass hover:bg-white/[0.18] border border-white/20 hover:border-white/35 text-white text-xs transition-all duration-200 cursor-pointer min-h-[44px] min-w-[44px] ios-spring nav-shimmer"
               >
                 {user.avatar ? (
                   <img

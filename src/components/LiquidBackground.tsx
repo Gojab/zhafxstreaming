@@ -37,19 +37,23 @@ export const LiquidBackground: React.FC = () => {
   const animationStyle = {
     animationPlayState: isTabActive ? 'running' : 'paused',
     willChange: 'transform',
+    transform: 'translate3d(0, 0, 0)',
+    backfaceVisibility: 'hidden',
   } as React.CSSProperties;
 
   return (
     <div
       aria-hidden="true"
+      style={{ contain: 'strict' }}
       className="fixed inset-0 pointer-events-none z-0 overflow-hidden bg-[#06070B]"
     >
       {/* Previous poster fading out during crossfade */}
       {prevPoster && (
         <div
           className={`absolute inset-0 transition-opacity duration-1000 ease-out ${
-            isCrossfading ? 'opacity-0' : 'opacity-40'
+            isCrossfading ? 'opacity-0' : 'opacity-35'
           }`}
+          style={{ willChange: 'opacity' }}
         >
           <img
             src={prevPoster}
@@ -58,7 +62,7 @@ export const LiquidBackground: React.FC = () => {
             height={720}
             loading="lazy"
             decoding="async"
-            className="w-full h-full object-cover scale-125 filter blur-[80px] sm:blur-[100px]"
+            className="w-full h-full object-cover scale-110 filter blur-[45px] sm:blur-[60px] opacity-80"
           />
         </div>
       )}
@@ -66,8 +70,9 @@ export const LiquidBackground: React.FC = () => {
       {/* Current active poster */}
       <div
         className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${
-          isCrossfading ? 'opacity-40' : 'opacity-40'
+          isCrossfading ? 'opacity-35' : 'opacity-35'
         }`}
+        style={{ willChange: 'opacity' }}
       >
         <img
           src={currentPoster}
@@ -76,27 +81,27 @@ export const LiquidBackground: React.FC = () => {
           height={720}
           loading="lazy"
           decoding="async"
-          className="w-full h-full object-cover scale-125 filter blur-[80px] sm:blur-[100px]"
+          className="w-full h-full object-cover scale-110 filter blur-[45px] sm:blur-[60px] opacity-80"
         />
       </div>
 
-      {/* 3 Slow Moving Ambient Glass Luminous Blobs (Paused on inactive tab) */}
+      {/* 3 Lightweight Hardware-Accelerated Ambient Glass Blobs */}
       <div
         style={animationStyle}
-        className="absolute -top-32 -left-32 w-[520px] h-[520px] rounded-full bg-white/[0.04] filter blur-[100px] animate-blob-1 mix-blend-screen"
+        className="absolute -top-28 -left-28 w-[420px] h-[420px] rounded-full bg-radial from-white/[0.05] via-white/[0.02] to-transparent filter blur-[40px] animate-blob-1"
       />
       <div
         style={animationStyle}
-        className="absolute top-1/3 -right-36 w-[620px] h-[620px] rounded-full bg-white/[0.03] filter blur-[120px] animate-blob-2 mix-blend-screen"
+        className="absolute top-1/3 -right-32 w-[480px] h-[480px] rounded-full bg-radial from-white/[0.04] via-white/[0.015] to-transparent filter blur-[50px] animate-blob-2"
       />
       <div
         style={animationStyle}
-        className="absolute -bottom-36 left-1/4 w-[500px] h-[500px] rounded-full bg-white/[0.025] filter blur-[95px] animate-blob-3 mix-blend-screen"
+        className="absolute -bottom-28 left-1/4 w-[400px] h-[400px] rounded-full bg-radial from-white/[0.035] via-white/[0.01] to-transparent filter blur-[40px] animate-blob-3"
       />
 
       {/* Soft dark radial & vertical gradient for perfect typography legibility */}
-      <div className="absolute inset-0 bg-radial from-transparent via-[#06070B]/40 to-[#06070B]/85" />
-      <div className="absolute inset-0 bg-gradient-to-b from-[#06070B]/30 via-transparent to-[#06070B]/95" />
+      <div className="absolute inset-0 bg-radial from-transparent via-[#06070B]/50 to-[#06070B]/90" />
+      <div className="absolute inset-0 bg-gradient-to-b from-[#06070B]/35 via-transparent to-[#06070B]/95" />
     </div>
   );
 };

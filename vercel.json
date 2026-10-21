@@ -1,15 +1,32 @@
 {
   "rewrites": [
     {
+      "source": "/api/anime/:action",
+      "destination": "/api/anime/[action]"
+    },
+    {
+      "source": "/api/auth/:action",
+      "destination": "/api/auth/[action]"
+    },
+    {
       "source": "/api/(.*)",
       "destination": "/api/$1"
     },
     {
-      "source": "/((?!api/|sitemap\\.xml|robots\\.txt|llms\\.txt|ai-catalog\\.json|\\.well-known/|assets/|google[a-zA-Z0-9_-]+\\.html).*)",
+      "source": "/((?!api/|sitemap\\.xml|robots\\.txt|llms\\.txt|ai-catalog\\.json|\\.well-known/|assets/|google[a-zA-Z0-9_-]+\\.html|favicon|apple-touch-icon|icon-|logo\\.png|site\\.webmanifest).*)",
       "destination": "/index.html"
     }
   ],
   "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
+    },
     {
       "source": "/assets/(.*)",
       "headers": [

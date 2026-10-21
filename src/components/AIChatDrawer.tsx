@@ -78,6 +78,23 @@ export const AIChatDrawer: React.FC<AIChatDrawerProps> = ({
     scrollToBottom();
   }, [messages, isStreaming]);
 
+  // Freeze background scroll when drawer is open
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const prevOverflow = document.body.style.overflow;
+    const prevTouchAction = document.body.style.touchAction;
+    document.body.style.overflow = 'hidden';
+    document.body.style.touchAction = 'none';
+    document.body.classList.add('modal-open');
+
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      document.body.style.touchAction = prevTouchAction;
+      document.body.classList.remove('modal-open');
+    };
+  }, [isOpen]);
+
   // Trigger automated context message if initialContextTitle passed
   useEffect(() => {
     if (isOpen && initialContextTitle) {
