@@ -318,6 +318,17 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
   const [failoverNotice, setFailoverNotice] = useState<string | null>(null);
   const timeoutRef = useRef<any>(null);
 
+  // Continue Watching & Resume Playback timestamp state
+  const [resumePrompt, setResumePrompt] = useState<{
+    time: number;
+    formatted: string;
+    show: boolean;
+  } | null>(null);
+  const [initialSeekDone, setInitialSeekDone] = useState(false);
+  const lastSaveTimeRef = useRef<number>(0);
+  const currentPlaybackTimeRef = useRef<number>(0);
+  const playbackDurationRef = useRef<number>(0);
+
   // Fullscreen state
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isOverviewExpanded, setIsOverviewExpanded] = useState(false);
@@ -460,6 +471,143 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
     fetchInitData();
     return () => controller.abort();
   }, [id, mediaType, seasonNum, episodeNum, selectedSeason, recordHistory, searchParams, setActiveMedia]);
+
+  // Synchronize and persist playback progress into local storage
+  const saveProgressNow = useCallback(
+    (curTime: number, durTime: number, forceCompleted?: boolean) => {
+      if (!id || !title || curTime <= 2) return;
+      storage.saveProgress({
+        contentId: id,
+        mediaType,
+        title: title.title,
+        poster: title.poster,
+        backdrop: title.backdrop,
+        year: title.year,
+        season: mediaType === 'tv' ? seasonNum : undefined,
+        episode: mediaType === 'tv' || mediaType === 'anime' ? episodeNum : undefined,
+        episodeName:
+          mediaType === 'tv'
+            ? `Musim ${seasonNum} Ep ${episodeNum}`
+            : mediaType === 'anime'
+            ? `Episode ${episodeNum}`
+            : undefined,
+        currentTime: curTime,
+        duration: durTime,
+        completed: forceCompleted,
+      });
+    },
+    [id, title, mediaType, seasonNum, episodeNum]
+  );
+
+  // Load saved playback progress from local storage on mount or episode change
+  useEffect(() => {
+    if (!id) return;
+    const prog = storage.getProgress(
+      id,
+      mediaType === 'tv' ? seasonNum : undefined,
+      mediaType === 'tv' || mediaType === 'anime' ? episodeNum : undefined
+    );
+
+    if (prog && prog.currentTime > 5 && !prog.completed) {
+      setResumePrompt({
+        time: prog.currentTime,
+        formatted: formatTime(prog.currentTime),
+        show: true,
+      });
+      currentPlaybackTimeRef.current = prog.currentTime;
+      setCurrentTime(prog.currentTime);
+      if (prog.duration > 0) {
+        playbackDurationRef.current = prog.duration;
+        setDuration(prog.duration);
+      }
+    } else {
+      setResumePrompt(null);
+      currentPlaybackTimeRef.current = 0;
+      setCurrentTime(0);
+    }
+    setInitialSeekDone(false);
+  }, [id, seasonNum, episodeNum, mediaType]);
+
+  // Listen for iframe postMessage playback events (FrameX, VideoJS, standard HTML5 embed postMessage)
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      try {
+        const raw = event.data;
+        const data = typeof raw === 'string' ? JSON.parse(raw) : raw;
+        if (!data || typeof data !== 'object') return;
+
+        const time =
+          typeof data.currentTime === 'number'
+            ? data.currentTime
+            : typeof data.time === 'number'
+            ? data.time
+            : typeof data.data?.currentTime === 'number'
+            ? data.data.currentTime
+            : typeof data.data?.time === 'number'
+            ? data.data.time
+            : null;
+
+        const dur =
+          typeof data.duration === 'number'
+            ? data.duration
+            : typeof data.data?.duration === 'number'
+            ? data.data.duration
+            : playbackDurationRef.current;
+
+        if (time !== null && time > 0) {
+          currentPlaybackTimeRef.current = time;
+          setCurrentTime(time);
+          if (dur > 0) {
+            playbackDurationRef.current = dur;
+            setDuration(dur);
+          }
+          const now = Date.now();
+          if (now - lastSaveTimeRef.current >= 2500) {
+            lastSaveTimeRef.current = now;
+            saveProgressNow(time, dur);
+          }
+        }
+      } catch {}
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [saveProgressNow]);
+
+  // Periodic active watch tracker for embed player to keep timestamp updated in local storage
+  useEffect(() => {
+    if (playerMode !== 'embed' || isIframeLoading || !isPlayable || !title) return;
+
+    const interval = setInterval(() => {
+      if (document.hidden) return;
+      currentPlaybackTimeRef.current += 3;
+      const cur = currentPlaybackTimeRef.current;
+      const dur = playbackDurationRef.current || (mediaType === 'movie' ? 7200 : 1500);
+      saveProgressNow(cur, dur);
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [playerMode, isIframeLoading, isPlayable, title, saveProgressNow, mediaType]);
+
+  // Save latest playback timestamp on page leave or unmount
+  useEffect(() => {
+    const handleUnload = () => {
+      if (currentPlaybackTimeRef.current > 3) {
+        saveProgressNow(currentPlaybackTimeRef.current, playbackDurationRef.current);
+      }
+    };
+
+    window.addEventListener('beforeunload', handleUnload);
+    window.addEventListener('pagehide', handleUnload);
+
+    return () => {
+      if (currentPlaybackTimeRef.current > 3) {
+        saveProgressNow(currentPlaybackTimeRef.current, playbackDurationRef.current);
+      }
+      window.removeEventListener('beforeunload', handleUnload);
+      window.removeEventListener('pagehide', handleUnload);
+    };
+  }, [saveProgressNow]);
 
   // Resolve dedicated server list based on mediaType (Film / Serial TV / Anime)
   const activeServerList: ServerOption[] =
@@ -743,6 +891,8 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
     const validEp = Math.max(1, episodeNum);
     const validSeason = Math.max(1, seasonNum);
     let targetProvider = activeServer.provider || 'miner';
+    const resumeTimeSec =
+      resumePrompt?.time && resumePrompt.time > 5 ? Math.floor(resumePrompt.time) : 0;
 
     if (mediaType === 'anime') {
       // Determine sub/dub provider variant
@@ -768,6 +918,11 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
       url.searchParams.set('autoplay', '1');
       url.searchParams.set('muted', '0');
       url.searchParams.set('no_ads', '1');
+      if (resumeTimeSec > 0) {
+        url.searchParams.set('start', String(resumeTimeSec));
+        url.searchParams.set('time', String(resumeTimeSec));
+        url.searchParams.set('t', String(resumeTimeSec));
+      }
       if (title?.title) {
         url.searchParams.set('title', title.title.trim());
       }
@@ -786,6 +941,11 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
       url.searchParams.set('autoplay', '1');
       url.searchParams.set('muted', '0');
       url.searchParams.set('no_ads', '1'); // Disables popup ads on TV series
+      if (resumeTimeSec > 0) {
+        url.searchParams.set('start', String(resumeTimeSec));
+        url.searchParams.set('time', String(resumeTimeSec));
+        url.searchParams.set('t', String(resumeTimeSec));
+      }
       if (title?.title) {
         url.searchParams.set('title', title.title.trim());
       }
@@ -801,6 +961,11 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
     url.searchParams.set('autoplay', '1');
     url.searchParams.set('muted', '0');
     url.searchParams.set('no_ads', '1'); // Disables popup ads on Movies
+    if (resumeTimeSec > 0) {
+      url.searchParams.set('start', String(resumeTimeSec));
+      url.searchParams.set('time', String(resumeTimeSec));
+      url.searchParams.set('t', String(resumeTimeSec));
+    }
     if (title?.title) {
       url.searchParams.set('title', title.title.trim());
     }
@@ -1142,6 +1307,53 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
               : {}),
           }}
         >
+          {/* Interactive Resume Notification Banner */}
+          {resumePrompt && resumePrompt.show && resumePrompt.time > 10 && (
+            <div className="absolute top-3 left-1/2 -translate-x-1/2 z-40 max-w-[94%] px-3.5 sm:px-4 py-2 rounded-full bg-[#12162A]/90 border border-[#FFB224]/30 text-white text-xs font-medium flex items-center justify-between gap-3 shadow-[0_12px_32px_rgba(0,0,0,0.85)] backdrop-blur-md animate-fade-in pointer-events-auto">
+              <div className="flex items-center gap-2 truncate">
+                <span className="w-2 h-2 rounded-full bg-[#FFB224] animate-pulse shrink-0" />
+                <span className="truncate">
+                  Melanjutkan dari <span className="font-mono text-[#FFB224] font-bold">{resumePrompt.formatted}</span>
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 pl-2 border-l border-white/20 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (id) {
+                      storage.removeProgress(
+                        id,
+                        mediaType === 'tv' ? seasonNum : undefined,
+                        mediaType === 'tv' || mediaType === 'anime' ? episodeNum : undefined
+                      );
+                    }
+                    setResumePrompt(null);
+                    currentPlaybackTimeRef.current = 0;
+                    setCurrentTime(0);
+                    if (videoRef.current) {
+                      videoRef.current.currentTime = 0;
+                    }
+                    setIframeKey((k) => k + 1);
+                    setFailoverNotice('Memutar ulang dari awal (00:00)');
+                    setTimeout(() => setFailoverNotice(null), 2500);
+                  }}
+                  className="px-2.5 py-1 rounded-full bg-white/10 hover:bg-white/20 text-white/90 hover:text-white text-[11px] font-semibold transition-all cursor-pointer active:scale-95"
+                >
+                  Mulai dari awal
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setResumePrompt((prev) => (prev ? { ...prev, show: false } : null))}
+                  className="p-1 rounded-full hover:bg-white/15 text-white/60 hover:text-white cursor-pointer transition-colors"
+                  title="Tutup pemberitahuan"
+                  aria-label="Tutup pemberitahuan lanjutkan menonton"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          )}
+
           {isPlayable ? (
             mediaType === 'anime' && playerMode === 'direct' ? (
               /* =========================================================
@@ -1160,19 +1372,49 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
                   preload="auto"
                   onClick={togglePlay}
                   onPlay={() => setIsPlaying(true)}
-                  onPause={() => setIsPlaying(false)}
+                  onPause={() => {
+                    setIsPlaying(false);
+                    if (videoRef.current) {
+                      saveProgressNow(videoRef.current.currentTime, videoRef.current.duration || playbackDurationRef.current);
+                    }
+                  }}
+                  onEnded={() => {
+                    setIsPlaying(false);
+                    if (videoRef.current) {
+                      saveProgressNow(videoRef.current.currentTime, videoRef.current.duration || playbackDurationRef.current, true);
+                    }
+                  }}
                   onTimeUpdate={() => {
                     if (videoRef.current) {
-                      setCurrentTime(videoRef.current.currentTime);
-                      setDuration(videoRef.current.duration || 0);
+                      const cur = videoRef.current.currentTime;
+                      const dur = videoRef.current.duration || playbackDurationRef.current || 0;
+                      setCurrentTime(cur);
+                      currentPlaybackTimeRef.current = cur;
+                      if (dur > 0) {
+                        setDuration(dur);
+                        playbackDurationRef.current = dur;
+                      }
                       if (videoRef.current.buffered.length > 0) {
                         setBufferedTime(videoRef.current.buffered.end(videoRef.current.buffered.length - 1));
+                      }
+                      const now = Date.now();
+                      if (now - lastSaveTimeRef.current >= 2500 && cur > 3) {
+                        lastSaveTimeRef.current = now;
+                        saveProgressNow(cur, dur);
                       }
                     }
                   }}
                   onLoadedMetadata={() => {
                     if (videoRef.current) {
-                      setDuration(videoRef.current.duration || 0);
+                      const dur = videoRef.current.duration || 0;
+                      setDuration(dur);
+                      playbackDurationRef.current = dur;
+                      if (!initialSeekDone && resumePrompt?.time && resumePrompt.time > 5) {
+                        videoRef.current.currentTime = resumePrompt.time;
+                        setInitialSeekDone(true);
+                        setFailoverNotice(`Melanjutkan dari ${resumePrompt.formatted}`);
+                        setTimeout(() => setFailoverNotice(null), 3000);
+                      }
                     }
                   }}
                   onWaiting={() => setIsStreamLoading(true)}

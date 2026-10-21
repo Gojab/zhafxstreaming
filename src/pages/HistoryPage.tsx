@@ -106,6 +106,17 @@ export const HistoryPage: React.FC = () => {
                       <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
                     </div>
                   </div>
+                  {/* Progress Bar at bottom of poster */}
+                  {item.currentTime && item.currentTime > 5 && item.progressPercentage !== undefined && (
+                    <div className="absolute bottom-0 inset-x-0 z-20">
+                      <div className="w-full h-1 bg-black/80 overflow-hidden">
+                        <div
+                          className="h-full bg-gradient-to-r from-amber-500 to-[#FFB224]"
+                          style={{ width: `${Math.min(100, Math.max(5, item.progressPercentage))}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
                 </Link>
 
                 {/* Details */}
@@ -122,13 +133,18 @@ export const HistoryPage: React.FC = () => {
                       <span>•</span>
                       <span className="capitalize">{item.type}</span>
                     </div>
-                    {item.episodeName && (
-                      <div className="flex items-center gap-1.5 flex-wrap">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {item.episodeName && (
                         <span className="inline-block px-2 py-0.5 rounded-full bg-white/[0.08] text-[10px] text-[#FFB224] font-semibold">
                           {item.episodeName}
                         </span>
-                      </div>
-                    )}
+                      )}
+                      {item.currentTime && item.currentTime > 5 && (
+                        <span className="inline-block px-2 py-0.5 rounded-full bg-amber-500/20 text-[10px] text-amber-300 font-semibold font-mono">
+                          Lanjut {Math.floor(item.currentTime / 60)}:{Math.floor(item.currentTime % 60) < 10 ? '0' : ''}{Math.floor(item.currentTime % 60)}
+                        </span>
+                      )}
+                    </div>
                   </div>
 
                   <div className="flex items-center justify-between text-[11px] text-white/50 pt-2 border-t border-white/[0.08]">

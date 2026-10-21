@@ -400,7 +400,17 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
               const lastHistory = history.find((h) => h.id === title.id);
               const resumeSeason = lastHistory?.season ?? (title.seasons?.[0]?.number ?? 1);
               const resumeEpisode = lastHistory?.episode ?? 1;
-              const hasHistory = Boolean(lastHistory && (lastHistory.season || lastHistory.episode));
+              const savedProg = storage.getProgress(
+                title.id,
+                title.type === 'tv' ? resumeSeason : undefined,
+                title.type === 'tv' || title.type === 'anime' ? resumeEpisode : undefined
+              );
+
+              const curTime = savedProg?.currentTime || lastHistory?.currentTime || 0;
+              const hasSavedTime = curTime > 5 && !savedProg?.completed;
+              const formattedTime = hasSavedTime
+                ? `${Math.floor(curTime / 60)}:${Math.floor(curTime % 60) < 10 ? '0' : ''}${Math.floor(curTime % 60)}`
+                : '';
 
               const playTargetUrl =
                 title.type === 'anime'
@@ -416,7 +426,11 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
                 >
                   <Play className="w-4 h-4 fill-current ml-0.5" />
                   <span>
-                    {hasHistory && (title.type === 'tv' || title.type === 'anime')
+                    {hasSavedTime
+                      ? title.type === 'tv' || title.type === 'anime'
+                        ? `Lanjutkan Ep ${resumeEpisode} (${formattedTime})`
+                        : `Lanjutkan (${formattedTime})`
+                      : lastHistory && (title.type === 'tv' || title.type === 'anime')
                       ? `Lanjutkan (Ep ${resumeEpisode})`
                       : 'Putar sekarang'}
                   </span>

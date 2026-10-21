@@ -28,6 +28,34 @@ export const MediaCard: React.FC<MediaCardProps> = ({ item, className = '', show
   const targetSeason = item.season ?? lastHistory?.season ?? 1;
   const targetEpisode = item.episode ?? lastHistory?.episode ?? 1;
 
+  const savedProgress = storage.getProgress(
+    item.id,
+    item.type === 'tv' ? targetSeason : undefined,
+    item.type === 'tv' || item.type === 'anime' ? targetEpisode : undefined
+  );
+
+  const progressPercent =
+    savedProgress?.progressPercentage ??
+    lastHistory?.progressPercentage ??
+    (savedProgress && savedProgress.duration > 0
+      ? Math.round((savedProgress.currentTime / savedProgress.duration) * 100)
+      : undefined);
+
+  const hasResumePoint =
+    (savedProgress && savedProgress.currentTime > 5 && !savedProgress.completed) ||
+    Boolean(lastHistory?.currentTime && lastHistory.currentTime > 5);
+
+  const currentSeconds = savedProgress?.currentTime || lastHistory?.currentTime || 0;
+
+  const formatCardTime = (sec: number) => {
+    if (!sec || isNaN(sec)) return '';
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60);
+    const h = Math.floor(m / 60);
+    if (h > 0) return `${h}j ${m % 60}m`;
+    return `${m}m ${s}d`;
+  };
+
   const playPath =
     item.type === 'anime'
       ? `/watch/anime/${item.id}/1/${targetEpisode}`
@@ -124,14 +152,22 @@ export const MediaCard: React.FC<MediaCardProps> = ({ item, className = '', show
           {/* Subtle Dark Gradient at bottom of poster */}
           <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent opacity-75 group-hover:opacity-90 transition-opacity duration-300 pointer-events-none" />
 
-          {/* Top Badges (Rating & Type) */}
+          {/* Top Badges (Rating, Type, & Resume Point) */}
           <div className="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between pointer-events-none gap-1 z-10">
-            {item.rating && parseFloat(item.rating) > 0 ? (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-md text-white text-[10px] font-semibold border border-white/10 group-hover:border-white/20 transition-colors">
-                <Star className="w-2.5 h-2.5 fill-current text-[#FFB224]" />
-                <span>{item.rating}</span>
-              </span>
-            ) : <span />}
+            <div className="flex items-center gap-1">
+              {item.rating && parseFloat(item.rating) > 0 ? (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-md text-white text-[10px] font-semibold border border-white/10 group-hover:border-white/20 transition-colors">
+                  <Star className="w-2.5 h-2.5 fill-current text-[#FFB224]" />
+                  <span>{item.rating}</span>
+                </span>
+              ) : null}
+
+              {hasResumePoint && currentSeconds > 5 && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#FFB224] text-black text-[10px] font-extrabold shadow-md">
+                  <span>{formatCardTime(currentSeconds)}</span>
+                </span>
+              )}
+            </div>
 
             {showType && (
               <span className="px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-md text-white/90 text-[10px] font-medium border border-white/10">
@@ -139,6 +175,18 @@ export const MediaCard: React.FC<MediaCardProps> = ({ item, className = '', show
               </span>
             )}
           </div>
+
+          {/* Continue Watching / Playback Progress Bar */}
+          {hasResumePoint && progressPercent !== undefined && progressPercent > 0 && progressPercent < 95 && (
+            <div className="absolute bottom-0 inset-x-0 z-20 pointer-events-none">
+              <div className="w-full h-1 sm:h-1.5 bg-black/80 backdrop-blur-xs overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-amber-500 to-[#FFB224] rounded-r-full shadow-[0_0_8px_rgba(255,178,36,0.7)] transition-all duration-300"
+                  style={{ width: `${Math.min(100, Math.max(4, progressPercent))}%` }}
+                />
+              </div>
+            </div>
+          )}
         </Link>
 
         {/* Action Overlay: container is strictly pointer-events-none so it NEVER blocks clicks on the poster */}
@@ -148,8 +196,8 @@ export const MediaCard: React.FC<MediaCardProps> = ({ item, className = '', show
             <button
               type="button"
               onClick={handlePlay}
-              aria-label={`Putar ${item.title}`}
-              title="Putar sekarang"
+              aria-label={hasResumePoint ? `Lanjutkan ${item.title} (${formatCardTime(currentSeconds)})` : `Putar ${item.title}`}
+              title={hasResumePoint ? `Lanjutkan pemutaran (${formatCardTime(currentSeconds)})` : "Putar sekarang"}
               className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-full liquid-glass liquid-specular flex items-center justify-center text-white hover:bg-white/30 hover:border-white/40 hover:scale-110 active:scale-95 transition-all duration-200 cursor-pointer shadow-lg hover:shadow-[0_0_16px_rgba(255,255,255,0.3)]"
             >
               <Play className="w-4 h-4 fill-current ml-0.5 text-white" />

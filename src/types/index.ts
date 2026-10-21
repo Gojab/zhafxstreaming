@@ -138,7 +138,29 @@ export interface HistoryItem {
   season?: number;
   episode?: number;
   episodeName?: string;
+  currentTime?: number;
+  duration?: number;
+  progressPercentage?: number;
   updatedAt: number;
+}
+
+export interface WatchProgress {
+  id?: string;
+  userId?: string;
+  contentId: string;
+  mediaType: MediaType;
+  title: string;
+  poster: string;
+  backdrop?: string;
+  year: string;
+  season?: number;
+  episode?: number;
+  episodeName?: string;
+  currentTime: number;
+  duration: number;
+  progressPercentage: number;
+  lastWatchedAt: number;
+  completed?: boolean;
 }
 
 export interface MyListItem {

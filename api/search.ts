@@ -15,7 +15,7 @@ export default async function handler(req: any, res: any) {
     return res.json({ success: true, results: [], totalPages: 1, totalResults: 0 });
   }
 
-  const backends = ['https://api.framextv.xyz', 'https://api.framextv.tech', 'https://api.framextv.cc'];
+  const backends = ['https://api.framextv.cc', 'https://api.framextv.tech', 'https://api.framextv.xyz'];
   const searchParams = new URLSearchParams();
   searchParams.set('q', q.trim());
   if (type) searchParams.set('type', type);
@@ -27,11 +27,11 @@ export default async function handler(req: any, res: any) {
         headers: {
           'User-Agent':
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-          Referer: 'https://framextv.xyz/',
-          Origin: 'https://framextv.xyz',
+          Referer: 'https://framextv.cc/',
+          Origin: 'https://framextv.cc',
           Accept: 'application/json',
         },
-        signal: AbortSignal.timeout(6000),
+        signal: AbortSignal.timeout(5000),
       });
 
       if (upstreamRes.ok) {

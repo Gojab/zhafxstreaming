@@ -13,7 +13,7 @@ export default async function handler(req: any, res: any) {
     req.url?.includes('/trending')
   );
 
-  const backends = ['https://api.framextv.xyz', 'https://api.framextv.tech', 'https://api.framextv.cc'];
+  const backends = ['https://api.framextv.cc', 'https://api.framextv.tech', 'https://api.framextv.xyz'];
 
   // Handle Trending Requests
   if (isTrending) {
@@ -29,11 +29,11 @@ export default async function handler(req: any, res: any) {
           headers: {
             'User-Agent':
               'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-            Referer: 'https://framextv.xyz/',
-            Origin: 'https://framextv.xyz',
+            Referer: 'https://framextv.cc/',
+            Origin: 'https://framextv.cc',
             Accept: 'application/json',
           },
-          signal: AbortSignal.timeout(6000),
+          signal: AbortSignal.timeout(5000),
         });
 
         if (upstreamRes.ok) {
@@ -60,45 +60,48 @@ export default async function handler(req: any, res: any) {
   const page = (req.query.page as string) || '1';
 
   if (type === 'anime') {
-    try {
-      const q = new URLSearchParams();
-      q.set('page', page);
-      if (genre && genre !== 'all') q.set('genre', genre);
-      if (year && year !== 'all') q.set('year', year);
+    const q = new URLSearchParams();
+    q.set('page', page);
+    if (genre && genre !== 'all') q.set('genre', genre);
+    if (year && year !== 'all') q.set('year', year);
 
-      const animeRes = await fetch(`https://api.framextv.tech/anime/api/discover?${q.toString()}`, {
-        headers: {
-          'User-Agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-          Referer: 'https://framextv.xyz/',
-          Accept: 'application/json',
-        },
-        signal: AbortSignal.timeout(6000),
-      });
-
-      if (animeRes.ok) {
-        const animeData = await animeRes.json();
-        const items = Array.isArray(animeData.results) ? animeData.results : [];
-        res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
-        return res.status(200).json({
-          success: true,
-          page: animeData.page || parseInt(page, 10),
-          totalPages: animeData.totalPages || 50,
-          totalResults: animeData.totalResults || items.length,
-          results: items.map((a: any) => ({
-            id: String(a.id),
-            type: 'anime',
-            title: a.title,
-            poster: a.poster,
-            backdrop: a.backdrop || a.poster,
-            year: String(a.year || '2024'),
-            rating: a.rating || '8.5',
-            overview: a.synopsis || a.overview || 'Anime terpopuler di Zhafx.',
-            genres: a.genres || ['Action', 'Fantasy'],
-          })),
+    for (const backend of backends) {
+      try {
+        const animeRes = await fetch(`${backend}/anime/api/discover?${q.toString()}`, {
+          headers: {
+            'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+            Referer: 'https://framextv.cc/',
+            Origin: 'https://framextv.cc',
+            Accept: 'application/json',
+          },
+          signal: AbortSignal.timeout(5000),
         });
-      }
-    } catch {}
+
+        if (animeRes.ok) {
+          const animeData = await animeRes.json();
+          const items = Array.isArray(animeData.results) ? animeData.results : [];
+          res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
+          return res.status(200).json({
+            success: true,
+            page: animeData.page || parseInt(page, 10),
+            totalPages: animeData.totalPages || 50,
+            totalResults: animeData.totalResults || items.length,
+            results: items.map((a: any) => ({
+              id: String(a.id),
+              type: 'anime',
+              title: a.title,
+              poster: a.poster,
+              backdrop: a.backdrop || a.poster,
+              year: String(a.year || '2024'),
+              rating: a.rating || '8.5',
+              overview: a.synopsis || a.overview || 'Anime terpopuler di Zhafx.',
+              genres: a.genres || ['Action', 'Fantasy'],
+            })),
+          });
+        }
+      } catch {}
+    }
   }
 
   const q = new URLSearchParams();
@@ -115,11 +118,11 @@ export default async function handler(req: any, res: any) {
         headers: {
           'User-Agent':
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-          Referer: 'https://framextv.xyz/',
-          Origin: 'https://framextv.xyz',
+          Referer: 'https://framextv.cc/',
+          Origin: 'https://framextv.cc',
           Accept: 'application/json',
         },
-        signal: AbortSignal.timeout(6000),
+        signal: AbortSignal.timeout(5000),
       });
 
       if (upstreamRes.ok) {

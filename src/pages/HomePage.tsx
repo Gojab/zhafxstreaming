@@ -353,20 +353,36 @@ export const HomePage: React.FC = () => {
     return () => controller.abort();
   }, []);
 
-  // Format history items into Title shape for row display
-  const historyTitles: Title[] = history.map((h) => ({
-    id: h.id,
-    type: h.type,
-    title: h.title,
-    poster: h.poster,
-    backdrop: h.backdrop,
-    year: h.year,
-    rating: '0.0',
-    overview: h.episode ? `Terakhir ditonton: Musim ${h.season || 1} Ep ${h.episode}` : 'Sedang ditonton',
-    genres: [],
-    season: h.season,
-    episode: h.episode,
-  }));
+  // Format history / continue watching items into Title shape for row display
+  const historyTitles: Title[] = history.map((h) => {
+    let overviewText = 'Sedang ditonton';
+    if (h.currentTime && h.currentTime > 5) {
+      const min = Math.floor(h.currentTime / 60);
+      const sec = Math.floor(h.currentTime % 60);
+      const formattedTime = `${min}:${sec < 10 ? '0' : ''}${sec}`;
+      if (h.episode) {
+        overviewText = `Lanjutkan: ${h.episodeName || `Ep ${h.episode}`} • ${formattedTime}`;
+      } else {
+        overviewText = `Lanjutkan dari ${formattedTime}`;
+      }
+    } else if (h.episode) {
+      overviewText = `Terakhir ditonton: Musim ${h.season || 1} Ep ${h.episode}`;
+    }
+
+    return {
+      id: h.id,
+      type: h.type,
+      title: h.title,
+      poster: h.poster,
+      backdrop: h.backdrop,
+      year: h.year,
+      rating: '0.0',
+      overview: overviewText,
+      genres: [],
+      season: h.season,
+      episode: h.episode,
+    };
+  });
 
   // Format my list items into Title shape
   const myListTitles: Title[] = myList.map((m) => ({

@@ -288,7 +288,7 @@ app.get('/api/home', async (_req: Request, res: Response) => {
     return res.status(200).json(serverCachedHomeData);
   }
 
-  const backends = ['https://api.framextv.xyz', 'https://api.framextv.tech'];
+  const backends = ['https://api.framextv.cc', 'https://api.framextv.tech', 'https://api.framextv.xyz'];
   let rawHomeData: any = null;
 
   for (const backend of backends) {
@@ -297,11 +297,11 @@ app.get('/api/home', async (_req: Request, res: Response) => {
         headers: {
           'User-Agent':
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-          Referer: 'https://framextv.xyz/',
-          Origin: 'https://framextv.xyz',
+          Referer: 'https://framextv.cc/',
+          Origin: 'https://framextv.cc',
           Accept: 'application/json',
         },
-        signal: AbortSignal.timeout(6000),
+        signal: AbortSignal.timeout(5000),
       });
 
       if (upstreamRes.ok) {
@@ -335,14 +335,17 @@ app.get('/api/home', async (_req: Request, res: Response) => {
     }
 
     // Populate Anime if FrameX upstream anime rails are empty
-    const currentAnime = rails.popular_anime?.results || [];
-    if (!Array.isArray(currentAnime) || currentAnime.length === 0) {
+    const currentAnime = Array.isArray(rails.popular_anime)
+      ? rails.popular_anime
+      : rails.popular_anime?.results || [];
+
+    if (currentAnime.length === 0) {
       try {
-        const animeRes = await fetch('https://api.framextv.tech/anime/api/discover?page=1', {
+        const animeRes = await fetch('https://api.framextv.cc/anime/api/discover?page=1', {
           headers: {
             'User-Agent':
               'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-            Referer: 'https://framextv.xyz/',
+            Referer: 'https://framextv.cc/',
             Accept: 'application/json',
           },
           signal: AbortSignal.timeout(5000),
@@ -400,9 +403,9 @@ app.get('/api/home', async (_req: Request, res: Response) => {
 // FrameX Dedicated Catalog & Search Engine (Movie, TV & Anime)
 // ==========================================
 const FRAMEX_API_BACKENDS = [
-  'https://api.framextv.xyz',
-  'https://api.framextv.tech',
   'https://api.framextv.cc',
+  'https://api.framextv.tech',
+  'https://api.framextv.xyz',
 ];
 
 interface ServerApiCacheItem {
@@ -437,8 +440,8 @@ async function fetchFromFrameXUpstream(
         headers: {
           'User-Agent':
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-          Referer: 'https://framextv.xyz/',
-          Origin: 'https://framextv.xyz',
+          Referer: 'https://framextv.cc/',
+          Origin: 'https://framextv.cc',
           Accept: 'application/json',
         },
         signal: AbortSignal.timeout(timeoutMs),

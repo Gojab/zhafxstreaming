@@ -1,4 +1,4 @@
-import { HistoryItem, MyListItem, User } from '../types';
+import { HistoryItem, MyListItem, User, WatchProgress } from '../types';
 
 const SCHEMA_VERSION = 'v1';
 const KEYS = {
@@ -371,48 +371,135 @@ export const storage = {
     }
   },
 
-  // --- Watch Progress (User-Scoped) ---
-  getProgress(contentId: string, season?: number, episode?: number): any | null {
+  // --- Watch Progress & Continue Watching (User-Scoped) ---
+  getProgress(contentId: string, season?: number, episode?: number): WatchProgress | null {
     try {
       const scopedKey = getScopedKey(KEYS.PROGRESS);
       const data = localStorage.getItem(scopedKey) || localStorage.getItem('zhafx_progress_v1');
       if (!data) return null;
       const parsed = JSON.parse(data);
       if (!Array.isArray(parsed)) return null;
-      return parsed.find(
-        (p: any) =>
-          p.contentId === contentId &&
-          (season === undefined || p.season === season) &&
-          (episode === undefined || p.episode === episode)
-      ) || null;
+      return (
+        parsed.find(
+          (p: WatchProgress) =>
+            p.contentId === contentId &&
+            (season === undefined || p.season === season) &&
+            (episode === undefined || p.episode === episode)
+        ) || null
+      );
     } catch {
       return null;
     }
   },
 
-  saveProgress(item: any): void {
+  getAllProgress(): WatchProgress[] {
     try {
       const scopedKey = getScopedKey(KEYS.PROGRESS);
       const data = localStorage.getItem(scopedKey) || localStorage.getItem('zhafx_progress_v1');
-      const current = data ? JSON.parse(data) : [];
+      if (!data) return [];
+      const parsed = JSON.parse(data);
+      if (!Array.isArray(parsed)) return [];
+      return parsed.sort((a: WatchProgress, b: WatchProgress) => (b.lastWatchedAt || 0) - (a.lastWatchedAt || 0));
+    } catch {
+      return [];
+    }
+  },
+
+  saveProgress(item: {
+    contentId: string;
+    mediaType: 'movie' | 'tv' | 'anime';
+    title: string;
+    poster: string;
+    backdrop?: string;
+    year: string;
+    season?: number;
+    episode?: number;
+    episodeName?: string;
+    currentTime: number;
+    duration: number;
+    progressPercentage?: number;
+    completed?: boolean;
+  }): void {
+    try {
+      if (!item.contentId) return;
+
+      const duration = Math.max(0, item.duration || 0);
+      const currentTime = Math.max(0, item.currentTime || 0);
+      const progressPercentage =
+        item.progressPercentage !== undefined
+          ? item.progressPercentage
+          : duration > 0
+          ? Math.min(100, Math.round((currentTime / duration) * 100))
+          : 0;
+
+      const completed = item.completed ?? (progressPercentage >= 95);
+
+      const scopedKey = getScopedKey(KEYS.PROGRESS);
+      const data = localStorage.getItem(scopedKey) || localStorage.getItem('zhafx_progress_v1');
+      const current: WatchProgress[] = data ? JSON.parse(data) : [];
+
       const filtered = Array.isArray(current)
         ? current.filter(
-            (p: any) =>
+            (p: WatchProgress) =>
               !(
                 p.contentId === item.contentId &&
-                p.season === item.season &&
-                p.episode === item.episode
+                (item.season === undefined || p.season === item.season) &&
+                (item.episode === undefined || p.episode === item.episode)
               )
           )
         : [];
-      const updated = {
-        ...item,
+
+      const updatedProgress: WatchProgress = {
+        id: `${item.contentId}_s${item.season || 1}_e${item.episode || 1}`,
+        contentId: item.contentId,
+        mediaType: item.mediaType,
+        title: item.title,
+        poster: item.poster,
+        backdrop: item.backdrop,
+        year: item.year,
+        season: item.season,
+        episode: item.episode,
+        episodeName: item.episodeName,
+        currentTime,
+        duration,
+        progressPercentage,
         lastWatchedAt: Date.now(),
+        completed,
       };
-      const next = [updated, ...filtered].slice(0, 100);
+
+      const next = [updatedProgress, ...filtered].slice(0, 100);
       localStorage.setItem(scopedKey, JSON.stringify(next));
 
-      // Asynchronously send to server if logged in
+      // Synchronize with watch history item so history card also has live timestamp
+      try {
+        const historyList = storage.getHistory();
+        const existingHistory = historyList.find(
+          (h) =>
+            h.id === item.contentId &&
+            (item.season === undefined || h.season === item.season) &&
+            (item.episode === undefined || h.episode === item.episode)
+        );
+
+        storage.saveHistory({
+          id: item.contentId,
+          type: item.mediaType,
+          title: item.title,
+          poster: item.poster,
+          backdrop: item.backdrop,
+          year: item.year,
+          season: item.season,
+          episode: item.episode,
+          episodeName: item.episodeName || existingHistory?.episodeName,
+          currentTime,
+          duration,
+          progressPercentage,
+        });
+      } catch {}
+
+      window.dispatchEvent(new Event('zhafx_storage_change'));
+      window.dispatchEvent(new Event('storage'));
+
+      // Asynchronously send to server if user is logged in
       const token = storage.getToken();
       if (token) {
         fetch('/api/progress', {
@@ -421,11 +508,46 @@ export const storage = {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify(updated),
+          body: JSON.stringify(updatedProgress),
         }).catch(() => {});
       }
     } catch (e) {
       console.warn('[Storage] Failed to save watch progress:', e);
+    }
+  },
+
+  removeProgress(contentId: string, season?: number, episode?: number): void {
+    try {
+      const scopedKey = getScopedKey(KEYS.PROGRESS);
+      const data = localStorage.getItem(scopedKey) || localStorage.getItem('zhafx_progress_v1');
+      if (!data) return;
+      const current: WatchProgress[] = JSON.parse(data);
+      if (!Array.isArray(current)) return;
+
+      const filtered = current.filter(
+        (p) =>
+          !(
+            p.contentId === contentId &&
+            (season === undefined || p.season === season) &&
+            (episode === undefined || p.episode === episode)
+          )
+      );
+      localStorage.setItem(scopedKey, JSON.stringify(filtered));
+      window.dispatchEvent(new Event('zhafx_storage_change'));
+      window.dispatchEvent(new Event('storage'));
+    } catch (e) {
+      console.warn('[Storage] Failed to remove watch progress:', e);
+    }
+  },
+
+  clearProgress(): void {
+    try {
+      const scopedKey = getScopedKey(KEYS.PROGRESS);
+      localStorage.removeItem(scopedKey);
+      window.dispatchEvent(new Event('zhafx_storage_change'));
+      window.dispatchEvent(new Event('storage'));
+    } catch (e) {
+      console.warn('[Storage] Failed to clear watch progress:', e);
     }
   },
 };

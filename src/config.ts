@@ -9,9 +9,9 @@ export const CONFIG = {
   
   // Primary upstream API base URL (empty string uses same-origin server proxy to eliminate CORS)
   API_BASE_URL: '',
-  API_BASE_URL_FALLBACK: 'https://api.framextv.xyz',
+  API_BASE_URL_FALLBACK: 'https://api.framextv.cc',
   API_ANIME_BASE_URL: '/api/anime',
-  API_ANIME_BASE_URL_FALLBACK: 'https://api.framextv.tech/anime',
+  API_ANIME_BASE_URL_FALLBACK: 'https://api.framextv.cc/anime',
   
   // Embed Player base URL (framextv.cc official active host)
   EMBED_BASE_URL: 'https://framextv.cc/embed',
