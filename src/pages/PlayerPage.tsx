@@ -468,9 +468,9 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
     }
-    timeoutRef.current = setTimeout(() => {
-      setIsIframeLoading(false);
-    }, 4000);
+    // Keep the loading state until the player reports load/can-play.
+    // A fixed timeout makes slower iOS and Windows connections look broken.
+    timeoutRef.current = null;
 
     return () => {
       if (timeoutRef.current) {
