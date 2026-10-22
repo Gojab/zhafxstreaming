@@ -1,5 +1,6 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
+import { AnimatePresence, motion } from 'framer-motion';
 import { Navbar } from './components/Navbar';
 import { BottomNav } from './components/BottomNav';
 import { Footer } from './components/Footer';
@@ -53,6 +54,11 @@ function AppLayout() {
       navigate(cleanPath, { replace: true });
     }
   }, [navigate]);
+
+  // Smooth scroll restoration to top when navigating routes
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  }, [location.pathname]);
 
   // Validate active session on mount & handle OAuth redirect tokens
   useEffect(() => {
@@ -217,7 +223,7 @@ function AppLayout() {
         />
       )}
 
-      <main className="flex-1 relative z-10">
+      <main className="flex-1 relative z-10 flex flex-col">
         <Suspense
           fallback={
             <div className="w-full min-h-[60vh] flex items-center justify-center pt-24 pb-12">
@@ -225,35 +231,49 @@ function AppLayout() {
             </div>
           }
         >
-          <Routes>
-            <Route path="/" element={<HomePage />} />
-            <Route path="/explore" element={<ExplorePage />} />
-            <Route path="/explore/:type" element={<ExplorePage />} />
-            <Route path="/search" element={<SearchPage />} />
-            <Route
-              path="/detail/:type/:id"
-              element={<DetailPage onOpenAIWithContext={handleOpenAIWithContext} />}
-            />
-            <Route
-              path="/watch/:type/:id"
-              element={<PlayerPage onOpenAIWithContext={handleOpenAIWithContext} />}
-            />
-            <Route
-              path="/watch/:type/:id/:season/:episode"
-              element={<PlayerPage onOpenAIWithContext={handleOpenAIWithContext} />}
-            />
-            <Route path="/history" element={<HistoryPage />} />
-            <Route path="/my-list" element={<MyListPage />} />
-            <Route path="/login" element={<AuthPage initialMode="login" />} />
-            <Route path="/register" element={<AuthPage initialMode="register" />} />
-            <Route path="/forgot-password" element={<AuthPage initialMode="forgot" />} />
-            <Route path="/reset-password" element={<ResetPasswordPage />} />
-            <Route path="/dashboard" element={<DashboardPage />} />
-            <Route path="/profile" element={<DashboardPage />} />
-            <Route path="/auth/google/callback" element={<GoogleCallbackPage />} />
-            <Route path="/auth/callback" element={<GoogleCallbackPage />} />
-            <Route path="*" element={<NotFoundPage />} />
-          </Routes>
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.div
+              key={location.pathname}
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{
+                duration: 0.32,
+                ease: [0.16, 1, 0.3, 1], // iOS fluid spring physics curve
+              }}
+              className="w-full flex-1 flex flex-col will-change-[transform,opacity]"
+            >
+              <Routes location={location}>
+                <Route path="/" element={<HomePage />} />
+                <Route path="/explore" element={<ExplorePage />} />
+                <Route path="/explore/:type" element={<ExplorePage />} />
+                <Route path="/search" element={<SearchPage />} />
+                <Route
+                  path="/detail/:type/:id"
+                  element={<DetailPage onOpenAIWithContext={handleOpenAIWithContext} />}
+                />
+                <Route
+                  path="/watch/:type/:id"
+                  element={<PlayerPage onOpenAIWithContext={handleOpenAIWithContext} />}
+                />
+                <Route
+                  path="/watch/:type/:id/:season/:episode"
+                  element={<PlayerPage onOpenAIWithContext={handleOpenAIWithContext} />}
+                />
+                <Route path="/history" element={<HistoryPage />} />
+                <Route path="/my-list" element={<MyListPage />} />
+                <Route path="/login" element={<AuthPage initialMode="login" />} />
+                <Route path="/register" element={<AuthPage initialMode="register" />} />
+                <Route path="/forgot-password" element={<AuthPage initialMode="forgot" />} />
+                <Route path="/reset-password" element={<ResetPasswordPage />} />
+                <Route path="/dashboard" element={<DashboardPage />} />
+                <Route path="/profile" element={<DashboardPage />} />
+                <Route path="/auth/google/callback" element={<GoogleCallbackPage />} />
+                <Route path="/auth/callback" element={<GoogleCallbackPage />} />
+                <Route path="*" element={<NotFoundPage />} />
+              </Routes>
+            </motion.div>
+          </AnimatePresence>
         </Suspense>
       </main>
 
