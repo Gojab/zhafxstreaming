@@ -5,6 +5,7 @@ import { HeroBillboard } from '../components/HeroBillboard';
 import { MediaRow } from '../components/MediaRow';
 import { HeroSkeleton, MediaRowSkeleton, MediaCardSkeleton } from '../components/Skeleton';
 import { SEOHead } from '../components/SEOHead';
+import { AdSenseBanner } from '../components/AdSenseBanner';
 import { useWatchHistory } from '../hooks/useWatchHistory';
 import { useMyList } from '../hooks/useMyList';
 import {
@@ -554,6 +555,7 @@ export const HomePage: React.FC = () => {
         />
       )}
       </div>
+      <AdSenseBanner />
     </div>
   );
 };
