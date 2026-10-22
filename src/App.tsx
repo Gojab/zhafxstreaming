@@ -267,7 +267,12 @@ function AppLayout() {
                 <Route path="/search" element={<SearchPage />} />
                 <Route
                   path="/detail/:type/:id"
-                  element={<DetailPage onOpenAIWithContext={handleOpenAIWithContext} />}
+                  element={
+                    <DetailPage
+                      onOpenAIWithContext={handleOpenAIWithContext}
+                      onOpenAuth={handleOpenAuth}
+                    />
+                  }
                 />
                 <Route
                   path="/watch/:type/:id"

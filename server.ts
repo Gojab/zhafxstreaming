@@ -983,15 +983,15 @@ app.get('/api/providers', async (req: Request, res: Response) => {
 });
 
 // ==========================================
-// Comments & ratings (authenticated users only)
+// Comments & ratings (Community reviews & user feedback)
 // ==========================================
 app.get('/api/comments', (req: Request, res: Response) => {
   res.setHeader('Content-Type', 'application/json');
   const contentId = String(req.query.contentId || '').trim();
   if (!contentId) return res.status(400).json({ success: false, error: 'contentId wajib diisi.', comments: [] });
   const db = readAuthDb();
-  const comments = (db.comments || []).filter((comment: any) => comment.contentId === contentId);
-  return res.json({ success: true, comments: comments.sort((a: any, b: any) => b.createdAt - a.createdAt) });
+  const comments = (db.comments || []).filter((comment: any) => String(comment.contentId) === contentId);
+  return res.json({ success: true, comments: comments.sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0)) });
 });
 
 app.post('/api/comments', (req: Request, res: Response) => {
@@ -1001,21 +1001,19 @@ app.post('/api/comments', (req: Request, res: Response) => {
   const numericRating = rating === undefined || rating === null || rating === '' ? undefined : Number(rating);
 
   if (!contentId || (!cleanText && numericRating === undefined)) {
-    return res.status(400).json({ success: false, error: 'Komentar atau rating wajib diisi.' });
+    return res.status(400).json({ success: false, error: 'Komentar atau rating bintang wajib diisi.' });
   }
 
   if (numericRating !== undefined && (!Number.isInteger(numericRating) || numericRating < 1 || numericRating > 5)) {
-    return res.status(400).json({ success: false, error: 'Rating harus antara 1 sampai 5.' });
+    return res.status(400).json({ success: false, error: 'Rating harus antara 1 sampai 5 bintang.' });
   }
 
-  const userId = getUserIdFromAuthHeader(req) || clientUserId;
-  if (!userId) {
-    return res.status(401).json({ success: false, error: 'Silakan login terlebih dahulu untuk memberikan komentar.' });
-  }
+  const authUserId = getUserIdFromAuthHeader(req);
+  const userId = authUserId || clientUserId || `usr_guest_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
 
   const db = readAuthDb();
-  const user = db.users.find((item) => item.id === userId);
-  const userName = user ? (user.name || user.email) : (clientUserName || 'Pengguna');
+  const user = db.users.find((item) => item.id === (authUserId || clientUserId));
+  const userName = (user ? (user.name || user.email) : null) || (typeof clientUserName === 'string' && clientUserName.trim() ? clientUserName.trim().slice(0, 50) : 'Penonton');
 
   const comment = {
     id: crypto.randomUUID ? crypto.randomUUID() : `cmt_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
@@ -1026,11 +1024,41 @@ app.post('/api/comments', (req: Request, res: Response) => {
     text: cleanText || undefined,
     rating: numericRating,
     createdAt: Date.now(),
+    isVerified: Boolean(authUserId || user),
   };
 
   db.comments = [comment, ...(db.comments || [])].slice(0, 5000);
   writeAuthDb(db);
   return res.status(201).json({ success: true, comment });
+});
+
+app.delete(['/api/comments/:id', '/api/comments'], (req: Request, res: Response) => {
+  res.setHeader('Content-Type', 'application/json');
+  const commentId = String(req.params.id || req.query.id || '').trim();
+  if (!commentId) {
+    return res.status(400).json({ success: false, error: 'ID komentar wajib diberikan.' });
+  }
+
+  const authUserId = getUserIdFromAuthHeader(req);
+  const currentUserId = authUserId || (typeof req.query.userId === 'string' ? req.query.userId : null);
+
+  const db = readAuthDb();
+  if (!Array.isArray(db.comments)) {
+    db.comments = [];
+  }
+  const index = db.comments.findIndex((c: any) => c.id === commentId);
+  if (index === -1) {
+    return res.status(404).json({ success: false, error: 'Komentar tidak ditemukan.' });
+  }
+
+  const comment = db.comments[index];
+  if (currentUserId && comment.userId && comment.userId !== currentUserId) {
+    return res.status(403).json({ success: false, error: 'Tidak memiliki izin untuk menghapus komentar ini.' });
+  }
+
+  db.comments.splice(index, 1);
+  writeAuthDb(db);
+  return res.status(200).json({ success: true, message: 'Komentar berhasil dihapus.' });
 });
 
 // ==========================================

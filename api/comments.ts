@@ -120,13 +120,8 @@ export default async function handler(req: any, res: any) {
     const authHeader = req.headers?.authorization;
     const authUser = getUserInfoFromAuth(authHeader);
 
-    const userId = authUser?.userId || clientUserId || `usr_anon_${Date.now()}`;
-    const userName = authUser?.userName || clientUserName || 'Pengguna';
-
-    if (!authUser && !clientUserId) {
-      res.setHeader('Content-Type', 'application/json');
-      return res.status(401).json({ success: false, error: 'Silakan login terlebih dahulu untuk memberikan komentar.' });
-    }
+    const userId = authUser?.userId || clientUserId || `usr_guest_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const userName = authUser?.userName || (typeof clientUserName === 'string' && clientUserName.trim() ? clientUserName.trim().slice(0, 50) : 'Penonton');
 
     const comment = {
       id: crypto.randomUUID ? crypto.randomUUID() : `cmt_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
@@ -137,6 +132,7 @@ export default async function handler(req: any, res: any) {
       text: cleanText || undefined,
       rating: numericRating,
       createdAt: Date.now(),
+      isVerified: Boolean(authUser),
     };
 
     inMemoryComments.unshift(comment);
@@ -152,6 +148,40 @@ export default async function handler(req: any, res: any) {
 
     res.setHeader('Content-Type', 'application/json');
     return res.status(201).json({ success: true, comment });
+  }
+
+  // 3. DELETE /api/comments?id=...
+  if (req.method === 'DELETE') {
+    const commentId = String(req.query?.id || '').trim();
+    if (!commentId) {
+      res.setHeader('Content-Type', 'application/json');
+      return res.status(400).json({ success: false, error: 'ID komentar wajib diberikan.' });
+    }
+
+    const authHeader = req.headers?.authorization;
+    const authUser = getUserInfoFromAuth(authHeader);
+    const clientUserId = String(req.query?.userId || '').trim();
+    const currentUserId = authUser?.userId || clientUserId;
+
+    try {
+      const db = readAuthDb();
+      const index = (db.comments || []).findIndex((c: any) => c.id === commentId);
+      if (index !== -1) {
+        const comment = db.comments[index];
+        if (currentUserId && comment.userId && comment.userId !== currentUserId) {
+          res.setHeader('Content-Type', 'application/json');
+          return res.status(403).json({ success: false, error: 'Tidak memiliki izin untuk menghapus komentar ini.' });
+        }
+        db.comments.splice(index, 1);
+        writeAuthDb(db);
+      }
+      inMemoryComments = inMemoryComments.filter((c) => c.id !== commentId);
+      res.setHeader('Content-Type', 'application/json');
+      return res.status(200).json({ success: true, message: 'Komentar berhasil dihapus.' });
+    } catch (err: any) {
+      res.setHeader('Content-Type', 'application/json');
+      return res.status(500).json({ success: false, error: err.message || 'Gagal menghapus komentar.' });
+    }
   }
 
   res.setHeader('Content-Type', 'application/json');

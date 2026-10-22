@@ -20,6 +20,11 @@ import {
   IoCloseOutline as X,
   IoChatbubbleEllipsesOutline as MessageCircle,
   IoSendOutline as Send,
+  IoTrashOutline as Trash2,
+  IoPersonOutline as UserIcon,
+  IoLogInOutline as LogIn,
+  IoCheckmarkCircle as CheckCircle,
+  IoShieldCheckmark as ShieldCheck,
 } from 'react-icons/io5';
 import { api } from '../services/api';
 import { Title, Episode, MediaType, CastMember, VideoTrailer } from '../types';
@@ -31,11 +36,53 @@ import { useActiveMedia } from '../context/ActiveMediaContext';
 import { storage } from '../lib/storage';
 import { translateToIndonesian, isIndonesian } from '../lib/translator';
 
-interface DetailPageProps {
-  onOpenAIWithContext: (title: Title) => void;
+function formatRelativeTime(timestamp: number): string {
+  if (!timestamp) return 'Baru saja';
+  const diff = Date.now() - timestamp;
+  if (diff < 60000) return 'Baru saja';
+  const minutes = Math.floor(diff / 60000);
+  if (minutes < 60) return `${minutes} menit lalu`;
+  const hours = Math.floor(diff / 60);
+  if (hours < 24) return `${hours} jam lalu`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days} hari lalu`;
+  const weeks = Math.floor(days / 7);
+  if (weeks < 4) return `${weeks} minggu lalu`;
+  const date = new Date(timestamp);
+  return date.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) => {
+function getAvatarGradient(name: string): string {
+  const gradients = [
+    'from-rose-500 to-orange-500',
+    'from-violet-500 to-indigo-500',
+    'from-blue-500 to-cyan-500',
+    'from-emerald-500 to-teal-500',
+    'from-amber-500 to-yellow-500',
+    'from-fuchsia-500 to-pink-500',
+  ];
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const index = Math.abs(hash) % gradients.length;
+  return gradients[index];
+}
+
+const RATING_LABELS: Record<number, string> = {
+  1: '1 Bintang (Buruk)',
+  2: '2 Bintang (Kurang)',
+  3: '3 Bintang (Cukup)',
+  4: '4 Bintang (Bagus)',
+  5: '5 Bintang (Sangat Bagus!)',
+};
+
+interface DetailPageProps {
+  onOpenAIWithContext: (title: Title) => void;
+  onOpenAuth?: () => void;
+}
+
+export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext, onOpenAuth }) => {
   const { type: rawType, id } = useParams<{ type?: string; id?: string }>();
   const navigate = useNavigate();
 
@@ -61,12 +108,30 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
 
   // Share feedback toast
   const [showShareToast, setShowShareToast] = useState(false);
-  const [comments, setComments] = useState<Array<{ id: string; userName: string; text?: string; rating?: number; createdAt: number }>>([]);
+  const [comments, setComments] = useState<Array<{
+    id: string;
+    userName: string;
+    text?: string;
+    rating?: number;
+    createdAt: number;
+    userId?: string;
+    isVerified?: boolean;
+  }>>([]);
   const [commentText, setCommentText] = useState('');
+  const [guestName, setGuestName] = useState('');
   const [selectedRating, setSelectedRating] = useState(0);
+  const [hoverRating, setHoverRating] = useState(0);
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
+  const [commentSuccess, setCommentSuccess] = useState<string | null>(null);
   const [commentError, setCommentError] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [sortBy, setSortBy] = useState<'newest' | 'rating'>('newest');
   const [isLoggedIn, setIsLoggedIn] = useState(() => Boolean(storage.getUser()));
+
+  const ratedComments = comments.filter((c) => typeof c.rating === 'number' && c.rating > 0);
+  const avgRating = ratedComments.length > 0
+    ? (ratedComments.reduce((acc, c) => acc + (c.rating || 0), 0) / ratedComments.length).toFixed(1)
+    : null;
 
   const { isSaved, toggle } = useMyList();
   const { setActiveMedia } = useActiveMedia();
@@ -181,25 +246,38 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
   }, [id]);
 
   const submitComment = async () => {
-    const user = storage.getUser();
-    if (!user) {
-      setCommentError('Kalau mau yapping, login dulu.');
-      return;
-    }
     if (!commentText.trim() && !selectedRating) {
-      setCommentError('Tulis komentar atau pilih rating dulu.');
+      setCommentError('Tulis komentar atau pilih bintang rating terlebih dahulu.');
       return;
     }
+
+    const user = storage.getUser();
+    let guestId = '';
+    try {
+      guestId = localStorage.getItem('zhafx_guest_id') || '';
+      if (!guestId) {
+        guestId = `usr_guest_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+        localStorage.setItem('zhafx_guest_id', guestId);
+      }
+    } catch {
+      guestId = `usr_guest_${Date.now()}`;
+    }
+
+    const effectiveUserId = user?.id || guestId;
+    const effectiveUserName = (user?.name || (user?.email ? user.email.split('@')[0] : null) || guestName.trim() || 'Penonton');
+
     setIsSubmittingComment(true);
     setCommentError(null);
+    setCommentSuccess(null);
 
-    const fallbackUserName = user.name || (user.email ? user.email.split('@')[0] : 'Pengguna');
     const localComment = {
       id: `cmt_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-      userName: fallbackUserName,
+      userName: effectiveUserName,
+      userId: effectiveUserId,
       text: commentText.trim() || undefined,
       rating: selectedRating || undefined,
       createdAt: Date.now(),
+      isVerified: Boolean(user),
     };
 
     try {
@@ -215,8 +293,8 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
           mediaType,
           text: commentText.trim(),
           rating: selectedRating || undefined,
-          userId: user.id,
-          userName: fallbackUserName,
+          userId: effectiveUserId,
+          userName: effectiveUserName,
         }),
       });
 
@@ -238,9 +316,11 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
         });
         setCommentText('');
         setSelectedRating(0);
+        setHoverRating(0);
+        setCommentSuccess('Ulasan dan rating kamu berhasil dikirim!');
+        setTimeout(() => setCommentSuccess(null), 4000);
       } else {
         // Fallback: save local comment if server returned error or offline
-        const errorMsg = data?.error || (response.status === 401 ? 'Silakan login ulang untuk berkomentar.' : 'Gagal mengirim komentar ke server.');
         setComments((current) => {
           const updated = [localComment, ...current];
           try {
@@ -250,11 +330,11 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
         });
         setCommentText('');
         setSelectedRating(0);
-        if (data?.error) {
-          setCommentError(errorMsg);
-        }
+        setHoverRating(0);
+        setCommentSuccess('Ulasan kamu berhasil disimpan!');
+        setTimeout(() => setCommentSuccess(null), 4000);
       }
-    } catch (submissionError: any) {
+    } catch {
       // Network failure / offline: keep user's comment locally
       setComments((current) => {
         const updated = [localComment, ...current];
@@ -265,10 +345,43 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
       });
       setCommentText('');
       setSelectedRating(0);
-      setCommentError(submissionError.message || 'Komentar tersimpan lokal.');
+      setHoverRating(0);
+      setCommentSuccess('Ulasan disimpan di perangkat kamu!');
+      setTimeout(() => setCommentSuccess(null), 4000);
     } finally {
       setIsSubmittingComment(false);
     }
+  };
+
+  const deleteComment = async (commentId: string) => {
+    if (!window.confirm('Yakin ingin menghapus komentar ini?')) return;
+    setDeletingId(commentId);
+    const user = storage.getUser();
+    let guestId = '';
+    try {
+      guestId = localStorage.getItem('zhafx_guest_id') || '';
+    } catch {}
+    const effectiveUserId = user?.id || guestId;
+
+    try {
+      await fetch(`/api/comments/${encodeURIComponent(commentId)}?userId=${encodeURIComponent(effectiveUserId)}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${storage.getToken() || ''}`,
+        },
+      });
+    } catch {
+      // continue local cleanup
+    }
+
+    setComments((current) => {
+      const updated = current.filter((c) => c.id !== commentId);
+      try {
+        if (id) localStorage.setItem(`zhafx_comments_${id}`, JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+    setDeletingId(null);
   };
 
   // Load episodes when season changes for TV series
@@ -936,48 +1049,309 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
       )}
 
       {/* Comments & Ratings */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8 space-y-4 pt-2" aria-labelledby="comments-heading">
-        <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center text-white">
-            <MessageCircle className="w-4 h-4" />
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8 space-y-6 pt-4" aria-labelledby="comments-heading">
+        {/* Header & Community Rating Summary */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-white/10">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-white/10 border border-white/15 flex items-center justify-center text-amber-300 shadow-md">
+              <MessageCircle className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 id="comments-heading" className="text-xl sm:text-2xl font-bold text-white tracking-tight">
+                  Komentar & Rating
+                </h2>
+                <span className="px-2 py-0.5 rounded-full bg-white/10 text-[11px] font-semibold text-white/80">
+                  {comments.length}
+                </span>
+              </div>
+              <p className="text-xs text-white/50">
+                Bagikan ulasan dan penilaian kamu untuk tayangan ini
+              </p>
+            </div>
           </div>
-          <div>
-            <h2 id="comments-heading" className="text-lg sm:text-xl font-bold text-white tracking-tight">Komentar & Rating</h2>
-            <p className="text-xs text-white/50">Bagikan pendapatmu tentang tayangan ini</p>
+
+          {/* Average Rating Score Card */}
+          {avgRating && (
+            <div className="flex items-center gap-3 px-4 py-2 rounded-2xl bg-white/[0.05] border border-white/15 backdrop-blur-md self-start sm:self-auto">
+              <div className="flex items-center gap-1.5 text-amber-300">
+                <Star className="w-5 h-5 fill-current" />
+                <span className="text-lg font-bold text-white">{avgRating}</span>
+                <span className="text-xs text-white/50">/ 5</span>
+              </div>
+              <div className="h-6 w-[1px] bg-white/15" />
+              <div className="text-[11px] text-white/70">
+                <p className="font-semibold text-white">{ratedComments.length} Penilai</p>
+                <p className="text-[10px] text-white/50">Skor Komunitas</p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Comment Input Card */}
+        <div className="rounded-[24px] liquid-glass p-5 sm:p-6 space-y-4 border border-white/15 shadow-xl">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            {/* Star Rating Picker */}
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold text-white/80">Beri Rating:</span>
+                <div className="flex items-center gap-1" onMouseLeave={() => setHoverRating(0)}>
+                  {[1, 2, 3, 4, 5].map((value) => {
+                    const active = (hoverRating || selectedRating) >= value;
+                    return (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() => setSelectedRating(selectedRating === value ? 0 : value)}
+                        onMouseEnter={() => setHoverRating(value)}
+                        aria-label={`${value} bintang`}
+                        className="p-1 cursor-pointer transition-transform duration-150 hover:scale-125 focus:outline-none"
+                      >
+                        <Star
+                          className={`w-6 h-6 transition-colors duration-150 ${
+                            active ? 'text-amber-300 fill-current drop-shadow-[0_0_8px_rgba(252,211,77,0.5)]' : 'text-white/25 hover:text-white/50'
+                          }`}
+                        />
+                      </button>
+                    );
+                  })}
+                </div>
+                {(hoverRating || selectedRating) > 0 && (
+                  <span className="text-xs font-medium text-amber-300 animate-in fade-in duration-200">
+                    {RATING_LABELS[hoverRating || selectedRating]}
+                  </span>
+                )}
+                {selectedRating > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedRating(0);
+                      setHoverRating(0);
+                    }}
+                    className="text-[10px] text-white/40 hover:text-white/70 underline ml-1 cursor-pointer"
+                  >
+                    Reset
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* User Identity Chip / Login Prompt */}
+            {isLoggedIn ? (
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/[0.08] border border-white/15 self-start sm:self-auto text-xs text-white/90">
+                <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                <span>Masuk sebagai <strong className="text-white">{storage.getUser()?.name || storage.getUser()?.email}</strong></span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 self-start sm:self-auto">
+                <button
+                  type="button"
+                  onClick={() => (onOpenAuth ? onOpenAuth() : navigate('/login'))}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 text-xs font-semibold text-white transition-all cursor-pointer"
+                >
+                  <LogIn className="w-3.5 h-3.5" />
+                  <span>Masuk Akun</span>
+                </button>
+                <span className="text-[11px] text-white/40">atau berkomentar langsung</span>
+              </div>
+            )}
+          </div>
+
+          {/* Guest Name Field (if not logged in) */}
+          {!isLoggedIn && (
+            <div className="pt-1">
+              <input
+                type="text"
+                value={guestName}
+                onChange={(e) => setGuestName(e.target.value)}
+                maxLength={40}
+                placeholder="Nama kamu (opsional, bawaan: Penonton)..."
+                className="w-full sm:w-72 rounded-xl bg-black/30 border border-white/10 px-3.5 py-2 text-xs text-white placeholder:text-white/35 focus:outline-none focus:border-white/30"
+              />
+            </div>
+          )}
+
+          {/* Comment Text Area */}
+          <div className="relative">
+            <textarea
+              value={commentText}
+              onChange={(e) => setCommentText(e.target.value)}
+              maxLength={1000}
+              rows={3}
+              placeholder="Tulis ulasan, opini, atau kesanmu setelah menonton tayangan ini..."
+              className="w-full resize-none rounded-2xl bg-black/30 border border-white/10 p-4 text-sm text-white placeholder:text-white/35 outline-none focus:border-white/35 transition-colors"
+            />
+            <div className="absolute right-3 bottom-3 text-[10px] text-white/40">
+              {commentText.length}/1000
+            </div>
+          </div>
+
+          {/* Status feedback alerts */}
+          {commentSuccess && (
+            <div className="flex items-center gap-2 p-3 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-medium animate-in fade-in">
+              <CheckCircle className="w-4 h-4 shrink-0" />
+              <span>{commentSuccess}</span>
+            </div>
+          )}
+          {commentError && (
+            <div className="flex items-center gap-2 p-3 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs font-medium animate-in fade-in">
+              <AlertTriangle className="w-4 h-4 shrink-0" />
+              <span>{commentError}</span>
+            </div>
+          )}
+
+          {/* Submit Action */}
+          <div className="flex items-center justify-between pt-1">
+            <p className="text-[11px] text-white/45 hidden sm:block">
+              Ulasan kamu akan langsung terlihat oleh komunitas penonton ZHAFX.
+            </p>
+            <button
+              type="button"
+              onClick={submitComment}
+              disabled={isSubmittingComment || (!commentText.trim() && !selectedRating)}
+              className="inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-full bg-white text-[#06070B] font-bold text-xs shadow-lg hover:bg-white/90 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-all active:scale-95 ml-auto"
+            >
+              <Send className="w-3.5 h-3.5" />
+              <span>{isSubmittingComment ? 'Mengirim...' : 'Kirim Ulasan'}</span>
+            </button>
           </div>
         </div>
-        <div className="relative rounded-[24px] liquid-glass p-4 sm:p-5 space-y-4 overflow-hidden">
-          <div className={!isLoggedIn ? 'select-none blur-md pointer-events-none' : ''} aria-hidden={!isLoggedIn}>
-            <div className="flex items-center gap-1" aria-label="Pilih rating dari 1 sampai 5">
-              <span className="text-xs text-white/60 mr-2">Rating</span>
-              {[1, 2, 3, 4, 5].map((value) => (
-                <button key={value} type="button" onClick={() => setSelectedRating(value)} aria-label={`${value} bintang`} className="p-1 cursor-pointer">
-                  <Star className={`w-5 h-5 ${value <= selectedRating ? 'text-amber-300 fill-current' : 'text-white/30'}`} />
+
+        {/* Comments List Section */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between flex-wrap gap-2 pt-2">
+            <h3 className="text-sm font-bold text-white flex items-center gap-2">
+              <span>Ulasan Penonton</span>
+              <span className="text-xs font-normal text-white/50">({comments.length})</span>
+            </h3>
+
+            {/* Sorting Tabs */}
+            {comments.length > 1 && (
+              <div className="flex items-center gap-1 p-1 rounded-full bg-white/[0.05] border border-white/10 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setSortBy('newest')}
+                  className={`px-3 py-1 rounded-full font-medium transition-colors cursor-pointer ${
+                    sortBy === 'newest' ? 'bg-white/20 text-white' : 'text-white/60 hover:text-white'
+                  }`}
+                >
+                  Terbaru
                 </button>
-              ))}
-            </div>
-            <div className="flex flex-col sm:flex-row gap-2 mt-4">
-              <textarea value={commentText} onChange={(event) => setCommentText(event.target.value)} maxLength={1000} rows={2} placeholder="Tulis yapping kamu..." tabIndex={isLoggedIn ? 0 : -1} className="flex-1 resize-none rounded-2xl bg-black/20 border border-white/10 px-4 py-3 text-sm text-white placeholder:text-white/35 outline-none focus:border-white/30" />
-              <button type="button" onClick={submitComment} disabled={isSubmittingComment || !isLoggedIn} tabIndex={isLoggedIn ? 0 : -1} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white text-black px-5 py-3 text-xs font-bold disabled:opacity-50 cursor-pointer">
-                <Send className="w-4 h-4" /> {isSubmittingComment ? 'Mengirim...' : 'Kirim'}
-              </button>
-            </div>
-            {commentError && <p className="text-xs text-rose-300 mt-2">{commentError}</p>}
-            <div className="space-y-3 mt-4">
-              {comments.length === 0 ? <p className="text-sm text-white/45">Belum ada komentar. Jadilah yang pertama.</p> : comments.map((comment) => (
-                <article key={comment.id} className="border-t border-white/10 pt-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-sm font-semibold text-white">{comment.userName}</span>
-                    {comment.rating && <span className="inline-flex items-center gap-1 text-xs text-amber-300"><Star className="w-3.5 h-3.5 fill-current" />{comment.rating}/5</span>}
-                  </div>
-                  {comment.text && <p className="text-sm text-white/75 mt-1 leading-relaxed">{comment.text}</p>}
-                </article>
-              ))}
-            </div>
+                <button
+                  type="button"
+                  onClick={() => setSortBy('rating')}
+                  className={`px-3 py-1 rounded-full font-medium transition-colors cursor-pointer ${
+                    sortBy === 'rating' ? 'bg-white/20 text-white' : 'text-white/60 hover:text-white'
+                  }`}
+                >
+                  Rating Tertinggi
+                </button>
+              </div>
+            )}
           </div>
-          {!isLoggedIn && (
-            <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/25 px-6 text-center backdrop-blur-[1px]">
-              <p className="rounded-full border border-white/15 bg-black/45 px-4 py-2 text-sm font-semibold text-white shadow-lg">Kalau mau yapping, login dulu.</p>
+
+          {/* List or Empty State */}
+          {comments.length === 0 ? (
+            <div className="rounded-[24px] bg-white/[0.02] border border-white/10 p-8 text-center space-y-2">
+              <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center mx-auto text-white/40">
+                <MessageCircle className="w-6 h-6" />
+              </div>
+              <p className="text-sm font-semibold text-white/80">Belum ada ulasan untuk tayangan ini</p>
+              <p className="text-xs text-white/45 max-w-sm mx-auto">
+                Jadilah yang pertama memberikan penilaian dan membagikan pengalaman menontonmu!
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {[...comments]
+                .sort((a, b) => {
+                  if (sortBy === 'rating') {
+                    const rA = a.rating || 0;
+                    const rB = b.rating || 0;
+                    if (rB !== rA) return rB - rA;
+                  }
+                  return (b.createdAt || 0) - (a.createdAt || 0);
+                })
+                .map((comment) => {
+                  const currentUser = storage.getUser();
+                  let currentGuestId = '';
+                  try {
+                    currentGuestId = localStorage.getItem('zhafx_guest_id') || '';
+                  } catch {}
+                  const effectiveCurrentUserId = currentUser?.id || currentGuestId;
+                  const isOwner =
+                    Boolean(comment.userId && comment.userId === effectiveCurrentUserId) ||
+                    Boolean(currentUser && comment.userName === (currentUser.name || currentUser.email));
+
+                  const initial = (comment.userName || 'P').trim().charAt(0).toUpperCase();
+                  const gradient = getAvatarGradient(comment.userName || 'Penonton');
+
+                  return (
+                    <article
+                      key={comment.id}
+                      className="p-4 sm:p-5 rounded-[22px] bg-white/[0.03] hover:bg-white/[0.06] border border-white/10 transition-colors space-y-3"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          {/* User Avatar */}
+                          <div
+                            className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-gradient-to-tr ${gradient} flex items-center justify-center text-white font-bold text-sm shadow-md shrink-0`}
+                          >
+                            {initial}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-sm font-bold text-white tracking-tight">
+                                {comment.userName || 'Penonton'}
+                              </span>
+                              {comment.isVerified && (
+                                <span
+                                  title="Akun Terverifikasi"
+                                  className="inline-flex items-center gap-0.5 text-[10px] text-emerald-400 bg-emerald-500/10 px-1.5 py-0.2 rounded-full border border-emerald-500/20"
+                                >
+                                  <ShieldCheck className="w-3 h-3" />
+                                  <span>Terverifikasi</span>
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-[11px] text-white/45">
+                              {formatRelativeTime(comment.createdAt)}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Rating Stars & Delete Option */}
+                        <div className="flex items-center gap-3 shrink-0">
+                          {comment.rating && comment.rating > 0 && (
+                            <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-400/10 border border-amber-400/20 text-amber-300">
+                              <Star className="w-3.5 h-3.5 fill-current" />
+                              <span className="text-xs font-bold">{comment.rating}</span>
+                              <span className="text-[10px] text-amber-300/60">/ 5</span>
+                            </div>
+                          )}
+                          {isOwner && (
+                            <button
+                              type="button"
+                              onClick={() => deleteComment(comment.id)}
+                              disabled={deletingId === comment.id}
+                              title="Hapus ulasan saya"
+                              className="text-white/30 hover:text-rose-400 p-1.5 rounded-lg hover:bg-rose-500/10 transition-colors cursor-pointer"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Comment Body */}
+                      {comment.text && (
+                        <p className="text-sm text-white/80 leading-relaxed pl-12 whitespace-pre-line">
+                          {comment.text}
+                        </p>
+                      )}
+                    </article>
+                  );
+                })}
             </div>
           )}
         </div>
