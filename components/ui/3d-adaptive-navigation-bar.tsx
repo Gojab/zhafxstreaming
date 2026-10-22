@@ -110,8 +110,9 @@ export const PillBase: React.FC<PillBaseProps> = ({
     <motion.nav
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
-      className={`relative rounded-full select-none cursor-pointer transform-gpu will-change-[width,transform] ${className}`}
+      className={`relative rounded-full select-none cursor-pointer transform-gpu will-change-[width,transform] origin-left ${className}`}
       style={{
+        transformOrigin: 'left center',
         width: pillWidth,
         height: `${height}px`,
         backdropFilter: isTransparent ? (expanded ? 'blur(20px) saturate(160%)' : undefined) : isGlass ? 'blur(24px) saturate(180%)' : undefined,
@@ -349,27 +350,27 @@ export const PillBase: React.FC<PillBaseProps> = ({
         </>
       )}
 
-      {/* Navigation items container */}
+      {/* Navigation items container - Left-anchored */}
       <div 
         ref={containerRef}
-        className="relative z-10 h-full flex items-center justify-center px-3"
+        className="relative z-10 h-full flex items-center justify-start px-2.5"
         style={{
           fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "SF Pro", Poppins, sans-serif',
         }}
       >
-        {/* Collapsed state - clean crisp typography without white milky box */}
+        {/* Collapsed state - anchored on the left, hints expansion to the right */}
         {!expanded && (
-          <div className="flex items-center justify-center relative w-full">
+          <div className="flex items-center justify-between w-full pl-1.5 pr-1">
             <AnimatePresence mode="wait">
               {activeItem && (
                 <motion.span
                   key={activeItem.id}
-                  initial={{ opacity: 0, y: 6, filter: 'blur(3px)' }}
-                  animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-                  exit={{ opacity: 0, y: -6, filter: 'blur(3px)' }}
+                  initial={{ opacity: 0, x: -4 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -4 }}
                   transition={{
-                    duration: 0.28,
-                    ease: [0.16, 1, 0.3, 1]
+                    duration: 0.22,
+                    ease: [0.16, 1, 0.3, 1],
                   }}
                   style={{
                     fontSize: '13.5px',
@@ -381,19 +382,25 @@ export const PillBase: React.FC<PillBaseProps> = ({
                     MozOsxFontSmoothing: 'grayscale',
                     textShadow: '0 1px 2px rgba(0, 0, 0, 0.85)',
                   }}
-                  className="flex items-center gap-2 px-2 py-1"
+                  className="flex items-center"
                 >
-                  <span className="w-1.5 h-1.5 rounded-full bg-white/90" />
                   <span>{activeItem.label}</span>
                 </motion.span>
               )}
             </AnimatePresence>
+
+            {/* Expansion hint icon to the right */}
+            <span className="text-white/45 text-xs flex items-center ml-1.5 transition-transform duration-300 group-hover:translate-x-0.5">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="9 18 15 12 9 6" />
+              </svg>
+            </span>
           </div>
         )}
 
-        {/* Expanded state - show all sections with stagger and interactive spring hover */}
+        {/* Expanded state - unfolds sections towards the right starting from Beranda on the left */}
         {expanded && (
-          <div className="flex items-center justify-between w-full gap-1">
+          <div className="flex items-center justify-start w-full gap-1 pl-0.5 overflow-hidden">
             {navItems.map((item, index) => {
               const isActive = item.id === currentActive
               
@@ -401,16 +408,16 @@ export const PillBase: React.FC<PillBaseProps> = ({
                 <motion.button
                   key={item.id}
                   type="button"
-                  initial={{ opacity: 0, x: -8 }}
+                  initial={{ opacity: 0, x: -10 }}
                   animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -8 }}
+                  exit={{ opacity: 0, x: -10 }}
                   transition={{ 
-                    delay: index * 0.05,
-                    duration: 0.22,
+                    delay: index * 0.035,
+                    duration: 0.2,
                     ease: [0.16, 1, 0.3, 1]
                   }}
                   onClick={() => handleSectionClick(item.id)}
-                  className="relative cursor-pointer transition-all duration-200 px-3 py-1.5 rounded-full flex items-center justify-center"
+                  className="relative cursor-pointer transition-all duration-200 px-3 py-1.5 rounded-full flex items-center justify-center shrink-0"
                   style={{
                     fontSize: isActive ? '13.5px' : '13px',
                     fontWeight: isActive ? 600 : 500,

@@ -173,6 +173,9 @@ export const HeroBillboard: React.FC<HeroBillboardProps> = ({ items }) => {
         {/* Seamless Apple iOS Vignette Blend */}
         <div className="absolute inset-0 bg-gradient-to-t from-[#06070B] via-[#06070B]/60 to-transparent pointer-events-none z-[1]" />
         <div className="absolute inset-0 bg-gradient-to-r from-[#06070B]/85 via-[#06070B]/50 to-transparent lg:w-3/4 pointer-events-none z-[1]" />
+
+        {/* Deep Bottom Shadow Fade over the lower view */}
+        <div className="absolute inset-x-0 bottom-0 h-44 sm:h-56 bg-gradient-to-t from-[#06070B] via-[#06070B]/90 to-transparent pointer-events-none z-[2]" />
       </div>
 
       {/* Hero Showcase Container */}

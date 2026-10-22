@@ -139,12 +139,16 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAI, onOpenFeatures, onOpen
 
   return (
     <header className="fixed top-2.5 sm:top-4 left-2.5 right-2.5 sm:left-6 sm:right-6 max-w-7xl mx-auto z-40 transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] pointer-events-auto">
-      <div className="w-full px-3 sm:px-6 h-14 sm:h-16 rounded-[24px] sm:rounded-full flex items-center justify-between gap-2 sm:gap-4 relative !overflow-visible">
-        {/* Smooth Glass & Backdrop Filter Layer - Hardware accelerated opacity crossfade */}
+      <div className={`w-full px-3 sm:px-6 h-14 sm:h-16 rounded-[24px] sm:rounded-full flex items-center justify-between gap-2 sm:gap-4 relative !overflow-visible transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+        hasScrolled ? 'shadow-[0_16px_36px_rgba(0,0,0,0.55)]' : ''
+      }`}>
+        {/* Smooth Glass & Backdrop Filter Layer - Hardware accelerated opacity crossfade with deep blur */}
         <div
-          className="absolute inset-0 rounded-[24px] sm:rounded-full pointer-events-none transition-opacity duration-400 ease-[cubic-bezier(0.16,1,0.3,1)] liquid-glass-dense border border-white/20 will-change-[opacity]"
+          className="absolute inset-0 rounded-[24px] sm:rounded-full pointer-events-none transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] liquid-glass-dense border border-white/20 will-change-[opacity,backdrop-filter]"
           style={{
             opacity: hasScrolled ? 1 : 0,
+            backdropFilter: hasScrolled ? 'blur(36px) saturate(200%)' : 'none',
+            WebkitBackdropFilter: hasScrolled ? 'blur(36px) saturate(200%)' : 'none',
           }}
         />
 
@@ -157,22 +161,22 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAI, onOpenFeatures, onOpen
           }}
         />
 
-        {/* Left: Official ZHAFX Logo & Desktop 3D Adaptive Navigation Bar */}
-        <div className="relative z-10 flex items-center gap-3 sm:gap-5 shrink-0">
+        {/* Left: Official ZHAFX Logo & Desktop 3D Adaptive Navigation Bar - Anchored Left */}
+        <div className="relative z-10 flex items-center justify-start gap-2.5 sm:gap-3.5 shrink-0 origin-left">
           <div className={`transition-opacity duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${hasScrolled ? 'opacity-100' : 'opacity-85 hover:opacity-100'}`}>
             <Logo size="md" />
           </div>
 
-          {/* 3D Adaptive Navigation Pill - Transparent at top, glass when scrolled */}
-          <div className="hidden md:flex items-center">
+          {/* 3D Adaptive Navigation Pill - Beranda anchored on left, opens towards right */}
+          <div className="hidden md:flex items-center origin-left">
             <PillBase
               items={NAV_ITEMS}
               activeId={currentActiveId}
               onChange={(id) => navigate(id)}
               theme={hasScrolled ? 'glass' : 'transparent'}
               height={42}
-              collapsedWidth={134}
-              expandedWidth={560}
+              collapsedWidth={122}
+              expandedWidth={550}
             />
           </div>
         </div>

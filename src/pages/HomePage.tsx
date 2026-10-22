@@ -437,7 +437,7 @@ export const HomePage: React.FC = () => {
   ];
 
   return (
-    <div className="pb-28 sm:pb-24 pt-[74px] sm:pt-24 md:pt-28">
+    <div className="pb-28 sm:pb-24 pt-[74px] sm:pt-24 md:pt-28 relative shadow-[0_35px_80px_rgba(0,0,0,0.95)]">
       <SEOHead
         title=""
         canonicalPath="/"
@@ -447,7 +447,7 @@ export const HomePage: React.FC = () => {
       <HeroBillboard items={heroItems} />
 
       {/* Katalog Tayangan (Trending sekarang & Kategori) */}
-      <div className="mt-4 sm:mt-10 space-y-7 sm:space-y-9">
+      <div className="relative z-20 mt-4 sm:mt-10 space-y-7 sm:space-y-9 shadow-[0_-30px_60px_-15px_rgba(0,0,0,0.95)]">
         {/* Continue Watching / Lanjutkan Menonton */}
       {historyTitles.length > 0 && (
         <MediaRow
