@@ -10,7 +10,7 @@ export interface PillBaseProps {
   items?: NavItem[]
   activeId?: string
   onChange?: (id: string) => void
-  theme?: 'glass' | 'dark' | 'light'
+  theme?: 'glass' | 'dark' | 'light' | 'transparent'
   height?: number
   collapsedWidth?: number
   expandedWidth?: number
@@ -102,8 +102,9 @@ export const PillBase: React.FC<PillBaseProps> = ({
   }
 
   const activeItem = navItems.find((item) => item.id === currentActive) || navItems[0]
+  const isTransparent = theme === 'transparent'
   const isGlass = theme === 'glass'
-  const isDark = theme === 'dark' || isGlass
+  const isDark = (theme === 'dark' || isGlass) && !isTransparent
 
   return (
     <motion.nav
@@ -113,9 +114,11 @@ export const PillBase: React.FC<PillBaseProps> = ({
       style={{
         width: pillWidth,
         height: `${height}px`,
-        backdropFilter: isGlass ? 'blur(24px) saturate(180%)' : undefined,
-        WebkitBackdropFilter: isGlass ? 'blur(24px) saturate(180%)' : undefined,
-        background: isGlass
+        backdropFilter: isTransparent ? (expanded ? 'blur(20px) saturate(160%)' : undefined) : isGlass ? 'blur(24px) saturate(180%)' : undefined,
+        WebkitBackdropFilter: isTransparent ? (expanded ? 'blur(20px) saturate(160%)' : undefined) : isGlass ? 'blur(24px) saturate(180%)' : undefined,
+        background: isTransparent
+          ? (expanded ? 'rgba(12, 15, 22, 0.75)' : 'transparent')
+          : isGlass
           ? 'rgba(12, 15, 22, 0.65)'
           : isDark
           ? `
@@ -139,7 +142,9 @@ export const PillBase: React.FC<PillBaseProps> = ({
               #e2e3e6 100%
             )
           `,
-        boxShadow: isGlass
+        boxShadow: isTransparent
+          ? (expanded ? '0 12px 30px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.12)' : 'none')
+          : isGlass
           ? expanded
             ? `
               0 16px 36px rgba(0, 0, 0, 0.65),
@@ -207,22 +212,24 @@ export const PillBase: React.FC<PillBaseProps> = ({
           `,
         x: pillShift,
         overflow: 'hidden',
-        transition: 'box-shadow 0.3s ease-out',
+        transition: 'box-shadow 0.5s cubic-bezier(0.16, 1, 0.3, 1), background 0.5s cubic-bezier(0.16, 1, 0.3, 1), backdrop-filter 0.5s cubic-bezier(0.16, 1, 0.3, 1), -webkit-backdrop-filter 0.5s cubic-bezier(0.16, 1, 0.3, 1)',
       }}
     >
-      {/* Primary top edge ridge - subtle translucent highlight in glass mode */}
-      <div 
-        className="absolute inset-x-0 top-0 rounded-t-full pointer-events-none"
-        style={{
-          height: isGlass ? '1px' : '2px',
-          background: isGlass
-            ? 'linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.18) 25%, rgba(255, 255, 255, 0.18) 75%, transparent 100%)'
-            : isDark
-            ? 'linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.95) 10%, rgba(255, 255, 255, 1) 35%, rgba(255, 255, 255, 1) 65%, rgba(255, 255, 255, 0.95) 90%, rgba(255, 255, 255, 0) 100%)'
-            : 'linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.95) 5%, rgba(255, 255, 255, 1) 15%, rgba(255, 255, 255, 1) 85%, rgba(255, 255, 255, 0.95) 95%, rgba(255, 255, 255, 0) 100%)',
-          filter: isGlass ? undefined : 'blur(0.3px)',
-        }}
-      />
+      {!isTransparent && (
+        <>
+          {/* Primary top edge ridge - subtle translucent highlight in glass mode */}
+          <div 
+            className="absolute inset-x-0 top-0 rounded-t-full pointer-events-none"
+            style={{
+              height: isGlass ? '1px' : '2px',
+              background: isGlass
+                ? 'linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.18) 25%, rgba(255, 255, 255, 0.18) 75%, transparent 100%)'
+                : isDark
+                ? 'linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.95) 10%, rgba(255, 255, 255, 1) 35%, rgba(255, 255, 255, 1) 65%, rgba(255, 255, 255, 0.95) 90%, rgba(255, 255, 255, 0) 100%)'
+                : 'linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.95) 5%, rgba(255, 255, 255, 1) 15%, rgba(255, 255, 255, 1) 85%, rgba(255, 255, 255, 0.95) 95%, rgba(255, 255, 255, 0) 100%)',
+              filter: isGlass ? undefined : 'blur(0.3px)',
+            }}
+          />
       
       {/* Top hemisphere light catch - disabled in glass mode to avoid milky haze */}
       {!isGlass && (
@@ -339,6 +346,8 @@ export const PillBase: React.FC<PillBaseProps> = ({
             : 'inset 0 0 0 0.5px rgba(0, 0, 0, 0.10)',
         }}
       />
+        </>
+      )}
 
       {/* Navigation items container */}
       <div 
@@ -408,22 +417,22 @@ export const PillBase: React.FC<PillBaseProps> = ({
                     color: isActive ? '#ffffff' : 'rgba(255, 255, 255, 0.70)',
                     textDecoration: 'none',
                     letterSpacing: '0.3px',
-                    background: isGlass
+                    background: (isGlass || isTransparent)
                       ? isActive
-                        ? 'rgba(255, 255, 255, 0.12)'
+                        ? 'rgba(255, 255, 255, 0.16)'
                         : 'transparent'
                       : isActive
                       ? (isDark ? 'rgba(255, 255, 255, 0.18)' : 'rgba(0, 0, 0, 0.05)')
                       : 'transparent',
-                    border: isGlass
-                      ? (isActive ? '1px solid rgba(255, 255, 255, 0.18)' : '1px solid transparent')
+                    border: (isGlass || isTransparent)
+                      ? (isActive ? '1px solid rgba(255, 255, 255, 0.20)' : '1px solid transparent')
                       : 'none',
                     outline: 'none',
                     whiteSpace: 'nowrap',
                     WebkitFontSmoothing: 'antialiased',
                     MozOsxFontSmoothing: 'grayscale',
                     transform: isActive ? 'translateY(-1px)' : 'translateY(0)',
-                    boxShadow: isGlass
+                    boxShadow: (isGlass || isTransparent)
                       ? (isActive ? '0 2px 8px rgba(0, 0, 0, 0.35)' : 'none')
                       : isActive
                       ? 'inset 0 1px 1px rgba(255, 255, 255, 0.4), 0 2px 8px rgba(0, 0, 0, 0.3)'
@@ -434,8 +443,8 @@ export const PillBase: React.FC<PillBaseProps> = ({
                     if (!isActive) {
                       e.currentTarget.style.color = '#ffffff'
                       e.currentTarget.style.transform = 'translateY(-1px) scale(1.03)'
-                      e.currentTarget.style.backgroundColor = isGlass ? 'rgba(255, 255, 255, 0.08)' : (isDark ? 'rgba(255, 255, 255, 0.10)' : 'rgba(0, 0, 0, 0.03)')
-                      if (isGlass) e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.14)'
+                      e.currentTarget.style.backgroundColor = (isGlass || isTransparent) ? 'rgba(255, 255, 255, 0.10)' : (isDark ? 'rgba(255, 255, 255, 0.10)' : 'rgba(0, 0, 0, 0.03)')
+                      if (isGlass || isTransparent) e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.16)'
                     }
                   }}
                   onMouseLeave={(e) => {
@@ -443,7 +452,7 @@ export const PillBase: React.FC<PillBaseProps> = ({
                       e.currentTarget.style.color = 'rgba(255, 255, 255, 0.70)'
                       e.currentTarget.style.transform = 'translateY(0) scale(1)'
                       e.currentTarget.style.backgroundColor = 'transparent'
-                      if (isGlass) e.currentTarget.style.borderColor = 'transparent'
+                      if (isGlass || isTransparent) e.currentTarget.style.borderColor = 'transparent'
                     }
                   }}
                 >

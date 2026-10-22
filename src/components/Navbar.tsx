@@ -39,8 +39,6 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAI, onOpenFeatures, onOpen
   const location = useLocation();
   const currentPath = location.pathname;
   const [hasScrolled, setHasScrolled] = useState(() => (typeof window !== 'undefined' ? window.scrollY > 25 : false));
-  const [isHovered, setIsHovered] = useState(false);
-  const [isScrollable, setIsScrollable] = useState(true);
   const [user, setUser] = useState<User | null>(() => storage.getUser());
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
@@ -92,7 +90,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAI, onOpenFeatures, onOpen
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Track scroll position: hide when at the top ("mentok atas"), reveal when scrolled down
+  // Track scroll position: transparent when at the top ("mentok atas"), frosted glass when scrolled down
   useEffect(() => {
     const handleScroll = () => {
       setHasScrolled(window.scrollY > 25);
@@ -101,23 +99,6 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAI, onOpenFeatures, onOpen
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
-
-  // Check if current page is scrollable; if not scrollable, keep navbar visible
-  useEffect(() => {
-    const checkScrollable = () => {
-      if (typeof document !== 'undefined') {
-        const canScroll = document.documentElement.scrollHeight > window.innerHeight + 40;
-        setIsScrollable(canScroll);
-      }
-    };
-    checkScrollable();
-    const timer = setTimeout(checkScrollable, 300);
-    window.addEventListener('resize', checkScrollable);
-    return () => {
-      clearTimeout(timer);
-      window.removeEventListener('resize', checkScrollable);
-    };
-  }, [location.pathname]);
 
   // Global "/" hotkey for search
   useEffect(() => {
@@ -156,44 +137,48 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAI, onOpenFeatures, onOpen
     setIsProfileMenuOpen(false);
   };
 
-  const isTopBarVisible = hasScrolled || isHovered || isProfileMenuOpen || !isScrollable;
-
   return (
-    <>
-      {/* Invisible top hover zone to allow revealing navbar when mouse is at the top edge */}
-      <div
-        className="fixed top-0 left-0 right-0 h-3 z-40 pointer-events-auto"
-        onMouseEnter={() => setIsHovered(true)}
-        aria-hidden="true"
-      />
-
-      <header
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
-        className={`fixed top-2.5 sm:top-4 left-2.5 right-2.5 sm:left-6 sm:right-6 max-w-7xl mx-auto z-40 transition-all duration-350 ease-[cubic-bezier(0.16,1,0.3,1)] ${
-          isTopBarVisible
-            ? 'translate-y-0 opacity-100 pointer-events-auto'
-            : '-translate-y-24 sm:-translate-y-28 opacity-0 pointer-events-none'
-        }`}
-      >
+    <header className="fixed top-2.5 sm:top-4 left-2.5 right-2.5 sm:left-6 sm:right-6 max-w-7xl mx-auto z-40 transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] pointer-events-auto">
+      <div className="w-full px-3 sm:px-6 h-14 sm:h-16 rounded-[24px] sm:rounded-full flex items-center justify-between gap-2 sm:gap-4 relative !overflow-visible">
+        {/* Smooth Glass & Backdrop Filter Layer - Hardware accelerated continuous blur and opacity tween */}
         <div
-          className={`w-full px-3 sm:px-6 h-14 sm:h-16 rounded-[24px] sm:rounded-full flex items-center justify-between gap-2 sm:gap-4 transition-all duration-300 relative !overflow-visible ${
-            hasScrolled
-              ? 'liquid-glass-dense liquid-specular shadow-2xl'
-              : 'liquid-glass liquid-specular shadow-lg'
-          }`}
-        >
-        {/* Left: Official ZHAFX Logo & Desktop 3D Adaptive Navigation Bar */}
-        <div className="flex items-center gap-3 sm:gap-5 shrink-0">
-          <Logo size="md" />
+          className="absolute inset-0 rounded-[24px] sm:rounded-full pointer-events-none transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]"
+          style={{
+            opacity: hasScrolled ? 1 : 0,
+            backdropFilter: hasScrolled ? 'blur(16px) saturate(150%)' : 'blur(0px) saturate(100%)',
+            WebkitBackdropFilter: hasScrolled ? 'blur(16px) saturate(150%)' : 'blur(0px) saturate(100%)',
+            backgroundColor: hasScrolled ? 'rgba(18, 20, 28, 0.82)' : 'rgba(18, 20, 28, 0)',
+            borderColor: hasScrolled ? 'rgba(255, 255, 255, 0.18)' : 'rgba(255, 255, 255, 0)',
+            borderWidth: '1px',
+            borderStyle: 'solid',
+            boxShadow: hasScrolled
+              ? 'inset 0 1px 1.5px 0 rgba(255, 255, 255, 0.45), 0 12px 32px 0 rgba(0, 0, 0, 0.4)'
+              : 'inset 0 1px 1.5px 0 rgba(255, 255, 255, 0), 0 0 0 0 rgba(0, 0, 0, 0)',
+          }}
+        />
 
-          {/* 3D Adaptive Navigation Pill - Hover expands with spring physics */}
+        {/* Specular Diagonal Sheen Layer with Opacity Transition */}
+        <div
+          className="absolute inset-0 rounded-[24px] sm:rounded-full pointer-events-none transition-opacity duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]"
+          style={{
+            opacity: hasScrolled ? 1 : 0,
+            background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0.04) 35%, transparent 65%)',
+          }}
+        />
+
+        {/* Left: Official ZHAFX Logo & Desktop 3D Adaptive Navigation Bar */}
+        <div className="relative z-10 flex items-center gap-3 sm:gap-5 shrink-0">
+          <div className={`transition-opacity duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${hasScrolled ? 'opacity-100' : 'opacity-85 hover:opacity-100'}`}>
+            <Logo size="md" />
+          </div>
+
+          {/* 3D Adaptive Navigation Pill - Transparent at top, glass when scrolled */}
           <div className="hidden md:flex items-center">
             <PillBase
               items={NAV_ITEMS}
               activeId={currentActiveId}
               onChange={(id) => navigate(id)}
-              theme="glass"
+              theme={hasScrolled ? 'glass' : 'transparent'}
               height={42}
               collapsedWidth={134}
               expandedWidth={560}
@@ -201,13 +186,17 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAI, onOpenFeatures, onOpen
           </div>
         </div>
 
-        {/* Right Action Buttons with Specular Shimmer and Fluid Spring */}
-        <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
-          {/* Glass Search Button with Unique Lens Float */}
+        {/* Right Action Buttons with Transparent Top Bar State */}
+        <div className="relative z-10 flex items-center gap-2 sm:gap-2.5 shrink-0">
+          {/* Glass Search Button */}
           <button
             onClick={() => navigate('/search')}
             aria-label="Pencarian tayangan"
-            className="group flex items-center justify-center gap-1.5 px-3 py-2 rounded-full bg-white/[0.06] hover:bg-white/[0.14] border border-white/10 hover:border-white/25 text-white/80 hover:text-white text-xs transition-all duration-200 cursor-pointer min-h-[44px] min-w-[44px] ios-spring nav-shimmer shadow-sm"
+            className={`group flex items-center justify-center gap-1.5 px-3 py-2 rounded-full text-xs transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] cursor-pointer min-h-[44px] min-w-[44px] ios-spring ${
+              hasScrolled
+                ? 'bg-white/[0.06] hover:bg-white/[0.14] border border-white/10 hover:border-white/25 text-white/80 hover:text-white shadow-sm nav-shimmer'
+                : 'bg-transparent hover:bg-white/10 border border-transparent hover:border-white/20 text-white/80 hover:text-white shadow-none'
+            }`}
           >
             <IoSearchOutline className="w-4 h-4 text-white transition-transform duration-200 group-hover:scale-115 group-hover:-translate-y-0.5" />
             <span className="hidden sm:inline text-[12px] group-hover:text-white transition-colors">Cari</span>
@@ -216,23 +205,31 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAI, onOpenFeatures, onOpen
             </kbd>
           </button>
 
-          {/* Logo X (Features Modal - Unique Gyro Spin & Prismatic Glow) */}
+          {/* Logo X (Features Modal) */}
           <button
             type="button"
             onClick={onOpenFeatures}
             aria-label="Fitur Utama X"
             title="Menu Fitur Zhafx X"
-            className="group btn-features-x flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-white/[0.08] hover:bg-white/[0.18] border border-white/20 text-white font-black text-sm cursor-pointer min-h-[36px] min-w-[36px] shadow-md nav-shimmer"
+            className={`group btn-features-x flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-full font-black text-sm cursor-pointer min-h-[36px] min-w-[36px] transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+              hasScrolled
+                ? 'bg-white/[0.08] hover:bg-white/[0.18] border border-white/20 text-white shadow-md nav-shimmer'
+                : 'bg-transparent hover:bg-white/10 border border-transparent hover:border-white/20 text-white/85 hover:text-white shadow-none'
+            }`}
           >
             <span className="leading-none transition-transform duration-300 group-hover:rotate-90 group-hover:scale-110 block">
               X
             </span>
           </button>
 
-          {/* Tanya AI Glass Pill - Unique Amber Breathing Glow */}
+          {/* Tanya AI Glass Pill */}
           <button
             onClick={onOpenAI}
-            className="group btn-ai-sparkle hidden sm:inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-full bg-white/[0.08] hover:bg-white/[0.16] border border-white/15 text-white font-medium text-xs cursor-pointer min-h-[44px] min-w-[44px] shadow-sm nav-shimmer"
+            className={`group btn-ai-sparkle hidden sm:inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-full font-medium text-xs cursor-pointer min-h-[44px] min-w-[44px] transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+              hasScrolled
+                ? 'bg-white/[0.08] hover:bg-white/[0.16] border border-white/15 text-white shadow-sm nav-shimmer'
+                : 'bg-transparent hover:bg-white/10 border border-transparent hover:border-white/20 text-white/85 hover:text-white shadow-none'
+            }`}
             title="Buka Tanya Zhafx AI"
           >
             <BotMessageSquareIcon size={17} className="text-amber-300 transition-transform duration-300 group-hover:scale-115" />
@@ -244,7 +241,11 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAI, onOpenFeatures, onOpen
             <div className="relative" ref={profileMenuRef}>
               <button
                 onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
-                className="flex items-center justify-center gap-1.5 pl-2.5 pr-3 py-1.5 rounded-full liquid-glass hover:bg-white/[0.18] border border-white/20 hover:border-white/35 text-white text-xs transition-all duration-200 cursor-pointer min-h-[44px] min-w-[44px] ios-spring nav-shimmer"
+                className={`flex items-center justify-center gap-1.5 pl-2.5 pr-3 py-1.5 rounded-full text-white text-xs transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] cursor-pointer min-h-[44px] min-w-[44px] ios-spring ${
+                  hasScrolled
+                    ? 'liquid-glass hover:bg-white/[0.18] border border-white/20 hover:border-white/35 text-white shadow-sm nav-shimmer'
+                    : 'bg-transparent hover:bg-white/10 border border-transparent hover:border-white/20 text-white/85 hover:text-white shadow-none backdrop-blur-none'
+                }`}
               >
                 {user.avatar ? (
                   <img
@@ -351,10 +352,14 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAI, onOpenFeatures, onOpen
           ) : (
             <button
               onClick={onOpenAuth}
-              className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-full bg-white hover:bg-zinc-100 text-[#06070B] font-bold text-xs shadow-md transition-all cursor-pointer min-h-[44px] min-w-[44px] ios-spring shrink-0"
+              className={`flex items-center justify-center gap-1.5 px-4 py-2 rounded-full font-bold text-xs transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] cursor-pointer min-h-[44px] min-w-[44px] ios-spring shrink-0 ${
+                hasScrolled
+                  ? 'bg-white hover:bg-zinc-100 text-[#06070B] shadow-md border border-transparent'
+                  : 'bg-transparent hover:bg-white/15 border border-white/30 hover:border-white/60 text-white shadow-none backdrop-blur-none'
+              }`}
               title="Login ke Akun"
             >
-              <IoLogInOutline className="w-4 h-4 text-black" />
+              <IoLogInOutline className={`w-4 h-4 transition-colors duration-500 ${hasScrolled ? 'text-black' : 'text-white'}`} />
               <span>Login</span>
             </button>
           )}
@@ -370,6 +375,5 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAI, onOpenFeatures, onOpen
         />
       )}
       </header>
-    </>
   );
 };

@@ -1,0 +1,447 @@
+"use client";
+
+import * as React from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { cn } from "@/lib/utils";
+
+const useIsoLayoutEffect =
+  typeof window !== "undefined" ? React.useLayoutEffect : React.useEffect;
+
+export interface CoverflowSlide {
+  src: string;
+  alt: string;
+  title?: string;
+  subtitle?: string;
+  meta?: { label: string; value: string }[];
+  id?: string;
+  type?: 'movie' | 'tv' | 'anime' | string;
+  rating?: string;
+  year?: string;
+  overview?: string;
+  genres?: string[];
+  backdrop?: string;
+}
+
+export interface CoverflowCarouselProps {
+  slides: CoverflowSlide[];
+  /** Degrees the first neighbour tilts. */
+  rotate?: number;
+  /** How far the first neighbour recedes, as a fraction of card width. */
+  depth?: number;
+  /** Viewer distance as a multiple of card width — smaller is a wider lens. */
+  perspective?: number;
+  /** Exponent on distance. Below 1 the rake eases off as cards travel out. */
+  falloff?: number;
+  /** Opacity lost per step from the centre. */
+  fade?: number;
+  /** Any CSS length. Everything else is derived from it, so the rake scales. */
+  cardWidth?: string;
+  /** Space between cards, as a fraction of card width. */
+  gap?: number;
+  loop?: boolean;
+  showCaption?: boolean;
+  showPagination?: boolean;
+  showNavigation?: boolean;
+  /** Names the carousel for assistive tech. */
+  label?: string;
+  className?: string;
+  cardClassName?: string;
+  selectedIndex?: number;
+  onSlideChange?: (index: number) => void;
+  onCardClick?: (slide: CoverflowSlide, index: number) => void;
+}
+
+export function CoverflowCarousel({
+  slides,
+  rotate = 44,
+  depth = 0.6,
+  perspective = 3,
+  falloff = 0.56,
+  fade = 0.1,
+  cardWidth = "clamp(148px, 22vw, 260px)",
+  gap = 0.05,
+  loop = true,
+  showCaption = false,
+  showPagination = false,
+  showNavigation = false,
+  label = "Cover carousel",
+  className,
+  cardClassName,
+  selectedIndex,
+  onSlideChange,
+  onCardClick,
+}: CoverflowCarouselProps) {
+  const count = slides.length;
+
+  const frameRef = React.useRef<HTMLDivElement>(null);
+  const cardRefs = React.useRef<(HTMLDivElement | null)[]>([]);
+  /** Fractional card index at the centre. The single source of truth. */
+  const posRef = React.useRef(selectedIndex ?? 0);
+  /** Where the current settle is headed. Stepping off `pos` instead would
+      swallow a keypress that lands mid-flight, before the round-off moves. */
+  const targetRef = React.useRef(selectedIndex ?? 0);
+  const widthRef = React.useRef(0);
+  const rafRef = React.useRef<number | null>(null);
+  const dragRef = React.useRef<{
+    id: number;
+    x: number;
+    pos: number;
+    v: number;
+    t: number;
+  } | null>(null);
+
+  const [selected, setSelected] = React.useState(selectedIndex ?? 0);
+  const onSlideChangeRef = React.useRef(onSlideChange);
+  onSlideChangeRef.current = onSlideChange;
+
+  /** Nearest whole card, folded back into 0..count-1. */
+  const indexAt = React.useCallback(
+    (pos: number) => {
+      if (count <= 0) return 0;
+      return ((Math.round(pos) % count) + count) % count;
+    },
+    [count],
+  );
+
+  // Paint straight to the DOM. Sixty state updates a second would re-render
+  // every card for numbers React never needs to see.
+  const paint = React.useCallback(() => {
+    const width = widthRef.current;
+    if (!width || count === 0) return;
+    const pitch = width * (1 + gap);
+    const pos = posRef.current;
+
+    cardRefs.current.forEach((card, index) => {
+      if (!card) return;
+
+      // Fold the distance into the shorter way round the ring. This is the
+      // whole looping mechanism — no cloned nodes, no shuffling the DOM.
+      let offset = index - pos;
+      if (loop) {
+        offset = ((offset % count) + count) % count;
+        if (offset > count / 2) offset -= count;
+      }
+
+      const distance = Math.abs(offset);
+      // Both the tilt and the recession ease off as cards travel out —
+      // doubling the distance adds only about half again as much of each.
+      // A linear ramp folds the second card shut; this keeps it readable.
+      const ramp = Math.pow(distance, falloff);
+      // Capped short of edge-on so a far card never turns its back.
+      const tilt = Math.min(rotate * ramp, 82) * Math.sign(offset);
+
+      card.style.transform =
+        `translateX(calc(-50% + ${offset * pitch}px)) ` +
+        `translateZ(${-depth * width * ramp}px) rotateY(${-tilt}deg)`;
+
+      // A card is teleported across the ring at exactly half a turn out, so it
+      // has to be gone by then or the jump is visible.
+      const edge = loop ? Math.min(1, Math.max(0, count / 2 - distance)) : 1;
+      card.style.opacity = String(Math.max(0, 1 - fade * distance) * edge);
+      card.style.zIndex = String(100 - Math.round(distance));
+    });
+  }, [count, depth, fade, falloff, gap, loop, rotate]);
+
+  const settle = React.useCallback(
+    (target: number) => {
+      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+      targetRef.current = target;
+      const targetIndex = indexAt(target);
+      setSelected(targetIndex);
+      if (onSlideChangeRef.current) {
+        onSlideChangeRef.current(targetIndex);
+      }
+
+      const step = () => {
+        const remaining = target - posRef.current;
+        if (Math.abs(remaining) < 0.0004) {
+          posRef.current = target;
+          paint();
+          rafRef.current = null;
+          return;
+        }
+        // ponytail: exponential ease-out, not a spring. Swap in a spring only
+        // if the settle needs overshoot.
+        posRef.current += remaining * 0.16;
+        paint();
+        rafRef.current = requestAnimationFrame(step);
+      };
+      rafRef.current = requestAnimationFrame(step);
+    },
+    [indexAt, paint],
+  );
+
+  const clamp = React.useCallback(
+    (pos: number) => (loop ? pos : Math.max(0, Math.min(count - 1, pos))),
+    [count, loop],
+  );
+
+  const goTo = React.useCallback(
+    (index: number) => {
+      if (count <= 0) return;
+      // Take the shorter way round rather than unwinding the whole ring.
+      const target = loop
+        ? index + Math.round((targetRef.current - index) / count) * count
+        : index;
+      settle(clamp(target));
+    },
+    [clamp, count, loop, settle],
+  );
+
+  const nudge = React.useCallback(
+    (by: number) => settle(clamp(Math.round(targetRef.current) + by)),
+    [clamp, settle],
+  );
+
+  // Sync external selectedIndex
+  React.useEffect(() => {
+    if (selectedIndex !== undefined && selectedIndex !== selected) {
+      goTo(selectedIndex);
+    }
+  }, [selectedIndex, goTo, selected]);
+
+  const onPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (rafRef.current !== null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+    event.currentTarget.setPointerCapture(event.pointerId);
+    targetRef.current = posRef.current;
+    dragRef.current = {
+      id: event.pointerId,
+      x: event.clientX,
+      pos: posRef.current,
+      v: 0,
+      t: performance.now(),
+    };
+  };
+
+  const onPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    const drag = dragRef.current;
+    if (!drag || drag.id !== event.pointerId) return;
+
+    const pitch = widthRef.current * (1 + gap);
+    if (!pitch) return;
+
+    const now = performance.now();
+    const previous = posRef.current;
+    posRef.current = clamp(drag.pos - (event.clientX - drag.x) / pitch);
+    // Cards per second, for the throw.
+    drag.v = ((posRef.current - previous) / Math.max(now - drag.t, 1)) * 1000;
+    drag.t = now;
+
+    const index = indexAt(posRef.current);
+    if (index !== selected) {
+      setSelected(index);
+      if (onSlideChangeRef.current) {
+        onSlideChangeRef.current(index);
+      }
+    }
+    paint();
+  };
+
+  const endDrag = (event: React.PointerEvent<HTMLDivElement>) => {
+    const drag = dragRef.current;
+    if (!drag || drag.id !== event.pointerId) return;
+    dragRef.current = null;
+    // Let a flick carry, but never more than two cards.
+    const carried = Math.max(-2, Math.min(2, drag.v * 0.18));
+    settle(clamp(Math.round(posRef.current + carried)));
+  };
+
+  // Card width drives pitch, depth and perspective, so it is the only thing
+  // worth measuring — and only when the box actually changes.
+  useIsoLayoutEffect(() => {
+    const frame = frameRef.current;
+    if (!frame) return;
+
+    const measure = () => {
+      const card = cardRefs.current[0];
+      if (!card) return;
+      widthRef.current = card.offsetWidth;
+      paint();
+    };
+
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(frame);
+    return () => observer.disconnect();
+  }, [paint]);
+
+  React.useEffect(
+    () => () => {
+      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+    },
+    [],
+  );
+
+  if (!slides || slides.length === 0) return null;
+
+  const active = slides[selected] || slides[0];
+
+  return (
+    <div
+      className={cn("w-full select-none", className)}
+      style={{ ["--cf-card" as string]: cardWidth }}
+      role="region"
+      aria-roledescription="carousel"
+      aria-label={label}
+    >
+      <div className="relative">
+        <div
+          ref={frameRef}
+          tabIndex={0}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={endDrag}
+          onPointerCancel={endDrag}
+          onKeyDown={(event) => {
+            if (event.key === "ArrowLeft") {
+              event.preventDefault();
+              nudge(-1);
+            } else if (event.key === "ArrowRight") {
+              event.preventDefault();
+              nudge(1);
+            }
+          }}
+          // Vertical padding keeps the drop shadows clear of the overflow clip
+          className="relative h-full w-full overflow-hidden py-4 sm:py-6 cursor-grab active:cursor-grabbing outline-none touch-pan-y"
+          style={{
+            perspective: `calc(var(--cf-card) * ${perspective})`,
+          }}
+        >
+          <div
+            className="relative h-full w-full flex items-center justify-center min-h-[300px] xs:min-h-[350px] sm:min-h-[420px] md:min-h-[460px]"
+            style={{ transformStyle: "preserve-3d" }}
+          >
+            {slides.map((slide, index) => {
+              const isCurrent = index === selected;
+              return (
+                <div
+                  key={index}
+                  ref={(el) => {
+                    cardRefs.current[index] = el;
+                  }}
+                  onClick={() => {
+                    if (index === selected) {
+                      onCardClick?.(slide, index);
+                    } else {
+                      goTo(index);
+                    }
+                  }}
+                  className={cn(
+                    "absolute left-1/2 top-1/2 -translate-y-1/2 w-[var(--cf-card)] aspect-[2/3] rounded-2xl overflow-hidden shadow-2xl transition-[filter,box-shadow,ring-color] duration-300 cursor-pointer will-change-transform group",
+                    isCurrent
+                      ? "brightness-100 ring-2 ring-white/60 shadow-[0_20px_50px_rgba(0,0,0,0.85)] scale-[1.02]"
+                      : "brightness-75 hover:brightness-95 shadow-[0_10px_30px_rgba(0,0,0,0.5)]",
+                    cardClassName
+                  )}
+                  style={{
+                    transformOrigin: "center center",
+                    backfaceVisibility: "hidden",
+                  }}
+                >
+                  <img
+                    src={slide.src}
+                    alt={slide.alt || slide.title || "Movie cover"}
+                    className="w-full h-full object-cover pointer-events-none select-none transition-transform duration-500 group-hover:scale-105"
+                    loading={index === 0 ? "eager" : "lazy"}
+                    decoding="async"
+                  />
+
+                  {/* Gradient vignette on card */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#06070B]/90 via-[#06070B]/25 to-transparent pointer-events-none" />
+
+                  {/* Top badges: Rating & Type */}
+                  <div className="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between pointer-events-none gap-1">
+                    {slide.rating && parseFloat(slide.rating) > 0 && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-md text-amber-400 text-[10px] sm:text-[11px] font-bold border border-white/10 shadow-sm">
+                        ★ {slide.rating}
+                      </span>
+                    )}
+                    {slide.type && (
+                      <span className="px-2 py-0.5 rounded-full bg-white/20 backdrop-blur-md text-white text-[9px] sm:text-[10px] font-semibold uppercase tracking-wider border border-white/10 ml-auto">
+                        {slide.type === "tv" ? "Serial TV" : slide.type === "anime" ? "Anime" : "Film"}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Bottom title & metadata on card */}
+                  <div className="absolute bottom-0 inset-x-0 p-3 sm:p-3.5 text-left pointer-events-none">
+                    {slide.title && (
+                      <h4 className="text-white text-xs sm:text-sm font-bold line-clamp-1 drop-shadow-md">
+                        {slide.title}
+                      </h4>
+                    )}
+                    <div className="flex items-center gap-1.5 mt-0.5 text-[10px] sm:text-[11px] text-white/70">
+                      {slide.year && <span>{slide.year}</span>}
+                      {slide.genres && slide.genres.length > 0 && (
+                        <span>• {slide.genres.slice(0, 2).join(", ")}</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Navigation arrows */}
+        {showNavigation && count > 1 && (
+          <>
+            <button
+              type="button"
+              onClick={() => nudge(-1)}
+              className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 z-30 w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-black/50 backdrop-blur-md border border-white/15 text-white flex items-center justify-center hover:bg-white/20 transition-all shadow-xl cursor-pointer ios-spring"
+              aria-label="Slide sebelumnya"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => nudge(1)}
+              className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 z-30 w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-black/50 backdrop-blur-md border border-white/15 text-white flex items-center justify-center hover:bg-white/20 transition-all shadow-xl cursor-pointer ios-spring"
+              aria-label="Slide berikutnya"
+            >
+              <ChevronRight className="w-5 h-5" />
+            </button>
+          </>
+        )}
+      </div>
+
+      {/* Pagination dots */}
+      {showPagination && count > 1 && (
+        <div className="flex items-center justify-center gap-1.5 mt-3 sm:mt-4">
+          {slides.map((_, index) => (
+            <button
+              key={index}
+              type="button"
+              onClick={() => goTo(index)}
+              className={cn(
+                "h-1 sm:h-1.5 rounded-full transition-all duration-300 cursor-pointer",
+                index === selected
+                  ? "w-5 sm:w-6 bg-white"
+                  : "w-1.5 bg-white/30 hover:bg-white/60"
+              )}
+              aria-label={`Slide ${index + 1}`}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Optional Caption */}
+      {showCaption && active && (
+        <div className="text-center mt-3 sm:mt-4 space-y-1 animate-in fade-in duration-300">
+          {active.title && (
+            <h3 className="text-base sm:text-lg font-bold text-white tracking-tight">
+              {active.title}
+            </h3>
+          )}
+          {active.subtitle && (
+            <p className="text-xs sm:text-sm text-white/70">{active.subtitle}</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
