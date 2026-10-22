@@ -17,44 +17,21 @@ export default defineConfig(() => {
       },
     },
     build: {
-      chunkSizeWarningLimit: 600,
+      chunkSizeWarningLimit: 1500,
       rollupOptions: {
         output: {
           manualChunks: (id) => {
             if (id.includes('node_modules')) {
-              if (id.includes('lucide-react') || id.includes('react-icons')) {
-                return 'vendor-icons';
+              if (id.includes('hls.js')) {
+                return 'vendor-hls';
               }
               if (
                 id.includes('react-markdown') ||
                 id.includes('micromark') ||
-                id.includes('remark') ||
-                id.includes('unified') ||
-                id.includes('unist') ||
-                id.includes('mdast') ||
-                id.includes('hast') ||
-                id.includes('vfile') ||
-                id.includes('bail') ||
-                id.includes('trough')
+                id.includes('remark')
               ) {
                 return 'vendor-markdown';
               }
-              if (id.includes('hls.js')) {
-                return 'vendor-hls';
-              }
-              if (id.includes('motion') || id.includes('framer-motion') || id.includes('gsap')) {
-                return 'vendor-animation';
-              }
-              if (
-                id.includes('react-dom') ||
-                id.includes('react-router') ||
-                id.includes('/react/') ||
-                id.endsWith('/react') ||
-                id.includes('use-sync-external-store')
-              ) {
-                return 'vendor-react';
-              }
-              return 'vendor-core';
             }
           },
         },
