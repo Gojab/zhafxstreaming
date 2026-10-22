@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Zhafx Player</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+  iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+</style>
+</head>
+<body>
+<script>
+  (function () {
+    var params = new URLSearchParams(location.search);
+    var raw = params.get('u') || '';
+    var mode = params.get('mode') || '';
+
+    // Anti-popup guard when player is clicked
+    if (mode === 'anime') {
+      window.open = function() { console.warn('[Anti-Ad] Popup blocked'); return null; };
+      window.alert = function() { return null; };
+      window.confirm = function() { return false; };
+      window.prompt = function() { return null; };
+      window.onbeforeunload = null;
+
+      document.addEventListener('click', function(e) {
+        var anchor = e.target && e.target.closest ? e.target.closest('a') : null;
+        if (anchor) {
+          var target = anchor.getAttribute('target');
+          var href = anchor.getAttribute('href') || '';
+          if (target === '_blank' || (href && !href.startsWith('#') && !href.startsWith('javascript:'))) {
+            e.preventDefault();
+            e.stopPropagation();
+            console.warn('[Anti-Ad] Blocked new tab click');
+          }
+        }
+      }, true);
+    }
+
+    var ALLOWED_HOSTS = [
+      'framextv.cc',
+      'framextv.xyz',
+      'framextv.tech'
+    ];
+    var url;
+    try { url = new URL(raw); } catch (e) { return; }
+    var hostOk = ALLOWED_HOSTS.some(function(h) {
+      return url.hostname === h || url.hostname.endsWith('.' + h);
+    });
+    if (!hostOk || url.protocol !== 'https:') return;
+
+    var f = document.createElement('iframe');
+    f.src = url.href;
+    f.allow = 'autoplay *; fullscreen *; picture-in-picture *; encrypted-media *; gyroscope *; accelerometer *; clipboard-write *; web-share *';
+    f.allowFullscreen = true;
+    f.setAttribute('allowfullscreen', 'true');
+    f.setAttribute('webkitallowfullscreen', 'true');
+    f.setAttribute('mozallowfullscreen', 'true');
+    f.setAttribute('playsinline', 'true');
+    f.setAttribute('webkit-playsinline', 'true');
+    f.referrerPolicy = 'origin';
+
+    // No sandbox applied - allows uninhibited MSE streaming, media decoding, and fullscreen
+    document.body.appendChild(f);
+  })();
+</script>
+</body>
+</html>

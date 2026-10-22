@@ -6,6 +6,7 @@ import { GoogleGenAI } from '@google/genai';
 import { fileURLToPath } from 'url';
 import crypto from 'crypto';
 import fs from 'fs';
+import { Readable, pipeline } from 'stream';
 import {
   createAndSendOtp,
   verifyOtpAndAuthenticate,
@@ -40,7 +41,7 @@ app.use((_req, res, next) => {
   res.setHeader('Referrer-Policy', 'origin');
   res.setHeader(
     'Permissions-Policy',
-    'fullscreen=*, autoplay=*, encrypted-media=*, picture-in-picture=*'
+    'fullscreen=*, autoplay=*, encrypted-media=*, picture-in-picture=*, accelerometer=*, gyroscope=*, clipboard-write=*, web-share=*'
   );
   next();
 });
@@ -188,8 +189,18 @@ app.post(['/api/ai/chat', '/api/chat'], async (req: Request, res: Response) => {
   }
 });
 
-// Endpoint: Proxy to FrameX API (to prevent any CORS or network issues)
+// Endpoint: Proxy to FrameX API (with iOS Range and Streaming support)
 app.all('/api/proxy', async (req: Request, res: Response) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, HEAD, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', '*');
+  res.setHeader('Access-Control-Expose-Headers', 'Content-Length, Content-Range, Accept-Ranges, Date, Content-Type');
+
+  if (req.method === 'OPTIONS') {
+    res.setHeader('Access-Control-Max-Age', '86400');
+    return res.status(204).end();
+  }
+
   const targetUrl = (req.query.url as string) || (req.body?.targetUrl as string);
   if (!targetUrl || !targetUrl.startsWith('http')) {
     return res.status(400).json({ error: 'URL target tidak valid.' });
@@ -223,6 +234,7 @@ app.all('/api/proxy', async (req: Request, res: Response) => {
                 'Origin': 'https://framextv.cc',
               }
             : {}),
+          ...(req.headers.range ? { 'Range': req.headers.range } : {}),
           ...(isPost ? { 'Content-Type': 'application/json' } : {}),
         },
         ...(isPost && req.body ? { body: JSON.stringify(req.body) } : {}),
@@ -234,8 +246,35 @@ app.all('/api/proxy', async (req: Request, res: Response) => {
 
       clearTimeout(timeoutId);
       const contentType = upstreamRes.headers.get('content-type') || 'application/json';
-      res.setHeader('Content-Type', contentType);
+      const isM3u8 = contentType.includes('mpegurl') || candidate.includes('.m3u8');
+      const isVideo = contentType.includes('video/') || contentType.includes('octet-stream') || isM3u8 || upstreamRes.status === 206 || upstreamRes.headers.get('content-range');
+
+      res.setHeader('Accept-Ranges', 'bytes');
+      if (upstreamRes.headers.get('content-length')) {
+        res.setHeader('Content-Length', upstreamRes.headers.get('content-length')!);
+      }
+      if (upstreamRes.headers.get('content-range')) {
+        res.setHeader('Content-Range', upstreamRes.headers.get('content-range')!);
+      }
+
+      if (isM3u8) {
+        res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      } else if (contentType.includes('video/')) {
+        res.setHeader('Content-Type', contentType);
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      } else {
+        res.setHeader('Content-Type', contentType);
+      }
+
       res.status(upstreamRes.status);
+
+      if (isVideo && upstreamRes.body) {
+        // @ts-ignore
+        const nodeStream = Readable.fromWeb(upstreamRes.body);
+        pipeline(nodeStream, res, () => {});
+        return;
+      }
 
       const body = await upstreamRes.text();
       return res.send(body);
@@ -1262,6 +1301,16 @@ app.all('/api/anime/proxy', async (req: Request, res: Response) => {
   // If client already disconnected, exit immediately
   if (req.destroyed || res.writableEnded) return;
 
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', '*');
+  res.setHeader('Access-Control-Expose-Headers', 'Content-Length, Content-Range, Accept-Ranges, Date, Content-Type');
+
+  if (req.method === 'OPTIONS') {
+    res.setHeader('Access-Control-Max-Age', '86400');
+    return res.status(204).end();
+  }
+
   const rawTargetUrl = req.query.url as string;
   const rawReferer =
     (req.query.ref as string) ||
@@ -1395,19 +1444,29 @@ app.all('/api/anime/proxy', async (req: Request, res: Response) => {
           }
         });
 
-        res.setHeader('Content-Type', 'application/vnd.apple.mpegurl; charset=utf-8');
+        // iOS Safari RFC 8216 strict compliance: NEVER send charset on application/vnd.apple.mpegurl
+        res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
         res.status(upstreamRes.status);
         return res.send(rewritten.join('\n'));
       }
     }
 
-    // Binary segment or direct stream
-    if (upstreamRes.headers.get('content-length')) {
-      res.setHeader('Content-Length', upstreamRes.headers.get('content-length')!);
+    // Binary segment or direct stream (optimized for iOS Safari WebKit buffering)
+    const upstreamContentLength = upstreamRes.headers.get('content-length');
+    const upstreamContentRange = upstreamRes.headers.get('content-range');
+
+    if (upstreamContentLength) {
+      res.setHeader('Content-Length', upstreamContentLength);
     }
-    if (upstreamRes.headers.get('content-range')) {
-      res.setHeader('Content-Range', upstreamRes.headers.get('content-range')!);
+    if (upstreamContentRange) {
+      res.setHeader('Content-Range', upstreamContentRange);
     }
+    res.setHeader('Accept-Ranges', 'bytes');
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+
     const finalContentType =
       contentType && (contentType.includes('mp4') || contentType.includes('webm'))
         ? contentType
@@ -1416,11 +1475,12 @@ app.all('/api/anime/proxy', async (req: Request, res: Response) => {
     res.status(upstreamRes.status);
 
     if (upstreamRes.body) {
-      const { Readable, pipeline } = await import('stream');
       // @ts-ignore
       const nodeStream = Readable.fromWeb(upstreamRes.body);
-      pipeline(nodeStream, res, () => {
-        // Safe completion without uncaught pipe errors on client disconnect
+      pipeline(nodeStream, res, (err) => {
+        if (err && err.name !== 'AbortError' && !req.destroyed) {
+          // Log or handle pipe completion
+        }
       });
     } else {
       res.end();
@@ -2416,6 +2476,21 @@ app.get(['/ai-catalog.json', '/.well-known/ai-catalog.json'], (_req: Request, re
   return res.status(404).json({ error: 'ai-catalog.json not found' });
 });
 
+// Serve player.html with proper iOS inline embed headers
+app.get('/player.html', (_req: Request, res: Response) => {
+  const publicPlayerPath = path.resolve(__dirname, 'public', 'player.html');
+  const rootPlayerPath = path.resolve(__dirname, 'player.html');
+  const targetPath = fs.existsSync(publicPlayerPath) ? publicPlayerPath : rootPlayerPath;
+
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.setHeader('X-Frame-Options', 'ALLOWALL');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  if (fs.existsSync(targetPath)) {
+    return res.sendFile(targetPath);
+  }
+  return res.status(404).send('player.html not found');
+});
+
 // Setup Vite middleware in dev or static files in prod
 async function startServer() {
   const isProd = process.env.NODE_ENV === 'production';
@@ -2426,7 +2501,10 @@ async function startServer() {
   if (!isProd) {
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        hmr: false,
+      },
       appType: 'spa',
     });
     app.use(vite.middlewares);

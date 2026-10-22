@@ -631,7 +631,7 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
     }
     timeoutRef.current = setTimeout(() => {
       setIsIframeLoading(false);
-    }, 4000);
+    }, 2000);
 
     return () => {
       if (timeoutRef.current) {
@@ -695,6 +695,9 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
       url.searchParams.set('no_ads', '1');
       url.searchParams.set('adblock', '1');
       url.searchParams.set('origin', 'internal');
+      url.searchParams.set('playsinline', '1');
+      url.searchParams.set('webkit-playsinline', '1');
+      url.searchParams.set('preload', 'auto');
       if (resumeTimeSec > 0) {
         url.searchParams.set('start', String(resumeTimeSec));
         url.searchParams.set('time', String(resumeTimeSec));
@@ -718,6 +721,9 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
       url.searchParams.set('autoplay', '1');
       url.searchParams.set('muted', '0');
       url.searchParams.set('no_ads', '1'); // Disables popup ads on TV series
+      url.searchParams.set('playsinline', '1');
+      url.searchParams.set('webkit-playsinline', '1');
+      url.searchParams.set('preload', 'auto');
       if (resumeTimeSec > 0) {
         url.searchParams.set('start', String(resumeTimeSec));
         url.searchParams.set('time', String(resumeTimeSec));
@@ -738,6 +744,9 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
     url.searchParams.set('autoplay', '1');
     url.searchParams.set('muted', '0');
     url.searchParams.set('no_ads', '1'); // Disables popup ads on Movies
+    url.searchParams.set('playsinline', '1');
+    url.searchParams.set('webkit-playsinline', '1');
+    url.searchParams.set('preload', 'auto');
     if (resumeTimeSec > 0) {
       url.searchParams.set('start', String(resumeTimeSec));
       url.searchParams.set('time', String(resumeTimeSec));
@@ -1142,6 +1151,12 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
               webkitallowfullscreen="true"
               // @ts-ignore
               mozallowfullscreen="true"
+              // @ts-ignore
+              playsInline={true}
+              // @ts-ignore
+              playsinline="true"
+              // @ts-ignore
+              webkit-playsinline="true"
               allow="autoplay *; fullscreen *; picture-in-picture *; encrypted-media *; accelerometer *; gyroscope *; clipboard-write *; web-share *"
               referrerPolicy="origin"
               loading="eager"
@@ -1149,7 +1164,7 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
               onLoad={handleIframeLoad}
               className="w-full h-full border-0 absolute inset-0 z-10 bg-black"
               style={{
-                touchAction: 'none',
+                touchAction: 'manipulation',
                 overscrollBehavior: 'none',
                 pointerEvents: 'auto',
               }}
