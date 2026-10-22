@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { motion } from 'motion/react';
 import {
   IoPersonOutline as UserIcon,
   IoMailOutline as Mail,
@@ -16,10 +17,44 @@ import {
   IoBookmarkOutline as Bookmark,
   IoTimeOutline as TimeIcon,
   IoArrowBackOutline as ArrowBack,
+  IoPlayOutline as PlayIcon,
+  IoShieldOutline as SecurityShield,
 } from 'react-icons/io5';
 import { storage } from '../lib/storage';
 import { supabase } from '../lib/supabase';
 import { User } from '../types';
+
+import type { Variants } from 'motion/react';
+
+const containerVariants: Variants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.08,
+      delayChildren: 0.05,
+    },
+  },
+};
+
+const cardVariants: Variants = {
+  hidden: {
+    opacity: 0,
+    y: 24,
+    scale: 0.98,
+    filter: 'blur(6px)',
+  },
+  visible: {
+    opacity: 1,
+    y: 0,
+    scale: 1,
+    filter: 'blur(0px)',
+    transition: {
+      duration: 0.55,
+      ease: [0.16, 1, 0.3, 1] as const,
+    },
+  },
+};
 
 const PRESET_AVATARS = [
   'https://api.dicebear.com/7.x/bottts/svg?seed=Shadow&backgroundColor=06070B',
@@ -43,6 +78,28 @@ export const DashboardPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState(false);
+  const [stats, setStats] = useState({
+    myListCount: 0,
+    historyCount: 0,
+    progressCount: 0,
+  });
+
+  useEffect(() => {
+    const updateStats = () => {
+      setStats({
+        myListCount: storage.getMyList().length,
+        historyCount: storage.getHistory().length,
+        progressCount: storage.getAllProgress().length,
+      });
+    };
+    updateStats();
+    window.addEventListener('zhafx_storage_change', updateStats);
+    window.addEventListener('storage', updateStats);
+    return () => {
+      window.removeEventListener('zhafx_storage_change', updateStats);
+      window.removeEventListener('storage', updateStats);
+    };
+  }, []);
 
   useEffect(() => {
     const syncUser = () => {
@@ -187,9 +244,17 @@ export const DashboardPage: React.FC = () => {
     : 'Anggota Aktif';
 
   return (
-    <div className="min-h-screen pt-24 pb-16 px-4 sm:px-6 max-w-4xl mx-auto space-y-6">
-      {/* Top Breadcrumb */}
-      <div className="flex items-center justify-between">
+    <motion.div
+      variants={containerVariants}
+      initial="hidden"
+      animate="visible"
+      className="min-h-screen pt-24 pb-16 px-4 sm:px-6 max-w-4xl mx-auto space-y-6"
+    >
+      {/* 1. Top Breadcrumb Card */}
+      <motion.div
+        variants={cardVariants}
+        className="flex items-center justify-between"
+      >
         <button
           onClick={() => navigate('/')}
           className="inline-flex items-center gap-2 text-xs sm:text-sm text-zinc-400 hover:text-white transition-colors cursor-pointer"
@@ -205,10 +270,13 @@ export const DashboardPage: React.FC = () => {
           <LogOut className="w-3.5 h-3.5" />
           <span>Keluar Akun</span>
         </button>
-      </div>
+      </motion.div>
 
-      {/* Main Dashboard Card */}
-      <div className="rounded-[32px] sm:rounded-[36px] liquid-glass-dense border border-white/20 shadow-2xl p-6 sm:p-8 space-y-6">
+      {/* 2. Main Profile Header Card */}
+      <motion.div
+        variants={cardVariants}
+        className="rounded-[32px] sm:rounded-[36px] liquid-glass-dense border border-white/20 shadow-2xl p-6 sm:p-8 space-y-6"
+      >
         {/* Header Profile Info */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-white/10">
           <div className="flex items-center gap-4">
@@ -258,24 +326,83 @@ export const DashboardPage: React.FC = () => {
           </div>
         </div>
 
+        {/* 3. Staggered Quick Activity Cards Grid */}
+        <motion.div
+          variants={containerVariants}
+          className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs"
+        >
+          <motion.div
+            variants={cardVariants}
+            onClick={() => navigate('/my-list')}
+            className="p-4 rounded-2xl bg-white/[0.03] hover:bg-white/[0.07] border border-white/10 transition-all cursor-pointer group"
+          >
+            <div className="flex items-center justify-between text-zinc-400 mb-1.5">
+              <span className="text-[11px]">Daftar Saya</span>
+              <Bookmark className="w-3.5 h-3.5 text-amber-400 group-hover:scale-110 transition-transform" />
+            </div>
+            <p className="text-lg font-bold text-white">{stats.myListCount} Judul</p>
+          </motion.div>
+
+          <motion.div
+            variants={cardVariants}
+            onClick={() => navigate('/history')}
+            className="p-4 rounded-2xl bg-white/[0.03] hover:bg-white/[0.07] border border-white/10 transition-all cursor-pointer group"
+          >
+            <div className="flex items-center justify-between text-zinc-400 mb-1.5">
+              <span className="text-[11px]">Riwayat Tontonan</span>
+              <TimeIcon className="w-3.5 h-3.5 text-sky-400 group-hover:scale-110 transition-transform" />
+            </div>
+            <p className="text-lg font-bold text-white">{stats.historyCount} Ditonton</p>
+          </motion.div>
+
+          <motion.div
+            variants={cardVariants}
+            className="p-4 rounded-2xl bg-white/[0.03] border border-white/10"
+          >
+            <div className="flex items-center justify-between text-zinc-400 mb-1.5">
+              <span className="text-[11px]">Progres Aktif</span>
+              <PlayIcon className="w-3.5 h-3.5 text-emerald-400" />
+            </div>
+            <p className="text-lg font-bold text-white">{stats.progressCount} Tayangan</p>
+          </motion.div>
+
+          <motion.div
+            variants={cardVariants}
+            className="p-4 rounded-2xl bg-white/[0.03] border border-white/10"
+          >
+            <div className="flex items-center justify-between text-zinc-400 mb-1.5">
+              <span className="text-[11px]">Status Keamanan</span>
+              <SecurityShield className="w-3.5 h-3.5 text-emerald-400" />
+            </div>
+            <p className="text-lg font-bold text-emerald-400">Aktif & Aman</p>
+          </motion.div>
+        </motion.div>
+
         {/* Status Alerts */}
         {error && (
-          <div className="p-4 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs flex items-start gap-2.5">
+          <motion.div
+            variants={cardVariants}
+            className="p-4 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs flex items-start gap-2.5"
+          >
             <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
             <span className="leading-relaxed">{error}</span>
-          </div>
+          </motion.div>
         )}
 
         {success && (
-          <div className="p-4 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-200 text-xs flex items-start gap-2.5">
+          <motion.div
+            variants={cardVariants}
+            className="p-4 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-200 text-xs flex items-start gap-2.5"
+          >
             <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
             <span className="leading-relaxed">{success}</span>
-          </div>
+          </motion.div>
         )}
 
         {/* Edit Form */}
         <form onSubmit={handleSaveProfile} className="space-y-6">
-          <div className="space-y-2">
+          {/* 4. Avatar Selection Card */}
+          <motion.div variants={cardVariants} className="space-y-2">
             <label className="text-xs font-semibold text-zinc-300 block">
               Pilih Avatar Karakter
             </label>
@@ -302,9 +429,10 @@ export const DashboardPage: React.FC = () => {
                 );
               })}
             </div>
-          </div>
+          </motion.div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* 5. Name and Email Inputs Card */}
+          <motion.div variants={cardVariants} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <label htmlFor="dashboard-name" className="text-xs font-semibold text-zinc-300 block">
                 Nama Lengkap / Tampilan
@@ -338,10 +466,10 @@ export const DashboardPage: React.FC = () => {
                 <Mail className="w-4 h-4 text-zinc-500 absolute left-3.5 top-3.5" />
               </div>
             </div>
-          </div>
+          </motion.div>
 
-          {/* Password update section */}
-          <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/10 space-y-3">
+          {/* 6. Password update section Card */}
+          <motion.div variants={cardVariants} className="p-4 rounded-2xl bg-white/[0.03] border border-white/10 space-y-3">
             <div className="flex items-center gap-2 text-xs font-semibold text-zinc-300">
               <Lock className="w-4 h-4 text-zinc-400" />
               <span>Ganti Kata Sandi (Opsional)</span>
@@ -362,10 +490,10 @@ export const DashboardPage: React.FC = () => {
                 className="w-full h-11 px-4 rounded-xl bg-white/[0.06] border border-white/15 text-xs text-white focus:outline-none focus:border-white transition-colors"
               />
             </div>
-          </div>
+          </motion.div>
 
-          {/* Account Meta Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+          {/* 7. Account Meta Information Cards */}
+          <motion.div variants={cardVariants} className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
             <div className="p-3.5 rounded-xl bg-white/[0.02] border border-white/5 space-y-1">
               <span className="text-[10px] text-zinc-400 block">Terdaftar Sejak</span>
               <span className="font-medium text-white">{joinedDateFormatted}</span>
@@ -387,9 +515,10 @@ export const DashboardPage: React.FC = () => {
                 {currentUser?.id || '-'}
               </span>
             </div>
-          </div>
+          </motion.div>
 
-          <div className="flex items-center justify-end gap-3 pt-4 border-t border-white/10">
+          {/* 8. Save Actions Card */}
+          <motion.div variants={cardVariants} className="flex items-center justify-end gap-3 pt-4 border-t border-white/10">
             <button
               type="submit"
               disabled={isLoading}
@@ -407,9 +536,9 @@ export const DashboardPage: React.FC = () => {
                 </>
               )}
             </button>
-          </div>
+          </motion.div>
         </form>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 };

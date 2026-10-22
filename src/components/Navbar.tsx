@@ -38,7 +38,9 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAI, onOpenFeatures, onOpen
   const navigate = useNavigate();
   const location = useLocation();
   const currentPath = location.pathname;
-  const [hasScrolled, setHasScrolled] = useState(false);
+  const [hasScrolled, setHasScrolled] = useState(() => (typeof window !== 'undefined' ? window.scrollY > 25 : false));
+  const [isHovered, setIsHovered] = useState(false);
+  const [isScrollable, setIsScrollable] = useState(true);
   const [user, setUser] = useState<User | null>(() => storage.getUser());
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
@@ -90,14 +92,32 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAI, onOpenFeatures, onOpen
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Densify glass on scroll
+  // Track scroll position: hide when at the top ("mentok atas"), reveal when scrolled down
   useEffect(() => {
     const handleScroll = () => {
       setHasScrolled(window.scrollY > 25);
     };
+    handleScroll();
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
+  // Check if current page is scrollable; if not scrollable, keep navbar visible
+  useEffect(() => {
+    const checkScrollable = () => {
+      if (typeof document !== 'undefined') {
+        const canScroll = document.documentElement.scrollHeight > window.innerHeight + 40;
+        setIsScrollable(canScroll);
+      }
+    };
+    checkScrollable();
+    const timer = setTimeout(checkScrollable, 300);
+    window.addEventListener('resize', checkScrollable);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('resize', checkScrollable);
+    };
+  }, [location.pathname]);
 
   // Global "/" hotkey for search
   useEffect(() => {
@@ -136,15 +156,33 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAI, onOpenFeatures, onOpen
     setIsProfileMenuOpen(false);
   };
 
+  const isTopBarVisible = hasScrolled || isHovered || isProfileMenuOpen || !isScrollable;
+
   return (
-    <header className="fixed top-2.5 sm:top-4 left-2.5 right-2.5 sm:left-6 sm:right-6 max-w-7xl mx-auto z-40 transition-all duration-300">
+    <>
+      {/* Invisible top hover zone to allow revealing navbar when mouse is at the top edge */}
       <div
-        className={`w-full px-3 sm:px-6 h-14 sm:h-16 rounded-[24px] sm:rounded-full flex items-center justify-between gap-2 sm:gap-4 transition-all duration-300 relative !overflow-visible ${
-          hasScrolled
-            ? 'liquid-glass-dense liquid-specular shadow-2xl'
-            : 'liquid-glass liquid-specular shadow-lg'
+        className="fixed top-0 left-0 right-0 h-3 z-40 pointer-events-auto"
+        onMouseEnter={() => setIsHovered(true)}
+        aria-hidden="true"
+      />
+
+      <header
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        className={`fixed top-2.5 sm:top-4 left-2.5 right-2.5 sm:left-6 sm:right-6 max-w-7xl mx-auto z-40 transition-all duration-350 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+          isTopBarVisible
+            ? 'translate-y-0 opacity-100 pointer-events-auto'
+            : '-translate-y-24 sm:-translate-y-28 opacity-0 pointer-events-none'
         }`}
       >
+        <div
+          className={`w-full px-3 sm:px-6 h-14 sm:h-16 rounded-[24px] sm:rounded-full flex items-center justify-between gap-2 sm:gap-4 transition-all duration-300 relative !overflow-visible ${
+            hasScrolled
+              ? 'liquid-glass-dense liquid-specular shadow-2xl'
+              : 'liquid-glass liquid-specular shadow-lg'
+          }`}
+        >
         {/* Left: Official ZHAFX Logo & Desktop 3D Adaptive Navigation Bar */}
         <div className="flex items-center gap-3 sm:gap-5 shrink-0">
           <Logo size="md" />
@@ -331,6 +369,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAI, onOpenFeatures, onOpen
           onLogout={handleLogout}
         />
       )}
-    </header>
+      </header>
+    </>
   );
 };
