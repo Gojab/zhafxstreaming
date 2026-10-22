@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { IoHomeOutline, IoVideocamOutline, IoBookmarkOutline, IoSparkles } from 'react-icons/io5';
+import { IoVideocamOutline, IoBookmarkOutline } from 'react-icons/io5';
+import { HomeSimpleIcon } from './icons/HomeSimpleIcon';
+import { BotMessageSquareIcon } from './icons/BotMessageSquareIcon';
 
 interface BottomNavProps {
   onOpenAI: () => void;
@@ -25,7 +27,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({ onOpenAI, onOpenFeatures }
   const menuItems: BottomMenuItem[] = [
     {
       title: 'BERANDA',
-      icon: <IoHomeOutline className="w-5 h-5 text-white transition-transform duration-300 group-hover:scale-110" />,
+      icon: <HomeSimpleIcon size={20} className="text-white transition-transform duration-300 group-hover:scale-110" />,
       id: 'home',
       action: () => navigate('/'),
       isActive: currentPath === '/',
@@ -46,7 +48,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({ onOpenAI, onOpenFeatures }
     },
     {
       title: 'TANYA AI',
-      icon: <IoSparkles className="w-4 h-4 text-white transition-transform duration-300 group-hover:scale-110" />,
+      icon: <BotMessageSquareIcon size={20} className="text-white transition-transform duration-300 group-hover:scale-110" />,
       id: 'ai',
       action: onOpenAI,
       isActive: false,

@@ -6,3 +6,10 @@ coverage/
 *.log
 .env*
 !.env.example
+.aistudio/
+.cache/
+*.tsbuildinfo
+.tempmediaStorage/
+*.tempmediaStorage
+data/*.json
+!data/.gitkeep

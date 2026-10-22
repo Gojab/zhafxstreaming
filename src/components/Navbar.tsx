@@ -14,6 +14,7 @@ import {
 import { Logo } from './Logo';
 import { PillBase, NavItem } from '@/components/ui/3d-adaptive-navigation-bar';
 import { ProfileModal } from './ProfileModal';
+import { BotMessageSquareIcon } from './icons/BotMessageSquareIcon';
 import { storage } from '../lib/storage';
 import { User } from '../types';
 
@@ -190,7 +191,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAI, onOpenFeatures, onOpen
             className="group btn-ai-sparkle hidden sm:inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-full bg-white/[0.08] hover:bg-white/[0.16] border border-white/15 text-white font-medium text-xs cursor-pointer min-h-[44px] min-w-[44px] shadow-sm nav-shimmer"
             title="Buka Tanya Zhafx AI"
           >
-            <IoSparkles className="w-3.5 h-3.5 text-amber-300 transition-transform duration-300 group-hover:rotate-12 group-hover:scale-120" />
+            <BotMessageSquareIcon size={17} className="text-amber-300 transition-transform duration-300 group-hover:scale-115" />
             <span className="text-[12px] group-hover:text-amber-100 transition-colors">Tanya AI</span>
           </button>
 

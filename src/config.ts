@@ -19,8 +19,9 @@ export const CONFIG = {
   // Local Proxy Fallback
   PROXY_URL: '/api/proxy',
 
-  // Google OAuth Client ID
-  GOOGLE_CLIENT_ID: (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID || '358715674309-hdh36g2l56bqv0rckcvcd4666kemh4sj.apps.googleusercontent.com',
+  // Google OAuth Client ID & Redirect URI
+  GOOGLE_CLIENT_ID: (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID || '358715674309-g142976e962nes0vo0kf3m1ida0jl7te.apps.googleusercontent.com',
+  GOOGLE_REDIRECT_URI: (import.meta as any).env?.VITE_GOOGLE_REDIRECT_URI || 'https://zhafxstreaming.web.id/auth/google/callback',
 
   // AniList GraphQL API (100% free, CORS open, high-res posters & details)
   ANILIST_GRAPHQL_URL: 'https://graphql.anilist.co',

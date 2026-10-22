@@ -24,6 +24,7 @@ const HistoryPage = lazy(() => import('./pages/HistoryPage').then((m) => ({ defa
 const MyListPage = lazy(() => import('./pages/MyListPage').then((m) => ({ default: m.MyListPage })));
 const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage').then((m) => ({ default: m.ResetPasswordPage })));
 const DashboardPage = lazy(() => import('./pages/DashboardPage').then((m) => ({ default: m.DashboardPage })));
+const GoogleCallbackPage = lazy(() => import('./pages/GoogleCallbackPage').then((m) => ({ default: m.GoogleCallbackPage })));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage').then((m) => ({ default: m.NotFoundPage })));
 
 // Lazy-load heavier drawers & modals only when triggered by user
@@ -212,6 +213,8 @@ function AppLayout() {
             <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/profile" element={<DashboardPage />} />
+            <Route path="/auth/google/callback" element={<GoogleCallbackPage />} />
+            <Route path="/auth/callback" element={<GoogleCallbackPage />} />
             <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </Suspense>

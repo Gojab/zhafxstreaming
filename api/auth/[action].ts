@@ -224,7 +224,160 @@ export default async function handler(req: any, res: any) {
     });
   }
 
-  // 7. POST /api/auth/google-login
+  // 7. GET /api/auth/google/login or action === 'google-login-url'
+  if (action === 'google-login-url' || action === 'google-login' && req.method === 'GET' || action === 'google/login') {
+    const origin = (req.headers && (req.headers['x-forwarded-host'] || req.headers['host']))
+      ? `https://${req.headers['x-forwarded-host'] || req.headers['host']}`
+      : 'https://zhafxstreaming.web.id';
+
+    const clientId = process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID || '358715674309-g142976e962nes0vo0kf3m1ida0jl7te.apps.googleusercontent.com';
+    const redirectUri = process.env.GOOGLE_REDIRECT_URI || 'https://zhafxstreaming.web.id/auth/google/callback';
+
+    const state = Math.random().toString(36).substring(2);
+    const googleAuthUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
+    googleAuthUrl.searchParams.set('client_id', clientId);
+    googleAuthUrl.searchParams.set('redirect_uri', redirectUri);
+    googleAuthUrl.searchParams.set('response_type', 'code');
+    googleAuthUrl.searchParams.set('scope', 'openid email profile');
+    googleAuthUrl.searchParams.set('access_type', 'offline');
+    googleAuthUrl.searchParams.set('prompt', 'select_account');
+    googleAuthUrl.searchParams.set('state', state);
+
+    if (req.headers?.accept?.includes('application/json')) {
+      return res.status(200).json({ success: true, url: googleAuthUrl.toString(), clientId, redirectUri });
+    }
+
+    res.writeHead(302, { Location: googleAuthUrl.toString() });
+    return res.end();
+  }
+
+  // 8. GET /api/auth/google/callback or action === 'google-callback'
+  if (action === 'google-callback' || action === 'callback' || action === 'google/callback' || (req.url && req.url.includes('/callback'))) {
+    const code = req.query?.code;
+    const error = req.query?.error;
+
+    if (error || !code) {
+      const errorMsg = error || 'Otorisasi Google dibatalkan atau gagal.';
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      return res.status(400).send(`
+        <!DOCTYPE html>
+        <html>
+          <head><title>Autentikasi Google Gagal</title></head>
+          <body style="font-family:sans-serif;background:#06070B;color:#fff;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;">
+            <div style="text-align:center;padding:24px;border:1px solid rgba(255,255,255,0.15);border-radius:20px;max-width:400px;background:#0E1017;">
+              <h2 style="color:#ef4444;margin-top:0;">Autentikasi Dibatalkan</h2>
+              <p style="font-size:14px;color:rgba(255,255,255,0.7);">${errorMsg}</p>
+              <script>
+                if (window.opener) {
+                  window.opener.postMessage({ type: 'GOOGLE_AUTH_ERROR', error: '${errorMsg}' }, '*');
+                  setTimeout(() => window.close(), 1500);
+                } else {
+                  setTimeout(() => { window.location.href = '/'; }, 2000);
+                }
+              </script>
+            </div>
+          </body>
+        </html>
+      `);
+    }
+
+    const clientId = process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID || '358715674309-g142976e962nes0vo0kf3m1ida0jl7te.apps.googleusercontent.com';
+    const clientSecret = process.env.GOOGLE_CLIENT_SECRET || process.env.GOOGLE_CLIENT_SECRET_2 || '';
+    const redirectUri = process.env.GOOGLE_REDIRECT_URI || 'https://zhafxstreaming.web.id/auth/google/callback';
+
+    try {
+      const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          code: String(code),
+          client_id: clientId,
+          client_secret: clientSecret,
+          redirect_uri: redirectUri,
+          grant_type: 'authorization_code',
+        }),
+      });
+
+      if (!tokenRes.ok) {
+        const errJson = await tokenRes.json().catch(() => ({}));
+        const msg = errJson.error_description || 'Gagal menukarkan token otorisasi Google.';
+        throw new Error(msg);
+      }
+
+      const tokenData = await tokenRes.json();
+      const userRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+        headers: { Authorization: `Bearer ${tokenData.access_token}` },
+      });
+
+      if (!userRes.ok) {
+        throw new Error('Gagal memuat profil pengguna dari Google.');
+      }
+
+      const userData = await userRes.json();
+      const cleanEmail = userData.email?.toLowerCase();
+      if (!cleanEmail) {
+        throw new Error('Email tidak ditemukan pada akun Google.');
+      }
+
+      const cleanName = userData.name || cleanEmail.split('@')[0];
+      const userAvatar = userData.picture || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(cleanName)}&backgroundColor=4285f4,34a853,fbbc05,ea4335`;
+
+      const result = await authenticateGoogleUser({
+        email: cleanEmail,
+        name: cleanName,
+        avatar: userAvatar,
+        googleId: userData.sub,
+      });
+
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      return res.status(200).send(`
+        <!DOCTYPE html>
+        <html>
+          <head><title>Autentikasi Berhasil</title></head>
+          <body style="font-family:sans-serif;background:#06070B;color:#fff;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;">
+            <div style="text-align:center;padding:28px;border:1px solid rgba(255,255,255,0.2);border-radius:24px;max-width:420px;background:#0E1017;box-shadow:0 12px 32px rgba(0,0,0,0.5);">
+              <div style="width:48px;height:48px;border-radius:50%;background:#10b981;display:inline-flex;align-items:center;justify-content:center;margin-bottom:12px;">
+                <span style="font-size:24px;color:#fff;">✓</span>
+              </div>
+              <h2 style="margin:0 0 8px 0;font-size:18px;">Berhasil Masuk!</h2>
+              <p style="font-size:13px;color:rgba(255,255,255,0.7);margin-bottom:16px;">Selamat datang, <b>${cleanName}</b>. Mengalihkan ke Zhafx...</p>
+              <script>
+                const payload = {
+                  type: 'GOOGLE_AUTH_SUCCESS',
+                  token: '${result.token}',
+                  user: ${JSON.stringify(result.user)}
+                };
+                if (window.opener) {
+                  window.opener.postMessage(payload, '*');
+                  setTimeout(() => window.close(), 800);
+                } else {
+                  window.location.href = '/?token=' + encodeURIComponent('${result.token}');
+                }
+              </script>
+            </div>
+          </body>
+        </html>
+      `);
+    } catch (err: any) {
+      console.error('[Google Serverless Callback Error]:', err);
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      return res.status(500).send(`
+        <!DOCTYPE html>
+        <html>
+          <head><title>Error Autentikasi Google</title></head>
+          <body style="font-family:sans-serif;background:#06070B;color:#fff;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;">
+            <div style="text-align:center;padding:24px;border:1px solid rgba(255,255,255,0.15);border-radius:20px;max-width:420px;background:#0E1017;">
+              <h2 style="color:#ef4444;margin-top:0;">Gagal Masuk Google</h2>
+              <p style="font-size:13px;color:rgba(255,255,255,0.7);">${err.message || 'Terjadi kesalahan sistem'}</p>
+              <a href="/" style="display:inline-block;margin-top:12px;padding:8px 16px;background:#fff;color:#000;border-radius:9999px;text-decoration:none;font-size:12px;font-weight:bold;">Kembali ke Beranda</a>
+            </div>
+          </body>
+        </html>
+      `);
+    }
+  }
+
+  // 9. POST /api/auth/google-login
   if (action === 'google-login' || action === 'google_login' || action === 'google') {
     const { email, name, credential, code, redirectUri, avatar, googleId } = body || {};
     let verifiedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
@@ -232,8 +385,9 @@ export default async function handler(req: any, res: any) {
     let userAvatar = typeof avatar === 'string' ? avatar.trim() : undefined;
     let userGoogleId = typeof googleId === 'string' ? googleId.trim() : undefined;
 
-    const clientSecret = process.env.GOOGLE_CLIENT_SECRET_2 || process.env.GOOGLE_CLIENT_SECRET || '';
-    const clientId = process.env.VITE_GOOGLE_CLIENT_ID || '358715674309-hdh36g2l56bqv0rckcvcd4666kemh4sj.apps.googleusercontent.com';
+    const clientId = process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID || '358715674309-g142976e962nes0vo0kf3m1ida0jl7te.apps.googleusercontent.com';
+    const clientSecret = process.env.GOOGLE_CLIENT_SECRET || process.env.GOOGLE_CLIENT_SECRET_2 || '';
+    const targetRedirectUri = redirectUri || process.env.GOOGLE_REDIRECT_URI || 'https://zhafxstreaming.web.id/auth/google/callback';
 
     if (code && clientSecret) {
       try {
@@ -244,7 +398,7 @@ export default async function handler(req: any, res: any) {
             code,
             client_id: clientId,
             client_secret: clientSecret,
-            redirect_uri: redirectUri || 'postmessage',
+            redirect_uri: targetRedirectUri,
             grant_type: 'authorization_code',
           }),
         });

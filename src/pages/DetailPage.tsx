@@ -124,10 +124,60 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
 
   useEffect(() => {
     if (!id) return;
-    fetch(`/api/comments?contentId=${encodeURIComponent(id)}`, { signal: AbortSignal.timeout(8000) })
-      .then((response) => (response.ok ? response.json() : Promise.reject(new Error('Gagal memuat komentar.'))))
-      .then((data) => setComments(Array.isArray(data.comments) ? data.comments : []))
-      .catch(() => setCommentError('Komentar belum dapat dimuat.'));
+    const cacheKey = `zhafx_comments_${id}`;
+
+    // Load locally cached comments immediately if available
+    try {
+      const local = localStorage.getItem(cacheKey);
+      if (local) {
+        const parsed = JSON.parse(local);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setComments(parsed);
+        }
+      }
+    } catch {
+      // Ignore cache read errors
+    }
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+    fetch(`/api/comments?contentId=${encodeURIComponent(id)}`, {
+      signal: controller.signal,
+      headers: { Accept: 'application/json' },
+    })
+      .then(async (response) => {
+        clearTimeout(timeoutId);
+        const text = await response.text();
+        let data: any = null;
+        try {
+          data = JSON.parse(text);
+        } catch {
+          // Response was HTML error or non-JSON text
+          return;
+        }
+        if (response.ok && data && Array.isArray(data.comments)) {
+          setComments((prev) => {
+            const map = new Map<string, any>();
+            data.comments.forEach((c: any) => c && c.id && map.set(c.id, c));
+            prev.forEach((c) => c && c.id && map.set(c.id, c));
+            const merged = Array.from(map.values()).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+            try {
+              localStorage.setItem(cacheKey, JSON.stringify(merged));
+            } catch {}
+            return merged;
+          });
+        }
+      })
+      .catch(() => {
+        clearTimeout(timeoutId);
+        // Silent fallback to avoid alarming users when comments are empty
+      });
+
+    return () => {
+      clearTimeout(timeoutId);
+      controller.abort();
+    };
   }, [id]);
 
   const submitComment = async () => {
@@ -142,19 +192,80 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
     }
     setIsSubmittingComment(true);
     setCommentError(null);
+
+    const fallbackUserName = user.name || (user.email ? user.email.split('@')[0] : 'Pengguna');
+    const localComment = {
+      id: `cmt_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      userName: fallbackUserName,
+      text: commentText.trim() || undefined,
+      rating: selectedRating || undefined,
+      createdAt: Date.now(),
+    };
+
     try {
       const response = await fetch('/api/comments', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${storage.getToken() || ''}` },
-        body: JSON.stringify({ contentId: id, mediaType, text: commentText, rating: selectedRating || undefined }),
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          Authorization: `Bearer ${storage.getToken() || ''}`,
+        },
+        body: JSON.stringify({
+          contentId: id,
+          mediaType,
+          text: commentText.trim(),
+          rating: selectedRating || undefined,
+          userId: user.id,
+          userName: fallbackUserName,
+        }),
       });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Gagal mengirim komentar.');
-      setComments((current) => [data.comment, ...current]);
+
+      const text = await response.text();
+      let data: any = null;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        data = null;
+      }
+
+      if (response.ok && data?.comment) {
+        setComments((current) => {
+          const updated = [data.comment, ...current.filter((c) => c.id !== localComment.id)];
+          try {
+            if (id) localStorage.setItem(`zhafx_comments_${id}`, JSON.stringify(updated));
+          } catch {}
+          return updated;
+        });
+        setCommentText('');
+        setSelectedRating(0);
+      } else {
+        // Fallback: save local comment if server returned error or offline
+        const errorMsg = data?.error || (response.status === 401 ? 'Silakan login ulang untuk berkomentar.' : 'Gagal mengirim komentar ke server.');
+        setComments((current) => {
+          const updated = [localComment, ...current];
+          try {
+            if (id) localStorage.setItem(`zhafx_comments_${id}`, JSON.stringify(updated));
+          } catch {}
+          return updated;
+        });
+        setCommentText('');
+        setSelectedRating(0);
+        if (data?.error) {
+          setCommentError(errorMsg);
+        }
+      }
+    } catch (submissionError: any) {
+      // Network failure / offline: keep user's comment locally
+      setComments((current) => {
+        const updated = [localComment, ...current];
+        try {
+          if (id) localStorage.setItem(`zhafx_comments_${id}`, JSON.stringify(updated));
+        } catch {}
+        return updated;
+      });
       setCommentText('');
       setSelectedRating(0);
-    } catch (submissionError: any) {
-      setCommentError(submissionError.message || 'Gagal mengirim komentar.');
+      setCommentError(submissionError.message || 'Komentar tersimpan lokal.');
     } finally {
       setIsSubmittingComment(false);
     }

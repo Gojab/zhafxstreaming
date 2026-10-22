@@ -14,6 +14,7 @@ import {
   IoChevronForwardOutline as ChevronRight,
 } from 'react-icons/io5';
 import ReactMarkdown from 'react-markdown';
+import { BotMessageSquareIcon } from './icons/BotMessageSquareIcon';
 import { ChatMessage, RecommendationPick, Title } from '../types';
 import { storage } from '../lib/storage';
 import { sendChatMessageStream } from '../services/ai';
@@ -227,7 +228,7 @@ export const AIChatDrawer: React.FC<AIChatDrawerProps> = ({
         <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.08] shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-full liquid-glass flex items-center justify-center text-[#FFB224] shadow-sm">
-              <Sparkles className="w-4 h-4 fill-current" />
+              <BotMessageSquareIcon size={18} />
             </div>
             <div>
               <div className="flex items-center gap-2">
@@ -270,7 +271,7 @@ export const AIChatDrawer: React.FC<AIChatDrawerProps> = ({
           {messages.length === 0 ? (
             <div className="h-full flex flex-col justify-center items-center text-center px-4 space-y-4 my-auto py-8">
               <div className="w-14 h-14 rounded-full liquid-glass liquid-specular flex items-center justify-center text-white shadow-xl">
-                <Sparkles className="w-7 h-7" />
+                <BotMessageSquareIcon size={28} />
               </div>
               <div className="space-y-1">
                 <h3 className="text-base font-bold text-white tracking-tight">
@@ -319,7 +320,7 @@ export const AIChatDrawer: React.FC<AIChatDrawerProps> = ({
                   {msg.role === 'model' && (
                     <div className="flex items-center justify-between mb-1.5 border-b border-white/[0.08] pb-1 text-[11px] text-white/60 font-medium">
                       <span className="flex items-center gap-1.5 text-white">
-                        <Sparkles className="w-3 h-3 fill-current" />
+                        <BotMessageSquareIcon size={14} className="text-[#FFB224]" />
                         Zhafx AI
                       </span>
                       {msg.text && (

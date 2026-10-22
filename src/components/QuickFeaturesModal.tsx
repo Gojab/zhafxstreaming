@@ -15,6 +15,8 @@ import {
   IoLogOutOutline as LogOut,
   IoHeart as Heart,
 } from 'react-icons/io5';
+import { HomeSimpleIcon } from './icons/HomeSimpleIcon';
+import { BotMessageSquareIcon } from './icons/BotMessageSquareIcon';
 import { Logo } from './Logo';
 import { storage } from '../lib/storage';
 import { User } from '../types';
@@ -207,7 +209,7 @@ export const QuickFeaturesModal: React.FC<QuickFeaturesModalProps> = ({
             className="p-3.5 rounded-[20px] liquid-glass hover:bg-white/[0.14] transition-all flex flex-col items-start gap-2 text-left group ios-spring cursor-pointer"
           >
             <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white group-hover:bg-white group-hover:text-black transition-colors">
-              <Home className="w-4 h-4" />
+              <HomeSimpleIcon size={18} />
             </div>
             <div>
               <span className="text-xs font-bold text-white block">Beranda</span>
@@ -345,7 +347,7 @@ export const QuickFeaturesModal: React.FC<QuickFeaturesModalProps> = ({
           >
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-full bg-white text-black flex items-center justify-center shadow-md">
-                <Sparkles className="w-4 h-4" />
+                <BotMessageSquareIcon size={20} className="text-black" />
               </div>
               <div>
                 <span className="text-xs font-bold text-white block">Tanya Zhafx AI</span>

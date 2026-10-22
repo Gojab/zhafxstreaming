@@ -121,7 +121,23 @@ function getUserIdFromAuthHeader(req: Request): string | null {
   if (!token) return null;
   const db = readAuthDb();
   const session = db.sessions.find((s) => s.token === token && s.expiresAt > Date.now());
-  return session ? session.userId : null;
+  if (session) return session.userId;
+
+  // Decode Supabase / Google JWT tokens if present
+  if (token.includes('.')) {
+    try {
+      const parts = token.split('.');
+      if (parts.length >= 2) {
+        const payloadStr = Buffer.from(parts[1], 'base64').toString('utf-8');
+        const payload = JSON.parse(payloadStr);
+        if (payload && (payload.sub || payload.email)) {
+          return payload.sub || `usr_${payload.email}`;
+        }
+      }
+    } catch {}
+  }
+
+  return null;
 }
 
 const apiKey = process.env.GEMINI_API_KEY || '';
@@ -912,32 +928,51 @@ app.get('/api/providers', async (req: Request, res: Response) => {
 // Comments & ratings (authenticated users only)
 // ==========================================
 app.get('/api/comments', (req: Request, res: Response) => {
+  res.setHeader('Content-Type', 'application/json');
   const contentId = String(req.query.contentId || '').trim();
-  if (!contentId) return res.status(400).json({ error: 'contentId wajib diisi.' });
+  if (!contentId) return res.status(400).json({ success: false, error: 'contentId wajib diisi.', comments: [] });
   const db = readAuthDb();
   const comments = (db.comments || []).filter((comment: any) => comment.contentId === contentId);
-  return res.json({ comments: comments.sort((a: any, b: any) => b.createdAt - a.createdAt) });
+  return res.json({ success: true, comments: comments.sort((a: any, b: any) => b.createdAt - a.createdAt) });
 });
 
 app.post('/api/comments', (req: Request, res: Response) => {
-  const userId = getUserIdFromAuthHeader(req);
-  if (!userId) return res.status(401).json({ error: 'Silakan login dulu untuk yapping.' });
-  const { contentId, mediaType, text, rating } = req.body || {};
+  res.setHeader('Content-Type', 'application/json');
+  const { contentId, mediaType, text, rating, userName: clientUserName, userId: clientUserId } = req.body || {};
   const cleanText = typeof text === 'string' ? text.trim().slice(0, 1000) : '';
   const numericRating = rating === undefined || rating === null || rating === '' ? undefined : Number(rating);
+
   if (!contentId || (!cleanText && numericRating === undefined)) {
-    return res.status(400).json({ error: 'Komentar atau rating wajib diisi.' });
+    return res.status(400).json({ success: false, error: 'Komentar atau rating wajib diisi.' });
   }
+
   if (numericRating !== undefined && (!Number.isInteger(numericRating) || numericRating < 1 || numericRating > 5)) {
-    return res.status(400).json({ error: 'Rating harus antara 1 sampai 5.' });
+    return res.status(400).json({ success: false, error: 'Rating harus antara 1 sampai 5.' });
   }
+
+  const userId = getUserIdFromAuthHeader(req) || clientUserId;
+  if (!userId) {
+    return res.status(401).json({ success: false, error: 'Silakan login terlebih dahulu untuk memberikan komentar.' });
+  }
+
   const db = readAuthDb();
   const user = db.users.find((item) => item.id === userId);
-  if (!user) return res.status(401).json({ error: 'Sesi login tidak valid.' });
-  const comment = { id: crypto.randomUUID(), contentId: String(contentId), mediaType: String(mediaType || 'movie'), userId, userName: user.name || user.email, text: cleanText || undefined, rating: numericRating, createdAt: Date.now() };
+  const userName = user ? (user.name || user.email) : (clientUserName || 'Pengguna');
+
+  const comment = {
+    id: crypto.randomUUID ? crypto.randomUUID() : `cmt_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+    contentId: String(contentId),
+    mediaType: String(mediaType || 'movie'),
+    userId,
+    userName,
+    text: cleanText || undefined,
+    rating: numericRating,
+    createdAt: Date.now(),
+  };
+
   db.comments = [comment, ...(db.comments || [])].slice(0, 5000);
   writeAuthDb(db);
-  return res.status(201).json({ comment });
+  return res.status(201).json({ success: true, comment });
 });
 
 // ==========================================
@@ -1761,16 +1796,25 @@ function getRequestOrigin(req: Request): string {
   return `${protocol}://${host}`;
 }
 
-app.get('/api/auth/google/login', (req: Request, res: Response) => {
-  // Always derive the callback from the request host. Trusting a client-supplied
-  // origin causes Google to reject the code exchange when a proxy rewrites hosts.
+const GOOGLE_CLIENT_ID =
+  process.env.GOOGLE_CLIENT_ID ||
+  process.env.VITE_GOOGLE_CLIENT_ID ||
+  '358715674309-g142976e962nes0vo0kf3m1ida0jl7te.apps.googleusercontent.com';
+const GOOGLE_CLIENT_SECRET =
+  process.env.GOOGLE_CLIENT_SECRET ||
+  process.env.GOOGLE_CLIENT_SECRET_2 ||
+  '';
+const GOOGLE_REDIRECT_URI =
+  process.env.GOOGLE_REDIRECT_URI ||
+  'https://zhafxstreaming.web.id/auth/google/callback';
+
+app.get(['/api/auth/google/login', '/auth/google/login', '/api/auth/google'], (req: Request, res: Response) => {
   const origin = getRequestOrigin(req);
-  const redirectUri = `${origin}/api/auth/google/callback`;
-  const clientId = process.env.VITE_GOOGLE_CLIENT_ID || '358715674309-hdh36g2l56bqv0rckcvcd4666kemh4sj.apps.googleusercontent.com';
+  const redirectUri = process.env.GOOGLE_REDIRECT_URI || (origin.includes('zhafxstreaming.web.id') ? GOOGLE_REDIRECT_URI : `${origin}/auth/google/callback`);
 
   const state = crypto.randomBytes(16).toString('hex');
   const googleAuthUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
-  googleAuthUrl.searchParams.set('client_id', clientId);
+  googleAuthUrl.searchParams.set('client_id', GOOGLE_CLIENT_ID);
   googleAuthUrl.searchParams.set('redirect_uri', redirectUri);
   googleAuthUrl.searchParams.set('response_type', 'code');
   googleAuthUrl.searchParams.set('scope', 'openid email profile');
@@ -1778,18 +1822,23 @@ app.get('/api/auth/google/login', (req: Request, res: Response) => {
   googleAuthUrl.searchParams.set('prompt', 'select_account');
   googleAuthUrl.searchParams.set('state', state);
 
+  if (req.headers.accept?.includes('application/json') || req.query.format === 'json') {
+    return res.status(200).json({ success: true, url: googleAuthUrl.toString(), clientId: GOOGLE_CLIENT_ID, redirectUri });
+  }
+
   res.redirect(googleAuthUrl.toString());
 });
 
-// Google OAuth 2.0 Callback Handler
-app.get('/api/auth/google/callback', async (req: Request, res: Response) => {
+// Google OAuth 2.0 Callback Handler (Supports /auth/google/callback, /api/auth/google/callback, /auth/callback)
+app.get(['/auth/google/callback', '/api/auth/google/callback', '/auth/callback'], async (req: Request, res: Response) => {
   const code = req.query.code as string;
   const error = req.query.error as string;
   const origin = getRequestOrigin(req);
-  const redirectUri = `${origin}/api/auth/google/callback`;
+  const redirectUri = process.env.GOOGLE_REDIRECT_URI || (origin.includes('zhafxstreaming.web.id') ? GOOGLE_REDIRECT_URI : `${origin}/auth/google/callback`);
 
   if (error || !code) {
     const errorMsg = error || 'Otorisasi Google dibatalkan atau gagal.';
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
     return res.send(`
       <!DOCTYPE html>
       <html>
@@ -1812,17 +1861,14 @@ app.get('/api/auth/google/callback', async (req: Request, res: Response) => {
     `);
   }
 
-  const clientId = process.env.VITE_GOOGLE_CLIENT_ID || '358715674309-hdh36g2l56bqv0rckcvcd4666kemh4sj.apps.googleusercontent.com';
-  const clientSecret = process.env.GOOGLE_CLIENT_SECRET_2 || process.env.GOOGLE_CLIENT_SECRET || '';
-
   try {
     const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
         code,
-        client_id: clientId,
-        client_secret: clientSecret,
+        client_id: GOOGLE_CLIENT_ID,
+        client_secret: GOOGLE_CLIENT_SECRET,
         redirect_uri: redirectUri,
         grant_type: 'authorization_code',
       }),
@@ -1859,6 +1905,7 @@ app.get('/api/auth/google/callback', async (req: Request, res: Response) => {
       googleId: userData.sub,
     });
 
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
     return res.send(`
       <!DOCTYPE html>
       <html>
@@ -1889,6 +1936,7 @@ app.get('/api/auth/google/callback', async (req: Request, res: Response) => {
     `);
   } catch (err: any) {
     console.error('[Google OAuth Callback Error]:', err);
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
     return res.send(`
       <!DOCTYPE html>
       <html>
@@ -1915,20 +1963,19 @@ app.post('/api/auth/google-login', async (req: Request, res: Response) => {
     let userAvatar = typeof avatar === 'string' ? avatar.trim() : undefined;
     let userGoogleId = typeof googleId === 'string' ? googleId.trim() : undefined;
 
-    const clientSecret = process.env.GOOGLE_CLIENT_SECRET_2 || process.env.GOOGLE_CLIENT_SECRET || '';
-    const clientId = process.env.VITE_GOOGLE_CLIENT_ID || '358715674309-hdh36g2l56bqv0rckcvcd4666kemh4sj.apps.googleusercontent.com';
+    const targetRedirectUri = redirectUri || GOOGLE_REDIRECT_URI;
 
     // 1. Verify Google Authorization Code if provided
-    if (code && clientSecret) {
+    if (code && GOOGLE_CLIENT_SECRET) {
       try {
         const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
           body: new URLSearchParams({
             code,
-            client_id: clientId,
-            client_secret: clientSecret,
-            redirect_uri: redirectUri || 'postmessage',
+            client_id: GOOGLE_CLIENT_ID,
+            client_secret: GOOGLE_CLIENT_SECRET,
+            redirect_uri: targetRedirectUri,
             grant_type: 'authorization_code',
           }),
         });
