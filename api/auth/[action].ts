@@ -230,7 +230,7 @@ export default async function handler(req: any, res: any) {
       ? `https://${req.headers['x-forwarded-host'] || req.headers['host']}`
       : 'https://zhafxstreaming.web.id';
 
-    const clientId = process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID || '358715674309-g142976e962nes0vo0kf3m1ida0jl7te.apps.googleusercontent.com';
+    const clientId = process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID || '';
     const redirectUri = process.env.GOOGLE_REDIRECT_URI || 'https://zhafxstreaming.web.id/auth/google/callback';
 
     const state = Math.random().toString(36).substring(2);
@@ -281,7 +281,7 @@ export default async function handler(req: any, res: any) {
       `);
     }
 
-    const clientId = process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID || '358715674309-g142976e962nes0vo0kf3m1ida0jl7te.apps.googleusercontent.com';
+    const clientId = process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID || '';
     const clientSecret = process.env.GOOGLE_CLIENT_SECRET || process.env.GOOGLE_CLIENT_SECRET_2 || '';
     const redirectUri = process.env.GOOGLE_REDIRECT_URI || 'https://zhafxstreaming.web.id/auth/google/callback';
 
@@ -385,7 +385,7 @@ export default async function handler(req: any, res: any) {
     let userAvatar = typeof avatar === 'string' ? avatar.trim() : undefined;
     let userGoogleId = typeof googleId === 'string' ? googleId.trim() : undefined;
 
-    const clientId = process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID || '358715674309-g142976e962nes0vo0kf3m1ida0jl7te.apps.googleusercontent.com';
+    const clientId = process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID || '';
     const clientSecret = process.env.GOOGLE_CLIENT_SECRET || process.env.GOOGLE_CLIENT_SECRET_2 || '';
     const targetRedirectUri = redirectUri || process.env.GOOGLE_REDIRECT_URI || 'https://zhafxstreaming.web.id/auth/google/callback';
 

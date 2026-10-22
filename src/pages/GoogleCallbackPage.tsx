@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { IoCheckmarkCircleOutline as CheckCircle2, IoAlertCircleOutline as AlertCircle, IoSyncOutline as RotateCw, IoArrowBackOutline as ArrowBack } from 'react-icons/io5';
 import { storage } from '../lib/storage';
 import { CONFIG } from '../config';
+import { supabase } from '../lib/supabase';
 
 export const GoogleCallbackPage: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -58,20 +59,55 @@ export const GoogleCallbackPage: React.FC = () => {
     }
 
     if (!code) {
-      setStatus('error');
-      setErrorMessage('Kode otorisasi Google tidak ditemukan dalam tautan balik.');
+      // Check if Supabase session is established from OAuth redirect
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session && session.user) {
+          const authUser = session.user;
+          const user = {
+            id: authUser.id,
+            email: authUser.email || '',
+            name: String(authUser.user_metadata?.name || authUser.email?.split('@')[0]),
+            avatar: authUser.user_metadata?.avatar_url,
+            joinedAt: new Date(authUser.created_at).getTime(),
+          };
+          storage.saveToken(session.access_token);
+          storage.saveUser(user);
+          setUserName(user.name);
+          setStatus('success');
+          window.dispatchEvent(new Event('zhafx_auth_change'));
+          if (window.opener) {
+            window.opener.postMessage(
+              { type: 'GOOGLE_AUTH_SUCCESS', token: session.access_token, user },
+              '*'
+            );
+            setTimeout(() => window.close(), 600);
+          } else {
+            setTimeout(() => navigate('/', { replace: true }), 1200);
+          }
+        } else {
+          setStatus('error');
+          setErrorMessage('Kode otorisasi Google tidak ditemukan dalam tautan balik.');
+        }
+      }).catch(() => {
+        setStatus('error');
+        setErrorMessage('Kode otorisasi Google tidak ditemukan dalam tautan balik.');
+      });
       return;
     }
 
     // Exchange authorization code for token via serverless / express backend
     const exchangeCode = async () => {
       try {
+        const dynamicRedirectUri = window.location.origin.includes('localhost') || window.location.origin.includes('run.app')
+          ? `${window.location.origin}/auth/google/callback`
+          : (CONFIG.GOOGLE_REDIRECT_URI || `${window.location.origin}/auth/google/callback`);
+
         const res = await fetch('/api/auth/google-login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             code,
-            redirectUri: CONFIG.GOOGLE_REDIRECT_URI,
+            redirectUri: dynamicRedirectUri,
           }),
         });
 

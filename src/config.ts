@@ -20,8 +20,12 @@ export const CONFIG = {
   PROXY_URL: '/api/proxy',
 
   // Google OAuth Client ID & Redirect URI
-  GOOGLE_CLIENT_ID: (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID || '358715674309-g142976e962nes0vo0kf3m1ida0jl7te.apps.googleusercontent.com',
-  GOOGLE_REDIRECT_URI: (import.meta as any).env?.VITE_GOOGLE_REDIRECT_URI || 'https://zhafxstreaming.web.id/auth/google/callback',
+  GOOGLE_CLIENT_ID: (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID || '',
+  GOOGLE_REDIRECT_URI:
+    (import.meta as any).env?.VITE_GOOGLE_REDIRECT_URI ||
+    (typeof window !== 'undefined'
+      ? `${window.location.origin}/auth/google/callback`
+      : 'https://zhafxstreaming.web.id/auth/google/callback'),
 
   // AniList GraphQL API (100% free, CORS open, high-res posters & details)
   ANILIST_GRAPHQL_URL: 'https://graphql.anilist.co',

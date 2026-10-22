@@ -1799,7 +1799,7 @@ function getRequestOrigin(req: Request): string {
 const GOOGLE_CLIENT_ID =
   process.env.GOOGLE_CLIENT_ID ||
   process.env.VITE_GOOGLE_CLIENT_ID ||
-  '358715674309-g142976e962nes0vo0kf3m1ida0jl7te.apps.googleusercontent.com';
+  '';
 const GOOGLE_CLIENT_SECRET =
   process.env.GOOGLE_CLIENT_SECRET ||
   process.env.GOOGLE_CLIENT_SECRET_2 ||

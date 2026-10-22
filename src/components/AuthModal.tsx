@@ -102,38 +102,67 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
   };
 
   // Google OAuth Login
-  const handleGoogleAuth = () => {
+  const handleGoogleAuth = async () => {
     setIsGoogleLoading(true);
     setError(null);
     setSuccessMessage(null);
 
     const clientId = CONFIG.GOOGLE_CLIENT_ID;
-    const redirectUri = CONFIG.GOOGLE_REDIRECT_URI;
-    const state = Math.random().toString(36).substring(2);
 
-    const googleUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
-    googleUrl.searchParams.set('client_id', clientId);
-    googleUrl.searchParams.set('redirect_uri', redirectUri);
-    googleUrl.searchParams.set('response_type', 'code');
-    googleUrl.searchParams.set('scope', 'openid email profile');
-    googleUrl.searchParams.set('access_type', 'offline');
-    googleUrl.searchParams.set('prompt', 'select_account');
-    googleUrl.searchParams.set('state', state);
+    // 1. If active custom GOOGLE_CLIENT_ID is provided, launch direct Google OAuth flow
+    if (clientId && clientId.trim() !== '') {
+      const redirectUri = window.location.origin.includes('localhost') || window.location.origin.includes('run.app')
+        ? `${window.location.origin}/auth/google/callback`
+        : (CONFIG.GOOGLE_REDIRECT_URI || `${window.location.origin}/auth/google/callback`);
+      const state = Math.random().toString(36).substring(2);
 
-    const width = 500;
-    const height = 620;
-    const left = window.screenX + (window.outerWidth - width) / 2;
-    const top = window.screenY + (window.outerHeight - height) / 2;
+      const googleUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
+      googleUrl.searchParams.set('client_id', clientId);
+      googleUrl.searchParams.set('redirect_uri', redirectUri);
+      googleUrl.searchParams.set('response_type', 'code');
+      googleUrl.searchParams.set('scope', 'openid email profile');
+      googleUrl.searchParams.set('access_type', 'offline');
+      googleUrl.searchParams.set('prompt', 'select_account');
+      googleUrl.searchParams.set('state', state);
 
-    const popup = window.open(
-      googleUrl.toString(),
-      'zhafx_google_oauth',
-      `width=${width},height=${height},left=${left},top=${top},status=no,resizable=yes`
-    );
+      const width = 500;
+      const height = 620;
+      const left = window.screenX + (window.outerWidth - width) / 2;
+      const top = window.screenY + (window.outerHeight - height) / 2;
 
-    if (!popup || popup.closed || typeof popup.closed === 'undefined') {
-      // If popup blocker intervened, redirect smoothly
-      window.location.href = googleUrl.toString();
+      const popup = window.open(
+        googleUrl.toString(),
+        'zhafx_google_oauth',
+        `width=${width},height=${height},left=${left},top=${top},status=no,resizable=yes`
+      );
+
+      if (!popup || popup.closed || typeof popup.closed === 'undefined') {
+        window.location.href = googleUrl.toString();
+      }
+      return;
+    }
+
+    // 2. If no custom client ID, attempt Supabase Google OAuth provider
+    try {
+      const { data, error: oauthError } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth/google/callback`,
+        },
+      });
+
+      if (oauthError) {
+        throw oauthError;
+      }
+      if (data?.url) {
+        window.location.href = data.url;
+      }
+    } catch (err: any) {
+      setIsGoogleLoading(false);
+      console.warn('[Google Auth]:', err);
+      setError(
+        'Google Client ID sebelumnya telah dinonaktifkan oleh Google Cloud Console (Error 401: deleted_client). Silakan login dengan Email & Sandi di bawah, atau buat Client ID baru di Google Cloud Console.'
+      );
     }
   };
 
