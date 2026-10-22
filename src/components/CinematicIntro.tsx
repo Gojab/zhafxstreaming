@@ -87,24 +87,47 @@ export const CinematicIntro: React.FC<CinematicIntroProps> = ({ onComplete, forc
     }
   }, [isMuted]);
 
+const safeGetSessionStorage = (key: string): string | null => {
+  try {
+    return typeof window !== 'undefined' ? sessionStorage.getItem(key) : null;
+  } catch {
+    return null;
+  }
+};
+
+const safeSetSessionStorage = (key: string, value: string): void => {
+  try {
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem(key, value);
+    }
+  } catch {}
+};
+
   const finishIntro = useCallback(() => {
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    if (audioCtxRef.current) {
-      audioCtxRef.current.close().catch(() => {});
-    }
+    try {
+      if (audioCtxRef.current) {
+        audioCtxRef.current.close().catch(() => {});
+      }
+    } catch {}
     setIsVisible(false);
-    sessionStorage.setItem('zhafx_intro_seen', 'true');
+    safeSetSessionStorage('zhafx_intro_seen', 'true');
     if (onComplete) onComplete();
   }, [onComplete]);
 
   const startIntro = useCallback(() => {
-    const prefersReducedMotion =
-      typeof window !== 'undefined'
-        ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
-        : false;
+    let prefersReducedMotion = false;
+    try {
+      prefersReducedMotion =
+        typeof window !== 'undefined'
+          ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
+          : false;
+    } catch {
+      prefersReducedMotion = false;
+    }
 
     if (prefersReducedMotion) {
-      sessionStorage.setItem('zhafx_intro_seen', 'true');
+      safeSetSessionStorage('zhafx_intro_seen', 'true');
       if (onComplete) onComplete();
       return;
     }
@@ -128,12 +151,12 @@ export const CinematicIntro: React.FC<CinematicIntroProps> = ({ onComplete, forc
       );
 
     if (isAuditOrBot) {
-      sessionStorage.setItem('zhafx_intro_seen', 'true');
+      safeSetSessionStorage('zhafx_intro_seen', 'true');
       if (onComplete) onComplete();
       return;
     }
 
-    const hasSeen = sessionStorage.getItem('zhafx_intro_seen');
+    const hasSeen = safeGetSessionStorage('zhafx_intro_seen');
     if (!hasSeen || forcePlay) {
       startIntro();
     }
@@ -142,9 +165,16 @@ export const CinematicIntro: React.FC<CinematicIntroProps> = ({ onComplete, forc
       startIntro();
     };
     window.addEventListener('play-zhafx-intro', handleReplay);
+
+    // Absolute failsafe to ensure screen is NEVER blocked longer than 1.8 seconds under any circumstance
+    const failsafe = setTimeout(() => {
+      setIsVisible(false);
+    }, 1800);
+
     return () => {
       window.removeEventListener('play-zhafx-intro', handleReplay);
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      clearTimeout(failsafe);
     };
   }, [forcePlay, onComplete, startIntro]);
 

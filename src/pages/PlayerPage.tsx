@@ -234,20 +234,6 @@ export const ANIME_SERVERS: ServerOption[] = [
     type: 'anime_embed',
     provider: 'giant',
   },
-  {
-    id: 'server-anime-7',
-    name: 'Server 7 (Dragon)',
-    tagline: 'Server Cadangan • VidNest Multi-Source',
-    type: 'anime_embed',
-    provider: 'dragon',
-  },
-  {
-    id: 'server-anime-8',
-    name: 'Server 8 (Archer)',
-    tagline: 'Server Cadangan • Multi-Audio Alternate Stream',
-    type: 'anime_embed',
-    provider: 'archer',
-  },
 ];
 
 function formatTime(sec: number): string {
@@ -694,9 +680,10 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
         targetProv = targetProv.replace('_dub', '');
       }
 
-      const baseUrl = `https://framextv.cc/embed/anime/${encodeURIComponent(cleanId)}/${encodeURIComponent(String(validEp))}`;
+      const baseUrl = `https://framextv.cc/embed/anime`;
       const url = new URL(baseUrl);
       url.searchParams.set('id', cleanId);
+      url.searchParams.set('anilist_id', cleanId);
       url.searchParams.set('episode', String(validEp));
       url.searchParams.set('season', '1');
       url.searchParams.set('type', 'anime');
@@ -707,6 +694,7 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
       url.searchParams.set('muted', '0');
       url.searchParams.set('no_ads', '1');
       url.searchParams.set('adblock', '1');
+      url.searchParams.set('origin', 'internal');
       if (resumeTimeSec > 0) {
         url.searchParams.set('start', String(resumeTimeSec));
         url.searchParams.set('time', String(resumeTimeSec));

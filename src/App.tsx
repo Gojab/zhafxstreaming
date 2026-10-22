@@ -108,27 +108,9 @@ function AppLayout() {
     }
 
     // 3. Sync Supabase session if present
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session?.user) return;
-      const authUser = session.user;
-      storage.saveToken(session.access_token);
-      storage.saveUser({
-        id: authUser.id,
-        email: authUser.email || '',
-        name: String(authUser.user_metadata?.name || authUser.email?.split('@')[0] || 'Pengguna'),
-        avatar: authUser.user_metadata?.avatar_url,
-        joinedAt: new Date(authUser.created_at).getTime(),
-      });
-    }).catch(() => {});
-
-    // 4. Listen for auth changes WITHOUT nuking storage on INITIAL_SESSION
-    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_OUT') {
-        storage.clearAuth();
-        return;
-      }
-
-      if (session?.user && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED')) {
+    try {
+      supabase.auth.getSession().then(({ data: { session } = { data: { session: null } } }) => {
+        if (!session?.user) return;
         const authUser = session.user;
         storage.saveToken(session.access_token);
         storage.saveUser({
@@ -138,10 +120,38 @@ function AppLayout() {
           avatar: authUser.user_metadata?.avatar_url,
           joinedAt: new Date(authUser.created_at).getTime(),
         });
-      }
-    });
+      }).catch(() => {});
+    } catch {}
 
-    return () => listener.subscription.unsubscribe();
+    // 4. Listen for auth changes WITHOUT nuking storage on INITIAL_SESSION
+    let authSub: any = null;
+    try {
+      const { data } = supabase.auth.onAuthStateChange((event, session) => {
+        if (event === 'SIGNED_OUT') {
+          storage.clearAuth();
+          return;
+        }
+
+        if (session?.user && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED')) {
+          const authUser = session.user;
+          storage.saveToken(session.access_token);
+          storage.saveUser({
+            id: authUser.id,
+            email: authUser.email || '',
+            name: String(authUser.user_metadata?.name || authUser.email?.split('@')[0] || 'Pengguna'),
+            avatar: authUser.user_metadata?.avatar_url,
+            joinedAt: new Date(authUser.created_at).getTime(),
+          });
+        }
+      });
+      authSub = data?.subscription;
+    } catch {}
+
+    return () => {
+      try {
+        authSub?.unsubscribe?.();
+      } catch {}
+    };
   }, []);
 
   // Hide Navbar, BottomNav, and Footer in player mode for true cinematic fullscreen
@@ -156,7 +166,12 @@ function AppLayout() {
   // Automatically show the donation pop-up on visit + listen for manual button clicks
   useEffect(() => {
     // Check if seen in current session
-    const hasSeenThisSession = sessionStorage.getItem('zhafx_saweria_shown');
+    let hasSeenThisSession = false;
+    try {
+      hasSeenThisSession = Boolean(sessionStorage.getItem('zhafx_saweria_shown'));
+    } catch {
+      hasSeenThisSession = true;
+    }
     let timer: ReturnType<typeof setTimeout> | null = null;
 
     if (!hasSeenThisSession) {
@@ -180,7 +195,9 @@ function AppLayout() {
 
   const handleCloseDonation = () => {
     setIsDonationOpen(false);
-    sessionStorage.setItem('zhafx_saweria_shown', 'true');
+    try {
+      sessionStorage.setItem('zhafx_saweria_shown', 'true');
+    } catch {}
   };
 
   const handleOpenAI = () => {

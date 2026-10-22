@@ -1295,22 +1295,25 @@ export const api = {
     if (type === 'anime') {
       const q = new URLSearchParams();
       q.set('id', String(id).trim());
+      q.set('anilist_id', String(id).trim());
       q.set('episode', String(ep));
       q.set('season', String(s));
       q.set('type', 'anime');
       q.set('sub_type', audio || 'sub');
+      q.set('audio', audio || 'sub');
       q.set('autoplay', autoplay ? '1' : '0');
       q.set('muted', muted ? '1' : '0');
       q.set('no_ads', '1');
+      q.set('adblock', '1');
+      q.set('origin', 'internal');
       if (server && server !== 'auto' && server !== 'direct_stream' && server !== 'framex') {
         q.set('provider', server);
-        q.set('server', server);
       }
       if (title) q.set('title', title);
       if (poster) q.set('poster', poster);
 
-      // Official FrameX Anime Embed URL format: https://framextv.cc/embed/anime/:id/:episode?id=...&episode=...
-      return `https://framextv.cc/embed/anime/${cleanId}/${encodeURIComponent(String(ep))}?${q.toString()}`;
+      // Official FrameX Anime Embed URL format: https://framextv.cc/embed/anime?id=...&episode=...
+      return `https://framextv.cc/embed/anime?${q.toString()}`;
     }
 
     let path = '';

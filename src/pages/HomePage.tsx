@@ -263,9 +263,9 @@ export const HomePage: React.FC = () => {
     scifiMovies: Title[];
     thrillerMovies: Title[];
     comedyMovies: Title[];
-  } | null>(null);
+  } | null>(DEFAULT_HOME_DATA);
 
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const { history } = useWatchHistory();

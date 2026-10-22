@@ -42,11 +42,7 @@
     var ALLOWED_HOSTS = [
       'framextv.cc',
       'framextv.xyz',
-      'framextv.tech',
-      'desustream.net',
-      'otakudesu.blog',
-      'anoboy.be',
-      'cdn.odcloud.net'
+      'framextv.tech'
     ];
     var url;
     try { url = new URL(raw); } catch (e) { return; }
@@ -64,11 +60,7 @@
     f.setAttribute('mozallowfullscreen', 'true');
     f.referrerPolicy = 'origin';
 
-    if (mode === 'anime') {
-      // Strict anti-popup sandbox for anime players
-      f.sandbox = 'allow-scripts allow-same-origin allow-forms';
-    }
-
+    // No sandbox applied - allows uninhibited MSE streaming, media decoding, and fullscreen
     document.body.appendChild(f);
   })();
 </script>

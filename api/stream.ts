@@ -34,6 +34,17 @@ export default async function handler(req: any, res: any) {
           }
         } catch {}
       }
+
+      return res.status(200).json({
+        providers: [
+          { id: 'grand_warden', name: 'Server 1 (Grand Warden)', tagline: 'Server Utama • Multi-Source Cloud 1080p', category: 'anime', status: 'available' },
+          { id: 'wizard', name: 'Server 2 (Wizard)', tagline: 'Server Cadangan • Dual Audio & Softsub Cepat', category: 'anime', status: 'available' },
+          { id: 'valkyrie', name: 'Server 3 (Valkyrie)', tagline: 'Server Cadangan • FlixCloud HD', category: 'anime', status: 'available' },
+          { id: 'super_pekka', name: 'Server 4 (Super PEKKA)', tagline: 'Server Cadangan • Direct Fast CDN 1080p', category: 'anime', status: 'available' },
+          { id: 'goblin', name: 'Server 5 (Goblin)', tagline: 'Server Cadangan • Direct Fast Auto Stream', category: 'anime', status: 'available' },
+          { id: 'giant', name: 'Server 6 (Giant)', tagline: 'Server Cadangan • Ultra High Speed Server', category: 'anime', status: 'available' },
+        ],
+      });
     }
 
     for (const backend of backends) {
