@@ -1,3 +1,5 @@
+import { resolveNonoyaAnimeStream, resolveOtakudesuServer, extractDirectMedia } from '../../server/nonoyaAnime.ts';
+
 export default async function handler(req: any, res: any) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, POST, OPTIONS');
@@ -15,52 +17,33 @@ export default async function handler(req: any, res: any) {
 
   // 1. GET /api/anime/providers
   if (action === 'providers') {
-    const backends = ['https://api.framextv.cc'];
-    for (const backend of backends) {
-      try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 6000);
-
-        const upstreamRes = await fetch(`${backend}/anime/api/providers`, {
-          signal: controller.signal,
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-            'Referer': 'https://framextv.cc/',
-            'Origin': 'https://framextv.cc',
-          },
-        });
-        clearTimeout(timeoutId);
-
-        if (upstreamRes.ok) {
-          const data = await upstreamRes.json();
-          if (data && Array.isArray(data.providers)) {
-            data.providers = data.providers.map((p: any, idx: number) => ({
-              ...p,
-              name: `ZHAFX ENTITY ${String(idx + 1).padStart(3, '0')}`,
-            }));
-            return res.status(200).json(data);
-          }
-          return res.status(200).json(data);
-        }
-      } catch {
-        // try next backend
-      }
-    }
-
     return res.status(200).json({
+      engine: 'nonoya-api',
       providers: [
-        { id: 'grand_warden', name: 'ZHAFX ENTITY 001', tagline: '1080p Ultra Fast Multi-Source Cloud', audio: 'sub', category: 'anime' },
-        { id: 'grand_warden_dub', name: 'ZHAFX ENTITY 002', tagline: 'Multi-Source Cloud Dub', audio: 'dub', category: 'anime' },
-        { id: 'wizard', name: 'ZHAFX ENTITY 003', tagline: 'Dual Audio & Softsub', audio: 'sub', category: 'anime' },
-        { id: 'wizard_dub', name: 'ZHAFX ENTITY 004', tagline: 'Dual Audio English Dub', audio: 'dub', category: 'anime' },
-        { id: 'super_pekka', name: 'ZHAFX ENTITY 005', tagline: '1080p Ultra High Bitrate CDN', audio: 'sub', category: 'anime' },
-        { id: 'giant', name: 'ZHAFX ENTITY 006', tagline: 'High Bitrate HD Cloud Stream', audio: 'sub', category: 'anime' },
-        { id: 'valkyrie', name: 'ZHAFX ENTITY 007', tagline: 'FlixCloud HD Fast Stream', audio: 'sub', category: 'anime' },
-        { id: 'valkyrie_dub', name: 'ZHAFX ENTITY 008', tagline: 'FlixCloud HD Dub', audio: 'dub', category: 'anime' },
-        { id: 'goblin', name: 'ZHAFX ENTITY 009', tagline: 'Direct Fast Auto Stream', audio: 'sub', category: 'anime' },
-        { id: 'dragon', name: 'ZHAFX ENTITY 010', tagline: 'VidNest Multi-Source', audio: 'sub', category: 'anime' },
-        { id: 'archer', name: 'ZHAFX ENTITY 011', tagline: 'Multi-Audio Stream', audio: 'sub', category: 'anime' },
+        { id: 'nonoya_fast', name: 'Server 1 (Nonoya Fast)', tagline: 'Otakudesu Cloud HD • 100% Bebas Iklan', audio: 'sub', category: 'anime', isNonoya: true, status: 'available' },
+        { id: 'nonoya_odcdn', name: 'Server 2 (ODStream)', tagline: 'ODStream 720p/1080p Direct • Bebas Iklan', audio: 'sub', category: 'anime', isNonoya: true, status: 'available' },
+        { id: 'nonoya_desu', name: 'Server 3 (DesuStream)', tagline: 'DesuStream Cloud • Bebas Iklan', audio: 'sub', category: 'anime', isNonoya: true, status: 'available' },
+        { id: 'nonoya_vidhide', name: 'Server 4 (VidHide)', tagline: 'VidHide Multi-Quality • Anti-Popup', audio: 'sub', category: 'anime', isNonoya: true, status: 'available' },
+        { id: 'nonoya_anoboy', name: 'Server 5 (Anoboy)', tagline: 'Anoboy Multi-Server • Sub Indo', audio: 'sub', category: 'anime', isNonoya: true, status: 'available' },
+        { id: 'framex_cloud', name: 'Server 6 (FrameX Backup)', tagline: 'FrameX Multi-CDN Cadangan', audio: 'sub', category: 'anime', isNonoya: false, status: 'available' },
       ],
+    });
+  }
+
+  // 1b. GET /api/anime/server
+  if (action === 'server') {
+    const dataContent = (req.query?.dataContent || req.query?.id || req.url?.split('/').pop()) as string;
+    if (!dataContent) return res.status(400).json({ success: false, error: 'dataContent wajib diisi' });
+    const resolvedEmbed = await resolveOtakudesuServer(dataContent);
+    if (!resolvedEmbed) return res.status(502).json({ success: false, error: 'Gagal mengurai server anime' });
+    const directMedia = await extractDirectMedia(resolvedEmbed);
+    return res.status(200).json({
+      success: true,
+      embedUrl: resolvedEmbed,
+      directUrl: directMedia,
+      proxiedUrl: directMedia ? `/api/anime/proxy?url=${encodeURIComponent(directMedia)}&ref=${encodeURIComponent('https://otakudesu.blog/')}` : undefined,
+      isDirect: Boolean(directMedia),
+      type: directMedia?.includes('.m3u8') ? 'hls' : 'mp4',
     });
   }
 
@@ -184,10 +167,56 @@ export default async function handler(req: any, res: any) {
       return res.status(400).json({ success: false, error: 'ID anime wajib diisi.' });
     }
 
-    // Phase 1: Probe with requested ID
+    const epNum = parseInt(episode, 10) || 1;
+
+    // Phase 1: Primary Nonoya Anime Engine (Otakudesu & Anoboy with Direct Ad-Free Stream)
+    try {
+      const nonoyaStream = await resolveNonoyaAnimeStream({
+        id,
+        episode: epNum,
+        title,
+        provider,
+      });
+
+      if (nonoyaStream && (nonoyaStream.directUrl || nonoyaStream.embedUrl)) {
+        const isDirect = Boolean(nonoyaStream.directUrl);
+        const sources: any[] = [];
+
+        if (nonoyaStream.directUrl) {
+          const directUrl = nonoyaStream.directUrl;
+          const ref = 'https://otakudesu.blog/';
+          const proxiedUrl = `/api/anime/proxy?url=${encodeURIComponent(directUrl)}&ref=${encodeURIComponent(ref)}`;
+
+          sources.push({
+            url: proxiedUrl,
+            directUrl,
+            proxiedUrl,
+            rawUrl: directUrl,
+            type: nonoyaStream.streamType || (directUrl.includes('.m3u8') ? 'hls' : 'mp4'),
+            quality: 'HD 720p',
+          });
+        }
+
+        return res.status(200).json({
+          success: true,
+          isDirect,
+          streamType: nonoyaStream.streamType || (isDirect ? 'mp4' : 'embed'),
+          provider: provider || 'nonoya_fast',
+          title: nonoyaStream.title,
+          sources,
+          embedUrl: nonoyaStream.embedUrl,
+          servers: nonoyaStream.servers || [],
+          sourceEngine: 'nonoya-api',
+        });
+      }
+    } catch (err: any) {
+      console.warn('[Nonoya Anime Stream notice, trying FrameX fallback]:', err?.message || err);
+    }
+
+    // Phase 2: FrameX Secondary Backup
     let finalData = await probeMultiProviders(id, episode, audio, provider);
 
-    // Phase 2: If no sources found with raw ID, attempt AniList ID resolution via title or non-numeric ID
+    // Phase 3: If no sources found with raw ID, attempt AniList ID resolution via title or non-numeric ID
     if (!finalData) {
       const resolvedId = await resolveAnimeId(id, title);
       if (resolvedId && resolvedId !== id) {
@@ -198,7 +227,7 @@ export default async function handler(req: any, res: any) {
     if (!finalData) {
       return res.status(404).json({
         success: false,
-        error: `Stream anime tidak tersedia untuk episode ${episode}. Semua server HLS telah dicoba.`.trim(),
+        error: `Stream anime tidak tersedia untuk episode ${episode}. Semua server Nonoya dan FrameX telah dicoba.`.trim(),
       });
     }
 
@@ -264,7 +293,16 @@ export default async function handler(req: any, res: any) {
   // 3. ALL /api/anime/proxy
   if (action === 'proxy') {
     const targetUrl = req.query?.url as string;
-    const referer = (req.query?.ref as string) || 'https://megaplay.buzz/';
+    let referer = (req.query?.ref as string) || 'https://megaplay.buzz/';
+    if (
+      targetUrl &&
+      (targetUrl.includes('odcloud') ||
+        targetUrl.includes('desustream') ||
+        targetUrl.includes('otakudesu') ||
+        targetUrl.includes('anoboy'))
+    ) {
+      referer = 'https://otakudesu.blog/';
+    }
 
     if (!targetUrl || !targetUrl.startsWith('http')) {
       return res.status(400).json({ error: 'URL target tidak valid.' });

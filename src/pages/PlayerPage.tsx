@@ -193,65 +193,51 @@ export const TV_SERVERS: ServerOption[] = [
 ];
 
 // =========================================================================
-// 3. Dedicated Servers Khusus ANIME — FrameX API Engine (Bebas Sandbox)
+// 3. Dedicated Servers Khusus ANIME — Nonoya API Engine (Otakudesu / Anoboy, Anti-Iklan)
 // =========================================================================
 export const ANIME_SERVERS: ServerOption[] = [
   {
     id: 'server-anime-1',
-    name: 'Server 1',
-    tagline: 'Server Utama • Cloud Cepat',
+    name: 'Server 1 (Nonoya Fast)',
+    tagline: 'Otakudesu Cloud HD • 100% Bebas Iklan',
     type: 'anime_embed',
-    provider: 'grand_warden',
+    provider: 'nonoya_fast',
     badge: 'Utama',
   },
   {
     id: 'server-anime-2',
-    name: 'Server 2',
-    tagline: 'Server Cadangan • Dual Audio & Softsub',
+    name: 'Server 2 (ODStream)',
+    tagline: 'ODStream 720p/1080p Direct • Bebas Iklan',
     type: 'anime_embed',
-    provider: 'wizard',
+    provider: 'nonoya_odcdn',
   },
   {
     id: 'server-anime-3',
-    name: 'Server 3',
-    tagline: 'Server Cadangan • FlixCloud Fast Stream',
+    name: 'Server 3 (DesuStream)',
+    tagline: 'DesuStream Cloud Stream • Bebas Iklan',
     type: 'anime_embed',
-    provider: 'valkyrie',
+    provider: 'nonoya_desu',
   },
   {
     id: 'server-anime-4',
-    name: 'Server 4',
-    tagline: 'Server Cadangan • High Bitrate',
+    name: 'Server 4 (VidHide)',
+    tagline: 'VidHide Multi-Quality • Anti-Popup',
     type: 'anime_embed',
-    provider: 'super_pekka',
+    provider: 'nonoya_vidhide',
   },
   {
     id: 'server-anime-5',
-    name: 'Server 5',
-    tagline: 'Server Cadangan • Cloud Server',
+    name: 'Server 5 (Anoboy)',
+    tagline: 'Anoboy Multi-Server • Sub Indo Bebas Iklan',
     type: 'anime_embed',
-    provider: 'giant',
+    provider: 'nonoya_anoboy',
   },
   {
     id: 'server-anime-6',
-    name: 'Server 6',
-    tagline: 'Server Cadangan • Multi-Audio',
+    name: 'Server 6 (FrameX Backup)',
+    tagline: 'FrameX Multi-CDN Cadangan',
     type: 'anime_embed',
-    provider: 'archer',
-  },
-  {
-    id: 'server-anime-7',
-    name: 'Server 7',
-    tagline: 'Server Cadangan • Direct Auto',
-    type: 'anime_embed',
-    provider: 'goblin',
-  },
-  {
-    id: 'server-anime-8',
-    name: 'Server 8',
-    tagline: 'Server Cadangan • VidNest Multi-Source',
-    type: 'anime_embed',
-    provider: 'dragon',
+    provider: 'framex_cloud',
   },
 ];
 
@@ -769,7 +755,21 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
       hlsInstanceRef.current = null;
     }
 
-    // 1. Apple Native HLS (iOS Safari / iPadOS Safari / macOS Safari)
+    // 1. Direct MP4 playback (native browser HTML5 video, 100% ad-free & instant)
+    const isDirectMp4 = sourceUrl.includes('.mp4') || (!sourceUrl.includes('.m3u8') && !sourceUrl.includes('application/x-mpegurl'));
+    if (isDirectMp4) {
+      video.src = sourceUrl;
+      video.load();
+      const p = video.play();
+      if (p !== undefined) {
+        p.then(() => setIsPlaying(true)).catch(() => {
+          setIsPlaying(false);
+        });
+      }
+      return;
+    }
+
+    // 2. Apple Native HLS (iOS Safari / iPadOS Safari / macOS Safari)
     if (video.canPlayType('application/vnd.apple.mpegurl')) {
       video.src = sourceUrl;
       video.load();
@@ -921,17 +921,21 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
       resumePrompt?.time && resumePrompt.time > 5 ? Math.floor(resumePrompt.time) : 0;
 
     if (mediaType === 'anime') {
-      // Determine sub/dub provider variant
-      if (animeAudio === 'dub') {
-        if (targetProvider === 'grand_warden') targetProvider = 'grand_warden_dub';
-        else if (targetProvider === 'wizard') targetProvider = 'wizard_dub';
-        else if (targetProvider === 'valkyrie') targetProvider = 'valkyrie_dub';
-        else if (targetProvider === 'archer') targetProvider = 'archer_dub';
-        else if (targetProvider === 'goblin') targetProvider = 'goblin_dub';
-        else if (targetProvider === 'dragon') targetProvider = 'dragon_dub';
+      // 1. If Nonoya Anime engine provided an embed URL, use it
+      if (streamData?.embedUrl) {
+        return streamData.embedUrl;
       }
 
-      // Official FrameX Anime Embed (https://framextv.cc/) - 100% Strictly FrameX, No Ads
+      // 2. If target provider matches a server in Nonoya stream list
+      if (targetProvider.startsWith('nonoya_') && streamData?.servers?.length) {
+        const found = streamData.servers.find((s: any) =>
+          s.name?.toLowerCase().includes(targetProvider.replace('nonoya_', ''))
+        );
+        if (found?.url) return found.url;
+      }
+
+      // 3. Secondary Backup: Official FrameX Anime Embed (https://framextv.cc/)
+      const fallbackProv = targetProvider === 'framex_cloud' ? 'grand_warden' : targetProvider;
       const baseUrl = `https://framextv.cc/embed/anime/${encodeURIComponent(cleanId)}/${encodeURIComponent(String(validEp))}`;
       const url = new URL(baseUrl);
       url.searchParams.set('id', cleanId);
@@ -940,7 +944,7 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
       url.searchParams.set('type', 'anime');
       url.searchParams.set('sub_type', animeAudio);
       url.searchParams.set('audio', animeAudio);
-      url.searchParams.set('provider', targetProvider);
+      url.searchParams.set('provider', fallbackProv);
       url.searchParams.set('autoplay', '1');
       url.searchParams.set('muted', '0');
       url.searchParams.set('no_ads', '1');
@@ -1541,7 +1545,7 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
                     <div className="flex items-center gap-2 shrink-0">
                       <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 text-[11px] font-bold shadow-sm">
                         <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                        <span>FrameX HLS • Bebas Iklan</span>
+                        <span>Nonoya Engine • 100% Anti-Iklan</span>
                       </div>
                     </div>
                   </div>
@@ -1689,6 +1693,7 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
                 frameBorder="0"
                 scrolling="no"
                 allowFullScreen={true}
+                sandbox={mediaType === 'anime' ? 'allow-scripts allow-same-origin allow-forms' : undefined}
                 // @ts-ignore
                 webkitallowfullscreen="true"
                 // @ts-ignore

@@ -67,6 +67,11 @@ export interface StreamData {
   audio?: 'sub' | 'dub';
   sources: StreamSource[];
   subtitles?: SubtitleTrack[];
+  isDirect?: boolean;
+  streamType?: string;
+  embedUrl?: string;
+  servers?: Array<{ name: string; url?: string; dataContent?: string; isDirect?: boolean }>;
+  sourceEngine?: string;
 }
 
 export interface Title {

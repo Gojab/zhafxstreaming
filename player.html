@@ -12,16 +12,48 @@
 </head>
 <body>
 <script>
-  // Pemutar resmi embed FrameX
   (function () {
-    var ALLOWED_HOSTS = ['framextv.cc', 'framextv.xyz', 'framextv.tech'];
-    var raw = new URLSearchParams(location.search).get('u') || '';
+    var params = new URLSearchParams(location.search);
+    var raw = params.get('u') || '';
+    var mode = params.get('mode') || '';
+
+    // Anti-popup guard when player is clicked
+    if (mode === 'anime') {
+      window.open = function() { console.warn('[Anti-Ad] Popup blocked'); return null; };
+      window.alert = function() { return null; };
+      window.confirm = function() { return false; };
+      window.prompt = function() { return null; };
+      window.onbeforeunload = null;
+
+      document.addEventListener('click', function(e) {
+        var anchor = e.target && e.target.closest ? e.target.closest('a') : null;
+        if (anchor) {
+          var target = anchor.getAttribute('target');
+          var href = anchor.getAttribute('href') || '';
+          if (target === '_blank' || (href && !href.startsWith('#') && !href.startsWith('javascript:'))) {
+            e.preventDefault();
+            e.stopPropagation();
+            console.warn('[Anti-Ad] Blocked new tab click');
+          }
+        }
+      }, true);
+    }
+
+    var ALLOWED_HOSTS = [
+      'framextv.cc',
+      'framextv.xyz',
+      'framextv.tech',
+      'desustream.net',
+      'otakudesu.blog',
+      'anoboy.be',
+      'cdn.odcloud.net'
+    ];
     var url;
     try { url = new URL(raw); } catch (e) { return; }
-    var ok = url.protocol === 'https:' &&
-             ALLOWED_HOSTS.indexOf(url.hostname) !== -1 &&
-             url.pathname.indexOf('/embed/') === 0;
-    if (!ok) return;
+    var hostOk = ALLOWED_HOSTS.some(function(h) {
+      return url.hostname === h || url.hostname.endsWith('.' + h);
+    });
+    if (!hostOk || url.protocol !== 'https:') return;
 
     var f = document.createElement('iframe');
     f.src = url.href;
@@ -31,6 +63,12 @@
     f.setAttribute('webkitallowfullscreen', 'true');
     f.setAttribute('mozallowfullscreen', 'true');
     f.referrerPolicy = 'origin';
+
+    if (mode === 'anime') {
+      // Strict anti-popup sandbox for anime players
+      f.sandbox = 'allow-scripts allow-same-origin allow-forms';
+    }
+
     document.body.appendChild(f);
   })();
 </script>

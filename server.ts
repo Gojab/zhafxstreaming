@@ -22,6 +22,11 @@ import type {
   AuthDb,
 } from './server/authService.ts';
 import { executeMultiModelChat } from './server/aiPipeline.ts';
+import {
+  resolveNonoyaAnimeStream,
+  resolveOtakudesuServer,
+  extractDirectMedia,
+} from './server/nonoyaAnime.ts';
 
 dotenv.config();
 
@@ -995,48 +1000,68 @@ app.post('/api/comments', (req: Request, res: Response) => {
 });
 
 // ==========================================
-// Native Anime Stream & Proxy (FrameX API Engine)
+// Native Anime Stream & Proxy (Nonoya API Core with FrameX Backup)
 // ==========================================
 
-// Get FrameX Anime Providers
+// Get Anime Providers (Powered by Nonoya API Core https://github.com/Argiiahm/nonoya-api)
 app.get('/api/anime/providers', async (_req: Request, res: Response) => {
-  try {
-    const upstreamRes = await fetch('https://api.framextv.cc/anime/api/providers', {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-        'Referer': 'https://framextv.cc/',
-        'Origin': 'https://framextv.cc',
-      },
-    });
-    if (upstreamRes.ok) {
-      const data = await upstreamRes.json();
-      if (data && Array.isArray(data.providers)) {
-        data.providers = data.providers.map((p: any, idx: number) => ({
-          ...p,
-          name: `ZHAFX ENTITY ${String(idx + 1).padStart(3, '0')}`,
-        }));
-        return res.json(data);
-      }
-      return res.json(data);
-    }
-  } catch (err) {
-    console.warn('[Anime Providers Error]:', err);
-  }
-
-  // Fallback providers catalogue if upstream is slow
   return res.json({
+    engine: 'nonoya-api',
     providers: [
-      { id: 'grand_warden', name: 'ZHAFX ENTITY 001', tagline: '1080p Ultra Fast Multi-Source Cloud', audio: 'sub', category: 'anime' },
-      { id: 'grand_warden_dub', name: 'ZHAFX ENTITY 002', tagline: 'Multi-Source Cloud Dub', audio: 'dub', category: 'anime' },
-      { id: 'wizard', name: 'ZHAFX ENTITY 003', tagline: 'Dual Audio & Softsub', audio: 'sub', category: 'anime' },
-      { id: 'wizard_dub', name: 'ZHAFX ENTITY 004', tagline: 'Dual Audio English Dub', audio: 'dub', category: 'anime' },
-      { id: 'super_pekka', name: 'ZHAFX ENTITY 005', tagline: '1080p Ultra High Bitrate CDN', audio: 'sub', category: 'anime' },
-      { id: 'giant', name: 'ZHAFX ENTITY 006', tagline: 'High Bitrate HD Cloud Stream', audio: 'sub', category: 'anime' },
-      { id: 'valkyrie', name: 'ZHAFX ENTITY 007', tagline: 'FlixCloud HD Fast Stream', audio: 'sub', category: 'anime' },
-      { id: 'valkyrie_dub', name: 'ZHAFX ENTITY 008', tagline: 'FlixCloud HD Dub', audio: 'dub', category: 'anime' },
-      { id: 'goblin', name: 'ZHAFX ENTITY 009', tagline: 'Direct Fast Auto Stream', audio: 'sub', category: 'anime' },
-      { id: 'dragon', name: 'ZHAFX ENTITY 010', tagline: 'VidNest Multi-Source', audio: 'sub', category: 'anime' },
-      { id: 'archer', name: 'ZHAFX ENTITY 011', tagline: 'Multi-Audio Stream', audio: 'sub', category: 'anime' },
+      {
+        id: 'nonoya_fast',
+        name: 'Server 1 (Nonoya Fast)',
+        tagline: 'Otakudesu Cloud HD • 100% Bebas Iklan',
+        audio: 'sub',
+        category: 'anime',
+        status: 'available',
+        isNonoya: true,
+      },
+      {
+        id: 'nonoya_odcdn',
+        name: 'Server 2 (ODStream)',
+        tagline: 'ODStream 720p/1080p Direct • Bebas Iklan',
+        audio: 'sub',
+        category: 'anime',
+        status: 'available',
+        isNonoya: true,
+      },
+      {
+        id: 'nonoya_desu',
+        name: 'Server 3 (DesuStream)',
+        tagline: 'DesuStream Cloud Stream • Bebas Iklan',
+        audio: 'sub',
+        category: 'anime',
+        status: 'available',
+        isNonoya: true,
+      },
+      {
+        id: 'nonoya_vidhide',
+        name: 'Server 4 (VidHide)',
+        tagline: 'VidHide Multi-Quality • Anti-Popup',
+        audio: 'sub',
+        category: 'anime',
+        status: 'available',
+        isNonoya: true,
+      },
+      {
+        id: 'nonoya_anoboy',
+        name: 'Server 5 (Anoboy)',
+        tagline: 'Anoboy Multi-Server • Subtitle Indonesia',
+        audio: 'sub',
+        category: 'anime',
+        status: 'available',
+        isNonoya: true,
+      },
+      {
+        id: 'framex_cloud',
+        name: 'Server 6 (FrameX Backup)',
+        tagline: 'FrameX Multi-CDN Cadangan',
+        audio: 'sub',
+        category: 'anime',
+        status: 'available',
+        isNonoya: false,
+      },
     ],
   });
 });
@@ -1181,7 +1206,7 @@ async function probeMultiProviders(
   return null;
 }
 
-// Get Direct Anime Stream from FrameX API with server-side proxy transformation & auto failover
+// Get Direct Anime Stream - Powered by Nonoya API Core (Otakudesu/Anoboy) with FrameX Secondary Backup
 app.get('/api/anime/stream', async (req: Request, res: Response) => {
   const id = req.query.id as string;
   const episode = req.query.episode ? String(req.query.episode) : '1';
@@ -1193,10 +1218,58 @@ app.get('/api/anime/stream', async (req: Request, res: Response) => {
     return res.status(400).json({ success: false, error: 'ID anime wajib diisi.' });
   }
 
-  // Phase 1: Probe with requested ID
+  const epNum = parseInt(episode, 10) || 1;
+
+  // Phase 1: Primary Nonoya Anime Engine (Otakudesu & Anoboy with Direct Ad-Free Stream)
+  try {
+    const nonoyaStream = await resolveNonoyaAnimeStream({
+      id,
+      episode: epNum,
+      title,
+      provider,
+    });
+
+    if (nonoyaStream && (nonoyaStream.directUrl || nonoyaStream.embedUrl)) {
+      const isDirect = Boolean(nonoyaStream.directUrl);
+      const sources: any[] = [];
+
+      if (nonoyaStream.directUrl) {
+        const directUrl = nonoyaStream.directUrl;
+        const ref =
+          directUrl.includes('odcloud') || directUrl.includes('desustream')
+            ? 'https://otakudesu.blog/'
+            : 'https://otakudesu.blog/';
+        const proxiedUrl = `/api/anime/proxy?url=${encodeURIComponent(directUrl)}&ref=${encodeURIComponent(ref)}`;
+
+        sources.push({
+          url: proxiedUrl,
+          directUrl,
+          proxiedUrl,
+          rawUrl: directUrl,
+          type: nonoyaStream.streamType || (directUrl.includes('.m3u8') ? 'hls' : 'mp4'),
+          quality: 'HD 720p',
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        isDirect,
+        streamType: nonoyaStream.streamType || (isDirect ? 'mp4' : 'embed'),
+        provider: provider || 'nonoya_fast',
+        title: nonoyaStream.title,
+        sources,
+        embedUrl: nonoyaStream.embedUrl,
+        servers: nonoyaStream.servers || [],
+        sourceEngine: 'nonoya-api',
+      });
+    }
+  } catch (err: any) {
+    console.warn('[Nonoya Anime Stream notice, trying FrameX fallback]:', err?.message || err);
+  }
+
+  // Phase 2: FrameX Secondary Backup (if title not found in Nonoya catalog)
   let finalData = await probeMultiProviders(id, episode, audio, provider);
 
-  // Phase 2: If no sources found with raw ID, attempt AniList ID resolution via title or TMDB lookup
   if (!finalData) {
     const resolvedId = await resolveAnimeId(id, title);
     if (resolvedId && resolvedId !== id) {
@@ -1207,7 +1280,7 @@ app.get('/api/anime/stream', async (req: Request, res: Response) => {
   if (!finalData) {
     return res.status(404).json({
       success: false,
-      error: `Stream anime tidak tersedia untuk episode ${episode}. Semua server HLS telah dicoba.`.trim(),
+      error: `Stream anime tidak tersedia untuk episode ${episode}. Semua server Nonoya dan FrameX telah dicoba.`.trim(),
     });
   }
 
@@ -1263,13 +1336,54 @@ app.get('/api/anime/stream', async (req: Request, res: Response) => {
   });
 });
 
+// Endpoint to resolve mirror stream by dataContent (from Otakudesu / Nonoya API)
+app.get('/api/anime/server/:dataContent', async (req: Request, res: Response) => {
+  try {
+    const dataContent = req.params.dataContent;
+    if (!dataContent) {
+      return res.status(400).json({ success: false, error: 'dataContent wajib diisi' });
+    }
+    const resolvedIframe = await resolveOtakudesuServer(dataContent);
+    if (!resolvedIframe) {
+      return res.status(502).json({ success: false, error: 'Gagal mengurai server anime' });
+    }
+    const directMedia = await extractDirectMedia(resolvedIframe);
+    let proxiedDirectUrl: string | undefined;
+    if (directMedia) {
+      const ref =
+        directMedia.includes('odcloud') || directMedia.includes('desustream')
+          ? 'https://otakudesu.blog/'
+          : 'https://otakudesu.blog/';
+      proxiedDirectUrl = `/api/anime/proxy?url=${encodeURIComponent(directMedia)}&ref=${encodeURIComponent(ref)}`;
+    }
+    return res.json({
+      success: true,
+      embedUrl: resolvedIframe,
+      directUrl: directMedia,
+      proxiedUrl: proxiedDirectUrl,
+      isDirect: Boolean(directMedia),
+      type: directMedia?.includes('.m3u8') ? 'hls' : 'mp4',
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err?.message || 'Server error' });
+  }
+});
+
 // Proxy and rewrite HLS Playlists (.m3u8) & video segments (.ts/.jpg/.mp4) directly from Origin CDNs
 app.all('/api/anime/proxy', async (req: Request, res: Response) => {
   // If client already disconnected, exit immediately
   if (req.destroyed || res.writableEnded) return;
 
   const rawTargetUrl = req.query.url as string;
-  const rawReferer = (req.query.ref as string) || 'https://megaplay.buzz/';
+  const rawReferer =
+    (req.query.ref as string) ||
+    (rawTargetUrl &&
+    (rawTargetUrl.includes('odcloud') ||
+      rawTargetUrl.includes('desustream') ||
+      rawTargetUrl.includes('otakudesu') ||
+      rawTargetUrl.includes('anoboy'))
+      ? 'https://otakudesu.blog/'
+      : 'https://megaplay.buzz/');
 
   if (!rawTargetUrl) {
     return res.status(400).json({ error: 'URL target tidak valid.' });
