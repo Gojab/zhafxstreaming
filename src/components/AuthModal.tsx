@@ -144,10 +144,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
 
     // 2. If no custom client ID, attempt Supabase Google OAuth provider
     try {
+      // Clear any previous email session first to prevent session mixing
+      await supabase.auth.signOut().catch(() => {});
+      storage.clearAuth();
+
       const { data, error: oauthError } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo: `${window.location.origin}/auth/google/callback`,
+          queryParams: {
+            prompt: 'select_account',
+            access_type: 'offline',
+          },
         },
       });
 
@@ -185,6 +193,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
     setSuccessMessage(null);
 
     try {
+      await supabase.auth.signOut().catch(() => {});
+      storage.clearAuth();
+
       if (mode === 'register') {
         const { data, error: signUpError } = await supabase.auth.signUp({
           email: cleanEmail,

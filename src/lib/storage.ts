@@ -338,6 +338,18 @@ export const storage = {
   removeUser(): void {
     try {
       localStorage.removeItem(KEYS.USER);
+      localStorage.removeItem(KEYS.TOKEN);
+      sessionStorage.removeItem(KEYS.USER);
+      sessionStorage.removeItem(KEYS.TOKEN);
+      if (typeof window !== 'undefined') {
+        try {
+          Object.keys(localStorage).forEach((key) => {
+            if (key.startsWith('sb-') && key.endsWith('-auth-token')) {
+              localStorage.removeItem(key);
+            }
+          });
+        } catch {}
+      }
       window.dispatchEvent(new Event('zhafx_auth_change'));
       window.dispatchEvent(new Event('zhafx_storage_change'));
       window.dispatchEvent(new Event('storage'));
@@ -366,9 +378,29 @@ export const storage = {
   removeToken(): void {
     try {
       localStorage.removeItem(KEYS.TOKEN);
+      localStorage.removeItem(KEYS.USER);
+      sessionStorage.removeItem(KEYS.TOKEN);
+      sessionStorage.removeItem(KEYS.USER);
+      if (typeof window !== 'undefined') {
+        try {
+          Object.keys(localStorage).forEach((key) => {
+            if (key.startsWith('sb-') && key.endsWith('-auth-token')) {
+              localStorage.removeItem(key);
+            }
+          });
+        } catch {}
+      }
+      window.dispatchEvent(new Event('zhafx_auth_change'));
+      window.dispatchEvent(new Event('zhafx_storage_change'));
+      window.dispatchEvent(new Event('storage'));
     } catch (e) {
       console.warn('[Storage] Failed to remove token:', e);
     }
+  },
+
+  clearAuth(): void {
+    this.removeUser();
+    this.removeToken();
   },
 
   // --- Watch Progress & Continue Watching (User-Scoped) ---

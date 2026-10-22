@@ -16,6 +16,7 @@ import { PillBase, NavItem } from '@/components/ui/3d-adaptive-navigation-bar';
 import { ProfileModal } from './ProfileModal';
 import { BotMessageSquareIcon } from './icons/BotMessageSquareIcon';
 import { storage } from '../lib/storage';
+import { supabase } from '../lib/supabase';
 import { User } from '../types';
 
 interface NavbarProps {
@@ -125,8 +126,12 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAI, onOpenFeatures, onOpen
     } catch {
       // silent
     }
-    storage.removeToken();
-    storage.removeUser();
+    try {
+      await supabase.auth.signOut();
+    } catch {
+      // silent
+    }
+    storage.clearAuth();
     setIsProfileMenuOpen(false);
   };
 

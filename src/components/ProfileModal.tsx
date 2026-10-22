@@ -190,13 +190,17 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     }
   };
 
-  const handleLogoutAction = () => {
+  const handleLogoutAction = async () => {
     onClose();
     if (onLogout) {
       onLogout();
     } else {
-      storage.removeToken();
-      storage.removeUser();
+      try {
+        await supabase.auth.signOut();
+      } catch {
+        // silent
+      }
+      storage.clearAuth();
       window.dispatchEvent(new Event('zhafx_auth_change'));
     }
   };

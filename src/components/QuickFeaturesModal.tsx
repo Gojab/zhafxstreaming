@@ -19,6 +19,7 @@ import { HomeSimpleIcon } from './icons/HomeSimpleIcon';
 import { BotMessageSquareIcon } from './icons/BotMessageSquareIcon';
 import { Logo } from './Logo';
 import { storage } from '../lib/storage';
+import { supabase } from '../lib/supabase';
 import { User } from '../types';
 
 interface QuickFeaturesModalProps {
@@ -87,8 +88,12 @@ export const QuickFeaturesModal: React.FC<QuickFeaturesModalProps> = ({
     } catch {
       // silent
     }
-    storage.removeToken();
-    storage.removeUser();
+    try {
+      await supabase.auth.signOut();
+    } catch {
+      // silent
+    }
+    storage.clearAuth();
     setUser(null);
   };
 
