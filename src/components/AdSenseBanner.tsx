@@ -35,7 +35,8 @@ export const AdSenseBanner: React.FC = () => {
   return (
     <aside
       aria-label="Iklan"
-      className="fixed inset-x-0 bottom-0 z-40 flex min-h-[90px] items-center justify-center border-t border-white/10 bg-[#06070B]/95 px-2 py-1 backdrop-blur-md"
+      className="fixed inset-x-0 bottom-0 z-[100] flex min-h-[90px] items-center justify-center border-t border-white/10 bg-[#06070B]/95 px-2 pt-1 pb-[calc(0.25rem+env(safe-area-inset-bottom))] backdrop-blur-md"
+      style={{ position: 'fixed', bottom: 0, transform: 'translateZ(0)', WebkitTransform: 'translateZ(0)' }}
     >
       <ins
         className="adsbygoogle"
