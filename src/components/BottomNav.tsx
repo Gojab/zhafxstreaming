@@ -80,7 +80,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({ onOpenAI, onOpenFeatures }
               onMouseEnter={() => setHoveredId(id)}
               onMouseLeave={() => setHoveredId(null)}
               aria-label={title}
-              className={`relative h-[44px] rounded-full flex items-center justify-center transition-all duration-350 ease-[cubic-bezier(0.16,1,0.3,1)] group cursor-pointer overflow-visible select-none active:scale-95 ${
+              className={`relative h-[44px] rounded-full flex items-center justify-center transition-[width,background-color,border-color,box-shadow,transform] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] group cursor-pointer overflow-visible select-none active:scale-95 transform-gpu will-change-[width,transform] ${
                 isItemExpanded
                   ? 'w-[104px] xs:w-[114px] bg-white/[0.22] border-white/40 shadow-[0_6px_22px_rgba(0,0,0,0.45),inset_0_1.5px_2px_rgba(255,255,255,0.7)]'
                   : isActive
@@ -103,7 +103,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({ onOpenAI, onOpenFeatures }
 
               {/* Icon (Logo Home, Film, X, AI, Daftar) - always visible initially! */}
               <span
-                className={`relative z-10 transition-all duration-250 flex items-center justify-center pointer-events-none ${
+                className={`relative z-10 transition-[transform,opacity] duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] flex items-center justify-center pointer-events-none transform-gpu ${
                   isItemExpanded ? 'scale-0 opacity-0' : 'scale-100 opacity-100'
                 }`}
               >
@@ -112,12 +112,12 @@ export const BottomNav: React.FC<BottomNavProps> = ({ onOpenAI, onOpenFeatures }
 
               {/* Active Indicator Micro-dot (visible only when active and not expanded) */}
               {isActive && !isItemExpanded && (
-                <span className="absolute bottom-1 w-1 h-1 rounded-full bg-white shadow-[0_0_6px_rgba(255,255,255,1)] pointer-events-none" />
+                <span className="absolute bottom-1 w-1 h-1 rounded-full bg-white shadow-[0_0_6px_rgba(255,255,255,1)] pointer-events-none animate-in fade-in duration-200" />
               )}
 
               {/* Title - reveals only when hovered */}
               <span
-                className={`absolute text-white uppercase tracking-wider text-[11px] font-bold transition-all duration-250 drop-shadow-[0_1px_2px_rgba(0,0,0,0.7)] whitespace-nowrap pointer-events-none ${
+                className={`absolute text-white uppercase tracking-wider text-[11px] font-bold transition-[transform,opacity] duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] drop-shadow-[0_1px_2px_rgba(0,0,0,0.7)] whitespace-nowrap pointer-events-none transform-gpu ${
                   isItemExpanded ? 'scale-100 opacity-100' : 'scale-0 opacity-0'
                 }`}
               >

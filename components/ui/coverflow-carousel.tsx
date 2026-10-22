@@ -133,6 +133,7 @@ export function CoverflowCarousel({
       card.style.transform =
         `translateX(calc(-50% + ${offset * pitch}px)) ` +
         `translateZ(${-depth * width * ramp}px) rotateY(${-tilt}deg)`;
+      card.style.willChange = 'transform, opacity';
 
       // A card is teleported across the ring at exactly half a turn out, so it
       // has to be gone by then or the jump is visible.
@@ -152,17 +153,20 @@ export function CoverflowCarousel({
         onSlideChangeRef.current(targetIndex);
       }
 
-      const step = () => {
+      let lastTime = performance.now();
+      const step = (now: number) => {
+        const dt = Math.min((now - lastTime) / 1000, 0.05);
+        lastTime = now;
         const remaining = target - posRef.current;
-        if (Math.abs(remaining) < 0.0004) {
+        if (Math.abs(remaining) < 0.0003) {
           posRef.current = target;
           paint();
           rafRef.current = null;
           return;
         }
-        // ponytail: exponential ease-out, not a spring. Swap in a spring only
-        // if the settle needs overshoot.
-        posRef.current += remaining * 0.16;
+        // Continuous framerate-independent exponential smoothing for buttery 60/120fps motion
+        const factor = 1 - Math.exp(-15 * dt);
+        posRef.current += remaining * Math.min(factor, 0.45);
         paint();
         rafRef.current = requestAnimationFrame(step);
       };

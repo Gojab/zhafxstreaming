@@ -93,7 +93,7 @@ export const MediaRow: React.FC<MediaRowProps> = React.memo(({
           type="button"
           onClick={() => handleScroll('left')}
           aria-label={`Geser ${title} ke kiri`}
-          className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 z-30 w-11 h-11 min-w-[44px] min-h-[44px] rounded-full liquid-glass liquid-specular text-white flex items-center justify-center opacity-0 group-hover/row:opacity-100 hover:bg-white/25 hover:border-white/30 hover:scale-110 active:scale-95 transition-[transform,opacity,background-color,border-color] duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] cursor-pointer hidden md:flex ios-spring shadow-xl transform-gpu"
+          className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 z-30 w-11 h-11 min-w-[44px] min-h-[44px] rounded-full liquid-glass liquid-specular text-white flex items-center justify-center opacity-0 group-hover/row:opacity-100 hover:bg-white/25 hover:border-white/30 hover:scale-110 active:scale-95 transition-[transform,opacity,background-color,border-color] duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] cursor-pointer hidden md:flex ios-spring shadow-xl transform-gpu will-change-[transform,opacity]"
         >
           <ChevronLeft className="w-5 h-5" />
         </button>
@@ -104,7 +104,7 @@ export const MediaRow: React.FC<MediaRowProps> = React.memo(({
           tabIndex={0}
           onScroll={handleContainerScroll}
           aria-label={`Daftar tayangan ${title}`}
-          className="flex gap-3 sm:gap-5 overflow-x-auto px-4 sm:px-6 md:px-8 pb-3.5 sm:pb-5 pt-2.5 sm:pt-3 snap-x snap-mandatory scrollbar-none focus:outline-none"
+          className="flex gap-3 sm:gap-5 overflow-x-auto px-4 sm:px-6 md:px-8 pb-3.5 sm:pb-5 pt-2.5 sm:pt-3 snap-x snap-mandatory scrollbar-none focus:outline-none scroll-smooth transform-gpu"
           style={{
             scrollbarWidth: 'none',
             msOverflowStyle: 'none',
@@ -115,7 +115,7 @@ export const MediaRow: React.FC<MediaRowProps> = React.memo(({
           {displayedItems.map((item) => (
             <div
               key={`${item.type}-${item.id}`}
-              className="w-[128px] xs:w-[140px] sm:w-[170px] md:w-[190px] shrink-0 snap-start"
+              className="w-[128px] xs:w-[140px] sm:w-[170px] md:w-[190px] shrink-0 snap-start will-change-transform"
             >
               <MediaCard item={item} />
             </div>
@@ -129,7 +129,7 @@ export const MediaRow: React.FC<MediaRowProps> = React.memo(({
           type="button"
           onClick={() => handleScroll('right')}
           aria-label={`Geser ${title} ke kanan`}
-          className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 z-30 w-11 h-11 min-w-[44px] min-h-[44px] rounded-full liquid-glass liquid-specular text-white flex items-center justify-center opacity-0 group-hover/row:opacity-100 hover:bg-white/25 hover:border-white/30 hover:scale-110 active:scale-95 transition-[transform,opacity,background-color,border-color] duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] cursor-pointer hidden md:flex ios-spring shadow-xl transform-gpu"
+          className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 z-30 w-11 h-11 min-w-[44px] min-h-[44px] rounded-full liquid-glass liquid-specular text-white flex items-center justify-center opacity-0 group-hover/row:opacity-100 hover:bg-white/25 hover:border-white/30 hover:scale-110 active:scale-95 transition-[transform,opacity,background-color,border-color] duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] cursor-pointer hidden md:flex ios-spring shadow-xl transform-gpu will-change-[transform,opacity]"
         >
           <ChevronRight className="w-5 h-5" />
         </button>

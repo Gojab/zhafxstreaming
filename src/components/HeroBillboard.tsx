@@ -164,8 +164,7 @@ export const HeroBillboard: React.FC<HeroBillboardProps> = ({ items }) => {
           loading={currentIndex === 0 ? 'eager' : 'lazy'}
           // @ts-ignore
           fetchPriority={currentIndex === 0 ? 'high' : 'auto'}
-          decoding="async"
-          className="w-full h-full object-cover object-center relative z-0 select-none opacity-40 sm:opacity-50 scale-105 blur-[2px] sm:blur-[3px] transition-all duration-700"
+          className="w-full h-full object-cover object-center relative z-0 select-none opacity-40 sm:opacity-50 scale-105 blur-[2px] sm:blur-[3px] transition-opacity duration-700 ease-out transform-gpu"
         />
 
         {/* Top Vignette for seamless contrast under floating Navbar */}

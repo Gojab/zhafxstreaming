@@ -405,35 +405,116 @@
   }
 }
 
-/* Smooth UI animations */
+/* Smooth UI animations (Apple iOS 26 fluid physics) */
 @keyframes fadeInScale {
   from {
     opacity: 0;
-    transform: scale(0.97);
+    transform: scale(0.96) translate3d(0, 8px, 0);
   }
   to {
     opacity: 1;
-    transform: scale(1);
+    transform: scale(1) translate3d(0, 0, 0);
   }
 }
 
 @keyframes slideUpSmooth {
   from {
     opacity: 0;
-    transform: translateY(12px);
+    transform: translate3d(0, 14px, 0);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+/* Modal Card Entrance Animation - Apple iOS Elastic Pop */
+@keyframes modalCardPop {
+  0% {
+    opacity: 0;
+    transform: scale(0.94) translate3d(0, 14px, 0);
+    filter: blur(4px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translate3d(0, 0, 0);
+    filter: blur(0px);
+  }
+}
+
+/* Modal & Overlay Backdrop Fade In */
+@keyframes modalBackdropFade {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+/* Right Drawer Slide In (Tanya AI Drawer) */
+@keyframes drawerSlideIn {
+  0% {
+    opacity: 0.4;
+    transform: translate3d(100%, 0, 0);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes drawerBackdropFade {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+/* Smooth Shimmer Light Sweep */
+@keyframes shimmerLightSweep {
+  0% {
+    transform: translate3d(-120%, 0, 0);
+  }
+  100% {
+    transform: translate3d(120%, 0, 0);
   }
 }
 
 .animate-in-scale {
   animation: fadeInScale 0.32s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: transform, opacity;
 }
 
 .animate-slide-up {
   animation: slideUpSmooth 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: transform, opacity;
+}
+
+.animate-modal-card {
+  animation: modalCardPop 0.34s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  transform-gpu: translate3d(0, 0, 0);
+  will-change: transform, opacity, filter;
+  backface-visibility: hidden;
+}
+
+.animate-modal-backdrop {
+  animation: modalBackdropFade 0.26s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: opacity;
+}
+
+.animate-drawer-sheet {
+  animation: drawerSlideIn 0.38s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  transform-gpu: translate3d(0, 0, 0);
+  will-change: transform;
+  backface-visibility: hidden;
+}
+
+.animate-drawer-backdrop {
+  animation: drawerBackdropFade 0.28s ease-out forwards;
+  will-change: opacity;
 }
 
 /* Reduced motion preference */

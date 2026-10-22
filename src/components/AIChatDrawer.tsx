@@ -213,16 +213,16 @@ export const AIChatDrawer: React.FC<AIChatDrawerProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-black/60 backdrop-blur-md transition-opacity">
+    <div className="fixed inset-0 z-50 flex justify-end">
       {/* Click outside to close */}
-      <div className="absolute inset-0" onClick={onClose} aria-hidden="true" />
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-md animate-drawer-backdrop" onClick={onClose} aria-hidden="true" />
 
       {/* Apple iOS 26 Liquid Glass Right Drawer Sheet */}
       <div
         role="dialog"
         aria-modal="true"
         aria-label="Tanya Zhafx AI"
-        className="relative z-10 w-full sm:w-[480px] md:w-[520px] h-full sm:h-auto max-h-screen liquid-glass-dense liquid-specular sm:rounded-l-[36px] border-l border-white/20 flex flex-col shadow-[0_0_60px_rgba(0,0,0,0.85)] overflow-hidden"
+        className="relative z-10 w-full sm:w-[480px] md:w-[520px] h-full sm:h-auto max-h-screen liquid-glass-dense liquid-specular sm:rounded-l-[36px] border-l border-white/20 flex flex-col shadow-[0_0_60px_rgba(0,0,0,0.85)] overflow-hidden animate-drawer-sheet"
       >
         {/* Drawer Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.08] shrink-0">

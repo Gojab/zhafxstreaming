@@ -1983,10 +1983,10 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
                       setIsIframeLoading(true);
                       setIframeKey((k) => k + 1);
                     }}
-                    className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
+                    className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-[transform,background-color,color,border-color,box-shadow] duration-250 ease-[cubic-bezier(0.16,1,0.3,1)] cursor-pointer flex items-center gap-1.5 shrink-0 transform-gpu will-change-transform ${
                       isActive
                         ? 'bg-[#FFB224] text-black shadow-lg scale-105'
-                        : 'bg-white/10 hover:bg-white/20 text-white/80 hover:text-white border border-white/15'
+                        : 'bg-white/10 hover:bg-white/20 text-white/80 hover:text-white border border-white/15 active:scale-95'
                     }`}
                   >
                     <span>{server.name}</span>

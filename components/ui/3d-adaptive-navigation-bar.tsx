@@ -110,7 +110,7 @@ export const PillBase: React.FC<PillBaseProps> = ({
     <motion.nav
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
-      className={`relative rounded-full select-none cursor-pointer ${className}`}
+      className={`relative rounded-full select-none cursor-pointer transform-gpu will-change-[width,transform] ${className}`}
       style={{
         width: pillWidth,
         height: `${height}px`,
@@ -212,7 +212,7 @@ export const PillBase: React.FC<PillBaseProps> = ({
           `,
         x: pillShift,
         overflow: 'hidden',
-        transition: 'box-shadow 0.5s cubic-bezier(0.16, 1, 0.3, 1), background 0.5s cubic-bezier(0.16, 1, 0.3, 1), backdrop-filter 0.5s cubic-bezier(0.16, 1, 0.3, 1), -webkit-backdrop-filter 0.5s cubic-bezier(0.16, 1, 0.3, 1)',
+        transition: 'box-shadow 0.4s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
       }}
     >
       {!isTransparent && (

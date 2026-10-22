@@ -24,6 +24,7 @@ const HistoryPage = lazy(() => import('./pages/HistoryPage').then((m) => ({ defa
 const MyListPage = lazy(() => import('./pages/MyListPage').then((m) => ({ default: m.MyListPage })));
 const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage').then((m) => ({ default: m.ResetPasswordPage })));
 const DashboardPage = lazy(() => import('./pages/DashboardPage').then((m) => ({ default: m.DashboardPage })));
+const AuthPage = lazy(() => import('./pages/AuthPage').then((m) => ({ default: m.AuthPage })));
 const GoogleCallbackPage = lazy(() => import('./pages/GoogleCallbackPage').then((m) => ({ default: m.GoogleCallbackPage })));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage').then((m) => ({ default: m.NotFoundPage })));
 
@@ -243,6 +244,9 @@ function AppLayout() {
             />
             <Route path="/history" element={<HistoryPage />} />
             <Route path="/my-list" element={<MyListPage />} />
+            <Route path="/login" element={<AuthPage initialMode="login" />} />
+            <Route path="/register" element={<AuthPage initialMode="register" />} />
+            <Route path="/forgot-password" element={<AuthPage initialMode="forgot" />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/profile" element={<DashboardPage />} />

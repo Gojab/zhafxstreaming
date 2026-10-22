@@ -392,17 +392,17 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
       role="dialog"
       aria-modal="true"
       aria-label="Autentikasi Akun Zhafx"
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6"
     >
       {/* Blurred Backdrop */}
       <div
-        className="fixed inset-0 bg-black/85 backdrop-blur-xl transition-opacity"
+        className="fixed inset-0 bg-black/85 backdrop-blur-xl animate-modal-backdrop"
         onClick={onClose}
         aria-hidden="true"
       />
 
       {/* Main Glass Sheet */}
-      <div className="relative w-full max-w-md rounded-[32px] sm:rounded-[36px] liquid-glass-dense border border-white/20 shadow-2xl p-6 sm:p-7 space-y-4 z-10 text-white max-h-[85vh] sm:max-h-[90vh] overflow-y-auto overflow-x-hidden overscroll-contain scroll-smooth">
+      <div className="relative w-full max-w-md rounded-[32px] sm:rounded-[36px] liquid-glass-dense border border-white/20 shadow-2xl p-6 sm:p-7 space-y-4 z-10 text-white max-h-[85vh] sm:max-h-[90vh] overflow-y-auto overflow-x-hidden overscroll-contain scroll-smooth animate-modal-card">
         {/* Header */}
         <div className="flex items-center justify-between pb-3 border-b border-white/10">
           <div className="flex items-center gap-2.5">

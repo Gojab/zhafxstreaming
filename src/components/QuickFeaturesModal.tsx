@@ -102,17 +102,17 @@ export const QuickFeaturesModal: React.FC<QuickFeaturesModalProps> = ({
       role="dialog"
       aria-modal="true"
       aria-label="Pusat Fitur Zhafx"
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6"
     >
       {/* Blurred Backdrop */}
       <div
-        className="fixed inset-0 bg-black/75 backdrop-blur-xl transition-opacity"
+        className="fixed inset-0 bg-black/75 backdrop-blur-xl animate-modal-backdrop"
         onClick={onClose}
         aria-hidden="true"
       />
 
       {/* Main Apple iOS 26 Liquid Glass Feature Sheet */}
-      <div className="relative w-full max-w-lg max-h-[85vh] sm:max-h-[90vh] overflow-y-auto overflow-x-hidden overscroll-contain scroll-smooth rounded-[32px] sm:rounded-[36px] liquid-glass-dense border border-white/25 shadow-2xl p-5 sm:p-7 space-y-4 z-10 text-white">
+      <div className="relative w-full max-w-lg max-h-[85vh] sm:max-h-[90vh] overflow-y-auto overflow-x-hidden overscroll-contain scroll-smooth rounded-[32px] sm:rounded-[36px] liquid-glass-dense border border-white/25 shadow-2xl p-5 sm:p-7 space-y-4 z-10 text-white animate-modal-card">
         {/* Top Header: X & Close Button */}
         <div className="flex items-center justify-between pb-3 border-b border-white/[0.12]">
           <div className="flex items-center gap-3">

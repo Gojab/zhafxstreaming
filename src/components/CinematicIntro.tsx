@@ -229,37 +229,37 @@ export const CinematicIntro: React.FC<CinematicIntroProps> = ({ onComplete, forc
         /* Animasi Pergerakan Bebas Layout Reflow */
         @keyframes shiftGlass {
           0% {
-            transform: scale(1.3) translateX(-30px);
+            transform: scale(1.3) translate3d(-30px, 0, 0);
             opacity: 0.9;
           }
           70% {
             opacity: 0.7;
           }
           100% {
-            transform: scale(1) translateX(0);
+            transform: scale(1) translate3d(0, 0, 0);
             opacity: 0;
           }
         }
 
         @keyframes sweepLight {
           0% {
-            transform: translateX(-120vw) skewX(-25deg);
+            transform: translate3d(-120vw, 0, 0) skewX(-25deg);
           }
           100% {
-            transform: translateX(120vw) skewX(-25deg);
+            transform: translate3d(120vw, 0, 0) skewX(-25deg);
           }
         }
 
         @keyframes revealLogo {
           0% {
-            transform: scale(0.9);
+            transform: scale(0.9) translate3d(0, 0, 0);
             opacity: 0;
           }
           50% {
             opacity: 0.85;
           }
           100% {
-            transform: scale(1);
+            transform: scale(1) translate3d(0, 0, 0);
             opacity: 1;
           }
         }
@@ -267,11 +267,11 @@ export const CinematicIntro: React.FC<CinematicIntroProps> = ({ onComplete, forc
         @keyframes revealTagline {
           0% {
             opacity: 0;
-            transform: translateY(6px);
+            transform: translate3d(0, 6px, 0);
           }
           100% {
             opacity: 0.85;
-            transform: translateY(0);
+            transform: translate3d(0, 0, 0);
           }
         }
 

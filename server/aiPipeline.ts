@@ -20,10 +20,10 @@ export interface ModelProvider {
 
 // 16 Multi-tier AI Models for instant fallback
 export const AI_MODELS: ModelProvider[] = [
-  // 1-3: Google Gemini Official SDK (Latest 3.8 & Flash Latest)
+  // 1-3: Google Gemini Official SDK (Latest 2.5 Flash & 3.8 Flash)
+  { id: 'gemini_2_5_flash', name: 'Gemini 2.5 Flash', type: 'gemini', modelId: 'gemini-2.5-flash' },
   { id: 'gemini_3_8_flash', name: 'Gemini 3.8 Flash', type: 'gemini', modelId: 'gemini-3.8-flash' },
   { id: 'gemini_flash_latest', name: 'Gemini Flash Latest', type: 'gemini', modelId: 'gemini-flash-latest' },
-  { id: 'gemini_3_1_flash_lite', name: 'Gemini 3.1 Flash Lite', type: 'gemini', modelId: 'gemini-3.1-flash-lite' },
 
   // 4-11: Free Public Multi-Cloud LLMs (No API Key required)
   { id: 'poll_openai', name: 'OpenAI GPT-4o Mini', type: 'pollinations', modelId: 'openai' },
@@ -201,8 +201,82 @@ export async function executeMultiModelChat(
 
   chatMessages.push({ role: 'user', content: userPrompt });
 
-  // 1. Stream OpenAI GPT first. Streaming makes the first words appear quickly
-  // instead of waiting for the complete answer before sending anything.
+  // 1. Try Google Gemini SDK if API Key is available (primary in AI Studio)
+  const activeGeminiKey = geminiApiKey || process.env.GEMINI_API_KEY;
+  if (activeGeminiKey) {
+    try {
+      const ai = new GoogleGenAI({
+        apiKey: activeGeminiKey,
+        httpOptions: {
+          headers: {
+            'User-Agent': 'aistudio-build',
+          },
+        },
+      });
+
+      const geminiModels = ['gemini-2.5-flash', 'gemini-3.8-flash', 'gemini-flash-latest', 'gemini-2.5-pro'];
+
+      for (const gModel of geminiModels) {
+        try {
+          const contents: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }> = [];
+          if (Array.isArray(history)) {
+            for (const item of history.slice(-6)) {
+              if (item?.text) {
+                contents.push({
+                  role: item.role === 'user' ? 'user' : 'model',
+                  parts: [{ text: item.text }],
+                });
+              }
+            }
+          }
+          contents.push({
+            role: 'user',
+            parts: [{ text: userPrompt }],
+          });
+
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 9000);
+
+          const responseStream = await ai.models.generateContentStream({
+            model: gModel,
+            contents,
+            config: {
+              systemInstruction: SYSTEM_INSTRUCTION,
+              temperature: 0.7,
+            },
+          });
+          clearTimeout(timeout);
+
+          let hasOutput = false;
+          let fullText = '';
+          for await (const chunk of responseStream) {
+            const text = chunk.text;
+            if (text) {
+              hasOutput = true;
+              fullText += text;
+              onChunk(text);
+            }
+          }
+
+          if (hasOutput) {
+            if (!fullText.includes('<picks>')) {
+              const picks = extractFallbackPicks(fullText, contextTitle);
+              if (picks.length > 0) {
+                onChunk(`\n\n<picks>${JSON.stringify(picks)}</picks>`);
+              }
+            }
+            return { success: true, modelUsed: `Gemini (${gModel})` };
+          }
+        } catch (err: any) {
+          console.warn(`[AI Engine] Gemini ${gModel} error:`, err?.message || err);
+        }
+      }
+    } catch (err: any) {
+      console.warn('[AI Engine] Gemini init error:', err?.message || err);
+    }
+  }
+
+  // 2. Stream OpenAI GPT if key is configured
   const openAiKey = process.env.OPENAI_API_KEY;
   if (openAiKey) {
     const openAiModels = ['gpt-4o-mini', 'gpt-4o'];
@@ -257,7 +331,7 @@ export async function executeMultiModelChat(
                 onChunk(chunk);
               }
             } catch {
-              // Ignore incomplete SSE frames; the next read completes them.
+              // Ignore incomplete SSE frames
             }
           }
         }
@@ -275,83 +349,7 @@ export async function executeMultiModelChat(
     }
   }
 
-  // 2. Try Google Gemini SDK if API Key is available
-  const activeGeminiKey = geminiApiKey || process.env.GEMINI_API_KEY;
-  if (activeGeminiKey) {
-    try {
-      const ai = new GoogleGenAI({
-        apiKey: activeGeminiKey,
-        httpOptions: {
-          headers: {
-            'User-Agent': 'aistudio-build',
-          },
-        },
-      });
-
-      // Only use currently supported Gemini model IDs (gemini-3.8-flash recommended)
-      const geminiModels = ['gemini-3.8-flash', 'gemini-flash-latest', 'gemini-3.1-flash-lite'];
-
-      for (const gModel of geminiModels) {
-        try {
-          const contents: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }> = [];
-          if (Array.isArray(history)) {
-            for (const item of history.slice(-6)) {
-              if (item?.text) {
-                contents.push({
-                  role: item.role === 'user' ? 'user' : 'model',
-                  parts: [{ text: item.text }],
-                });
-              }
-            }
-          }
-          contents.push({
-            role: 'user',
-            parts: [{ text: userPrompt }],
-          });
-
-          const controller = new AbortController();
-          const timeout = setTimeout(() => controller.abort(), 9000);
-
-          const responseStream = await ai.models.generateContentStream({
-            model: gModel,
-            contents,
-            config: {
-              systemInstruction: SYSTEM_INSTRUCTION,
-              temperature: 0.7,
-            },
-          });
-          clearTimeout(timeout);
-
-          let hasOutput = false;
-          let fullText = '';
-          for await (const chunk of responseStream) {
-            const text = chunk.text;
-            if (text) {
-              hasOutput = true;
-              fullText += text;
-              onChunk(text);
-            }
-          }
-
-          if (hasOutput) {
-            if (!fullText.includes('<picks>')) {
-              const picks = extractFallbackPicks(fullText, contextTitle);
-              if (picks.length > 0) {
-                onChunk(`\n\n<picks>${JSON.stringify(picks)}</picks>`);
-              }
-            }
-            return { success: true, modelUsed: `Gemini (${gModel})` };
-          }
-        } catch (err: any) {
-          console.warn(`[AI Engine] Gemini ${gModel} failed:`, err?.message || err);
-        }
-      }
-    } catch (e: any) {
-      console.warn('[AI Engine] Gemini initialization error:', e?.message || e);
-    }
-  }
-
-  // 2. Try configured OpenAI-compatible providers before public fallbacks.
+  // 3. Try configured OpenAI-compatible providers before public fallbacks.
   // Each model is isolated: a timeout or provider error moves to the next one.
   const gatewayModels = [
     { name: 'OpenRouter DeepSeek', model: 'deepseek/deepseek-chat-v3-0324:free' },

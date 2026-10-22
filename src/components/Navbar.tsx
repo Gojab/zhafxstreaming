@@ -140,20 +140,11 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAI, onOpenFeatures, onOpen
   return (
     <header className="fixed top-2.5 sm:top-4 left-2.5 right-2.5 sm:left-6 sm:right-6 max-w-7xl mx-auto z-40 transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] pointer-events-auto">
       <div className="w-full px-3 sm:px-6 h-14 sm:h-16 rounded-[24px] sm:rounded-full flex items-center justify-between gap-2 sm:gap-4 relative !overflow-visible">
-        {/* Smooth Glass & Backdrop Filter Layer - Hardware accelerated continuous blur and opacity tween */}
+        {/* Smooth Glass & Backdrop Filter Layer - Hardware accelerated opacity crossfade */}
         <div
-          className="absolute inset-0 rounded-[24px] sm:rounded-full pointer-events-none transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]"
+          className="absolute inset-0 rounded-[24px] sm:rounded-full pointer-events-none transition-opacity duration-400 ease-[cubic-bezier(0.16,1,0.3,1)] liquid-glass-dense border border-white/20 will-change-[opacity]"
           style={{
             opacity: hasScrolled ? 1 : 0,
-            backdropFilter: hasScrolled ? 'blur(16px) saturate(150%)' : 'blur(0px) saturate(100%)',
-            WebkitBackdropFilter: hasScrolled ? 'blur(16px) saturate(150%)' : 'blur(0px) saturate(100%)',
-            backgroundColor: hasScrolled ? 'rgba(18, 20, 28, 0.82)' : 'rgba(18, 20, 28, 0)',
-            borderColor: hasScrolled ? 'rgba(255, 255, 255, 0.18)' : 'rgba(255, 255, 255, 0)',
-            borderWidth: '1px',
-            borderStyle: 'solid',
-            boxShadow: hasScrolled
-              ? 'inset 0 1px 1.5px 0 rgba(255, 255, 255, 0.45), 0 12px 32px 0 rgba(0, 0, 0, 0.4)'
-              : 'inset 0 1px 1.5px 0 rgba(255, 255, 255, 0), 0 0 0 0 rgba(0, 0, 0, 0)',
           }}
         />
 
@@ -269,7 +260,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAI, onOpenFeatures, onOpen
 
               {/* Profile Dropdown */}
               {isProfileMenuOpen && (
-                <div className="absolute right-0 top-full mt-5 sm:mt-6 w-64 rounded-[26px] bg-[#0E1017]/95 backdrop-blur-2xl border border-white/25 shadow-[0_20px_50px_rgba(0,0,0,0.85)] p-2.5 z-50 text-white animate-in fade-in zoom-in-95 duration-150">
+                <div className="absolute right-0 top-full mt-5 sm:mt-6 w-64 rounded-[26px] bg-[#0E1017]/95 backdrop-blur-2xl border border-white/25 shadow-[0_20px_50px_rgba(0,0,0,0.85)] p-2.5 z-50 text-white animate-modal-card origin-top-right transform-gpu">
                   <div className="px-3.5 py-2.5 border-b border-white/15 mb-1.5 flex items-center gap-3">
                     {user.avatar ? (
                       <img

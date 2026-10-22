@@ -196,15 +196,15 @@ export const MediaCard: React.FC<MediaCardProps> = React.memo(({ item, className
         </Link>
 
         {/* Action Overlay: container is strictly pointer-events-none so it NEVER blocks clicks on the poster */}
-        <div className="hidden sm:flex absolute inset-0 z-20 flex-col justify-end p-3 opacity-0 group-hover:opacity-100 transition-all duration-250 pointer-events-none">
-          <div className="flex items-center justify-center gap-2.5 mb-2 pointer-events-auto transform translate-y-3 group-hover:translate-y-0 transition-transform duration-250 ease-[cubic-bezier(0.25,1,0.5,1)]">
+        <div className="hidden sm:flex absolute inset-0 z-20 flex-col justify-end p-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none will-change-[opacity]">
+          <div className="flex items-center justify-center gap-2.5 mb-2 pointer-events-auto transform translate-y-3 group-hover:translate-y-0 transition-transform duration-250 ease-[cubic-bezier(0.16,1,0.3,1)] will-change-transform">
             {/* Quick Play Glass Button (min 44x44px target) */}
             <button
               type="button"
               onClick={handlePlay}
               aria-label={hasResumePoint ? `Lanjutkan ${item.title} (${formatCardTime(currentSeconds)})` : `Putar ${item.title}`}
               title={hasResumePoint ? `Lanjutkan pemutaran (${formatCardTime(currentSeconds)})` : "Putar sekarang"}
-              className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-full liquid-glass liquid-specular flex items-center justify-center text-white hover:bg-white/30 hover:border-white/40 hover:scale-110 active:scale-95 transition-all duration-200 cursor-pointer shadow-lg hover:shadow-[0_0_16px_rgba(255,255,255,0.3)]"
+              className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-full liquid-glass liquid-specular flex items-center justify-center text-white hover:bg-white/30 hover:border-white/40 hover:scale-110 active:scale-95 transition-[transform,background-color,border-color,box-shadow] duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] cursor-pointer shadow-lg hover:shadow-[0_0_16px_rgba(255,255,255,0.3)] transform-gpu will-change-transform"
             >
               <Play className="w-4 h-4 fill-current ml-0.5 text-white" />
             </button>
@@ -215,7 +215,7 @@ export const MediaCard: React.FC<MediaCardProps> = React.memo(({ item, className
               onClick={handleToggleWatchlist}
               aria-label={saved ? `Hapus ${item.title} dari daftar` : `Tambah ${item.title} ke daftar`}
               title={saved ? 'Tersimpan di Daftar' : 'Tambah ke Daftar'}
-              className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-full liquid-glass liquid-specular flex items-center justify-center text-white hover:bg-white/30 hover:border-white/40 hover:scale-110 active:scale-95 transition-all duration-200 cursor-pointer shadow-lg hover:shadow-[0_0_16px_rgba(255,255,255,0.3)]"
+              className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-full liquid-glass liquid-specular flex items-center justify-center text-white hover:bg-white/30 hover:border-white/40 hover:scale-110 active:scale-95 transition-[transform,background-color,border-color,box-shadow] duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] cursor-pointer shadow-lg hover:shadow-[0_0_16px_rgba(255,255,255,0.3)] transform-gpu will-change-transform"
             >
               {saved ? (
                 <BookmarkCheck className="w-4 h-4 text-white" />
@@ -230,7 +230,7 @@ export const MediaCard: React.FC<MediaCardProps> = React.memo(({ item, className
               onClick={handleInfo}
               aria-label={`Detail ${item.title}`}
               title="Lihat detail tayangan"
-              className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-full liquid-glass liquid-specular flex items-center justify-center text-white/90 hover:text-white hover:bg-white/30 hover:border-white/40 hover:scale-110 active:scale-95 transition-all duration-200 cursor-pointer shadow-lg hover:shadow-[0_0_16px_rgba(255,255,255,0.3)]"
+              className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-full liquid-glass liquid-specular flex items-center justify-center text-white/90 hover:text-white hover:bg-white/30 hover:border-white/40 hover:scale-110 active:scale-95 transition-[transform,background-color,border-color,box-shadow] duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] cursor-pointer shadow-lg hover:shadow-[0_0_16px_rgba(255,255,255,0.3)] transform-gpu will-change-transform"
             >
               <Info className="w-4 h-4" />
             </button>

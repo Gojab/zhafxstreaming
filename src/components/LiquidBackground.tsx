@@ -94,19 +94,18 @@ export const LiquidBackground: React.FC = () => {
 
       {/* Current active poster */}
       <div
-        className={`absolute inset-0 transition-opacity duration-700 ease-in-out ${
-          isCrossfading ? 'opacity-30' : 'opacity-30'
-        }`}
+        className="absolute inset-0 transition-opacity duration-700 ease-out opacity-30"
         style={{ willChange: isCrossfading ? 'opacity' : 'auto' }}
       >
         <img
+          key={currentPoster}
           src={optimizedCurrent}
           alt=""
           width={300}
           height={169}
           loading="lazy"
           decoding="async"
-          className="w-full h-full object-cover scale-105 filter blur-[24px] sm:blur-[32px] opacity-75 transform-gpu"
+          className="w-full h-full object-cover scale-105 filter blur-[24px] sm:blur-[32px] opacity-75 transform-gpu animate-in fade-in duration-700"
         />
       </div>
 

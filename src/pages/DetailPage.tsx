@@ -401,7 +401,7 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
       />
       {/* Toast Notification */}
       {showShareToast && (
-        <div className="fixed top-20 right-6 z-50 px-4 py-2.5 rounded-xl bg-zinc-900 border border-white/20 text-white text-xs font-medium shadow-xl flex items-center gap-2">
+        <div className="fixed top-20 right-6 z-50 px-4 py-2.5 rounded-xl bg-zinc-900 border border-white/20 text-white text-xs font-medium shadow-xl flex items-center gap-2 animate-modal-card transform-gpu">
           <CheckCircle2 className="w-4 h-4 text-emerald-400" />
           Tautan tayangan berhasil disalin!
         </div>
@@ -409,12 +409,12 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
 
       {/* Video Trailer Modal */}
       {activeTrailer && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6">
           <div
-            className="fixed inset-0 bg-black/85 backdrop-blur-xl"
+            className="fixed inset-0 bg-black/85 backdrop-blur-xl animate-modal-backdrop"
             onClick={() => setActiveTrailer(null)}
           />
-          <div className="relative w-full max-w-3xl aspect-video rounded-[24px] overflow-hidden bg-black border border-white/20 shadow-2xl z-10">
+          <div className="relative w-full max-w-3xl aspect-video rounded-[24px] overflow-hidden bg-black border border-white/20 shadow-2xl z-10 animate-modal-card transform-gpu">
             <button
               onClick={() => setActiveTrailer(null)}
               className="absolute top-3 right-3 z-20 w-8 h-8 rounded-full bg-black/60 hover:bg-black/90 text-white flex items-center justify-center cursor-pointer transition-colors"

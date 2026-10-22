@@ -50,13 +50,13 @@ export const DonationModal: React.FC<DonationModalProps> = ({ isOpen, onClose })
     >
       {/* Pitch-Black Opaque Backdrop to completely hide background content */}
       <div
-        className="fixed inset-0 bg-black/95 backdrop-blur-2xl transition-opacity cursor-pointer"
+        className="fixed inset-0 bg-black/95 backdrop-blur-2xl animate-modal-backdrop cursor-pointer"
         onClick={onClose}
         aria-hidden="true"
       />
 
       {/* Main Solid Opaque Modal Card - Zero bleed-through of page background */}
-      <div className="relative w-full max-w-[360px] sm:max-w-[400px] max-h-[92vh] overflow-y-auto rounded-[28px] sm:rounded-[36px] bg-[#0A0C14] border border-white/20 shadow-[0_25px_80px_rgba(0,0,0,0.98)] p-5 sm:p-6 space-y-4 z-10 scrollbar-none text-white">
+      <div className="relative w-full max-w-[360px] sm:max-w-[400px] max-h-[92vh] overflow-y-auto rounded-[28px] sm:rounded-[36px] bg-[#0A0C14] border border-white/20 shadow-[0_25px_80px_rgba(0,0,0,0.98)] p-5 sm:p-6 space-y-4 z-10 scrollbar-none text-white animate-modal-card">
         
         {/* Header: Title, Icon & Close Button */}
         <div className="flex items-center justify-between pb-3 border-b border-white/[0.12]">
