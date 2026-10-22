@@ -292,6 +292,8 @@ export const HeroBillboard: React.FC<HeroBillboardProps> = ({ items }) => {
               loop={true}
               showNavigation={true}
               showPagination={true}
+              showCardBadges={false}
+              showCardInfo={false}
             />
           </div>
 

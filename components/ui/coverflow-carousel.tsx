@@ -42,6 +42,8 @@ export interface CoverflowCarouselProps {
   showCaption?: boolean;
   showPagination?: boolean;
   showNavigation?: boolean;
+  showCardBadges?: boolean;
+  showCardInfo?: boolean;
   /** Names the carousel for assistive tech. */
   label?: string;
   className?: string;
@@ -64,6 +66,8 @@ export function CoverflowCarousel({
   showCaption = false,
   showPagination = false,
   showNavigation = false,
+  showCardBadges = false,
+  showCardInfo = false,
   label = "Cover carousel",
   className,
   cardClassName,
@@ -353,50 +357,54 @@ export function CoverflowCarousel({
                     decoding="async"
                   />
 
-                  {/* Gradient vignette on card */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-[#06070B]/90 via-[#06070B]/25 to-transparent pointer-events-none" />
+                  {/* Gradient vignette on card (subtle bottom depth) */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#06070B]/80 via-transparent to-transparent pointer-events-none" />
 
-                  {/* Top badges: Rating & Type */}
-                  <div className="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between pointer-events-none gap-1">
-                    {slide.rating && parseFloat(slide.rating) > 0 && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-md text-amber-400 text-[10px] sm:text-[11px] font-bold border border-white/10 shadow-sm">
-                        ★ {slide.rating}
-                      </span>
-                    )}
-                    {slide.type && (
-                      <span className="px-2 py-0.5 rounded-full bg-white/20 backdrop-blur-md text-white text-[9px] sm:text-[10px] font-semibold uppercase tracking-wider border border-white/10 ml-auto">
-                        {slide.type === "tv" ? "Serial TV" : slide.type === "anime" ? "Anime" : "Film"}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Bottom title & metadata on card */}
-                  <div className="absolute bottom-0 inset-x-0 p-3 sm:p-3.5 text-left pointer-events-none">
-                    {slide.title && (
-                      <h4 className="text-white text-xs sm:text-sm font-bold line-clamp-1 drop-shadow-md">
-                        {slide.title}
-                      </h4>
-                    )}
-                    <div className="flex items-center gap-1.5 mt-0.5 text-[10px] sm:text-[11px] text-white/70">
-                      {slide.year && <span>{slide.year}</span>}
-                      {slide.genres && slide.genres.length > 0 && (
-                        <span>• {slide.genres.slice(0, 2).join(", ")}</span>
+                  {/* Top badges: Rating & Type (optional to avoid duplication) */}
+                  {showCardBadges && (
+                    <div className="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between pointer-events-none gap-1">
+                      {slide.rating && parseFloat(slide.rating) > 0 && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-md text-amber-400 text-[10px] sm:text-[11px] font-bold border border-white/10 shadow-sm">
+                          ★ {slide.rating}
+                        </span>
+                      )}
+                      {slide.type && (
+                        <span className="px-2 py-0.5 rounded-full bg-white/20 backdrop-blur-md text-white text-[9px] sm:text-[10px] font-semibold uppercase tracking-wider border border-white/10 ml-auto">
+                          {slide.type === "tv" ? "Serial TV" : slide.type === "anime" ? "Anime" : "Film"}
+                        </span>
                       )}
                     </div>
-                  </div>
+                  )}
+
+                  {/* Bottom title & metadata on card (optional to avoid duplication) */}
+                  {showCardInfo && (
+                    <div className="absolute bottom-0 inset-x-0 p-3 sm:p-3.5 text-left pointer-events-none">
+                      {slide.title && (
+                        <h4 className="text-white text-xs sm:text-sm font-bold line-clamp-1 drop-shadow-md">
+                          {slide.title}
+                        </h4>
+                      )}
+                      <div className="flex items-center gap-1.5 mt-0.5 text-[10px] sm:text-[11px] text-white/70">
+                        {slide.year && <span>{slide.year}</span>}
+                        {slide.genres && slide.genres.length > 0 && (
+                          <span>• {slide.genres.slice(0, 2).join(", ")}</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })}
           </div>
         </div>
 
-        {/* Navigation arrows */}
+        {/* Navigation arrows (hidden on mobile to prevent obscuring side cards; swipe enabled) */}
         {showNavigation && count > 1 && (
           <>
             <button
               type="button"
               onClick={() => nudge(-1)}
-              className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 z-30 w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-black/50 backdrop-blur-md border border-white/15 text-white flex items-center justify-center hover:bg-white/20 transition-all shadow-xl cursor-pointer ios-spring"
+              className="hidden sm:flex absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 z-30 w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-black/50 backdrop-blur-md border border-white/15 text-white items-center justify-center hover:bg-white/20 transition-all shadow-xl cursor-pointer ios-spring"
               aria-label="Slide sebelumnya"
             >
               <ChevronLeft className="w-5 h-5" />
@@ -404,7 +412,7 @@ export function CoverflowCarousel({
             <button
               type="button"
               onClick={() => nudge(1)}
-              className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 z-30 w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-black/50 backdrop-blur-md border border-white/15 text-white flex items-center justify-center hover:bg-white/20 transition-all shadow-xl cursor-pointer ios-spring"
+              className="hidden sm:flex absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 z-30 w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-black/50 backdrop-blur-md border border-white/15 text-white items-center justify-center hover:bg-white/20 transition-all shadow-xl cursor-pointer ios-spring"
               aria-label="Slide berikutnya"
             >
               <ChevronRight className="w-5 h-5" />

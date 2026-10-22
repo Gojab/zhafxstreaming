@@ -200,13 +200,13 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAI, onOpenFeatures, onOpen
             </kbd>
           </button>
 
-          {/* Logo X (Features Modal) */}
+          {/* Logo X (Features Modal - desktop only, mobile has it in BottomNav) */}
           <button
             type="button"
             onClick={onOpenFeatures}
             aria-label="Fitur Utama X"
             title="Menu Fitur Zhafx X"
-            className={`group btn-features-x flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-full font-black text-sm cursor-pointer min-h-[36px] min-w-[36px] transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+            className={`group btn-features-x hidden md:flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-full font-black text-sm cursor-pointer min-h-[36px] min-w-[36px] transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${
               hasScrolled
                 ? 'bg-white/[0.08] hover:bg-white/[0.18] border border-white/20 text-white shadow-md nav-shimmer'
                 : 'bg-transparent hover:bg-white/10 border border-transparent hover:border-white/20 text-white/85 hover:text-white shadow-none'
