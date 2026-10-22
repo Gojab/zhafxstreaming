@@ -111,7 +111,12 @@ export const GoogleCallbackPage: React.FC = () => {
           }),
         });
 
-        const data = await res.json();
+        let data: any = {};
+        try {
+          data = await res.json();
+        } catch {
+          data = {};
+        }
 
         if (!res.ok || !data.success || !data.token) {
           throw new Error(data.error || 'Gagal menukarkan kode otorisasi dengan akun Google.');

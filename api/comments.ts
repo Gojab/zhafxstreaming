@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { readAuthDb, writeAuthDb } from '../server/authService';
+import { readAuthDb, writeAuthDb } from '../server/authService.ts';
 
 // In-memory fallback for serverless environments
 let inMemoryComments: any[] = [];

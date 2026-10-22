@@ -7,7 +7,7 @@ import {
   getUserByToken,
   readAuthDb,
   writeAuthDb,
-} from '../../server/authService';
+} from '../../server/authService.ts';
 
 export default async function handler(req: any, res: any) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -18,11 +18,12 @@ export default async function handler(req: any, res: any) {
     return res.status(200).end();
   }
 
-  // Extract action from query param or URL path
-  const queryAction = req.query?.action;
-  const actionFromQuery = Array.isArray(queryAction) ? queryAction[0] : queryAction;
-  const actionFromUrl = req.url?.split('?')[0].split('/').filter(Boolean).pop();
-  const action = (actionFromQuery || actionFromUrl || '').toLowerCase();
+  try {
+    // Extract action from query param or URL path
+    const queryAction = req.query?.action;
+    const actionFromQuery = Array.isArray(queryAction) ? queryAction[0] : queryAction;
+    const actionFromUrl = req.url?.split('?')[0].split('/').filter(Boolean).pop();
+    const action = (actionFromQuery || actionFromUrl || '').toLowerCase();
 
   let body = req.body;
   if (typeof body === 'string') {
@@ -49,7 +50,7 @@ export default async function handler(req: any, res: any) {
   const clientIp = (req.headers && (req.headers['x-forwarded-for'] || req.headers['x-real-ip'])) || req.socket?.remoteAddress;
 
   // 1. GET /api/auth/me
-  if (action === 'me' || req.method === 'GET') {
+  if (action === 'me' || (!action && req.method === 'GET')) {
     const authHeader = req.headers?.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return res.status(401).json({ success: false, error: 'Token autentikasi tidak ditemukan.' });
@@ -489,4 +490,14 @@ export default async function handler(req: any, res: any) {
   }
 
   return res.status(404).json({ success: false, error: `Action '${action}' tidak dikenali.` });
+  } catch (err: any) {
+    console.error('[Auth API Exception]:', err);
+    if (!res.headersSent) {
+      res.setHeader('Content-Type', 'application/json');
+      return res.status(500).json({
+        success: false,
+        error: err?.message || 'Terjadi kesalahan internal pada layanan autentikasi.',
+      });
+    }
+  }
 }
