@@ -61,7 +61,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({ onOpenAI, onOpenFeatures }
   ];
 
   return (
-    <div className="md:hidden fixed bottom-[calc(90px+0.75rem+env(safe-area-inset-bottom))] sm:bottom-[calc(90px+1.25rem+env(safe-area-inset-bottom))] left-2 right-2 xs:left-3 xs:right-3 z-40 flex justify-center pointer-events-none">
+    <div className="md:hidden fixed bottom-[calc(0.75rem+env(safe-area-inset-bottom))] sm:bottom-[calc(1.25rem+env(safe-area-inset-bottom))] left-2 right-2 xs:left-3 xs:right-3 z-40 flex justify-center pointer-events-none">
       <nav
         aria-label="Navigasi Bawah Apple iOS Liquid Glass"
         className="w-auto max-w-[96vw] h-15 rounded-full liquid-glass-dense shadow-[0_16px_40px_rgba(0,0,0,0.7)] flex items-center justify-between gap-1.5 xs:gap-2 p-1.5 pointer-events-auto border border-white/20 select-none backdrop-blur-2xl"
