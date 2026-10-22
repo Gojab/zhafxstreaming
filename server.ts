@@ -420,6 +420,7 @@ app.get('/api/home', async (_req: Request, res: Response) => {
 // ==========================================
 const FRAMEX_API_BACKENDS = [
   'https://api.framextv.cc',
+  'https://api.framextv.xyz',
 ];
 
 interface ServerApiCacheItem {
@@ -534,23 +535,45 @@ app.get('/api/discover', async (req: Request, res: Response) => {
   }
 
   // Movie or TV Discover directly from FrameX API
-  const upstreamData = await fetchFromFrameXUpstream('/api/discover', {
+  let mappedSort = sort;
+  if (sort === 'primary_release_date.desc' || sort === 'release_date.desc') {
+    mappedSort = 'year.desc';
+  }
+
+  let upstreamData = await fetchFromFrameXUpstream('/api/discover', {
     type,
     ...(genre && genre !== 'all' ? { genre } : {}),
     ...(year && year !== 'all' ? { year } : {}),
     ...(minRating ? { min_rating: minRating } : {}),
-    ...(sort ? { sort } : {}),
+    ...(mappedSort ? { sort: mappedSort } : {}),
     page,
   });
 
-  if (upstreamData) {
-    if (Array.isArray(upstreamData.results)) {
-      upstreamData.results.forEach((item: any) => {
-        if (item.overview) {
-          item.overview = getManualSynopsis(item.overview, item.title);
-        }
+  // If upstream returned null or empty results, fallback to popularity.desc
+  if (!upstreamData || !Array.isArray(upstreamData.results) || upstreamData.results.length === 0) {
+    if (mappedSort && mappedSort !== 'popularity.desc') {
+      const fallbackData = await fetchFromFrameXUpstream('/api/discover', {
+        type,
+        ...(genre && genre !== 'all' ? { genre } : {}),
+        ...(year && year !== 'all' ? { year } : {}),
+        ...(minRating ? { min_rating: minRating } : {}),
+        sort: 'popularity.desc',
+        page,
       });
+      if (fallbackData && Array.isArray(fallbackData.results) && fallbackData.results.length > 0) {
+        upstreamData = fallbackData;
+      }
     }
+  }
+
+  if (upstreamData) {
+    const rawResults = Array.isArray(upstreamData.results) ? upstreamData.results : [];
+    rawResults.forEach((item: any) => {
+      if (item && item.overview) {
+        item.overview = getManualSynopsis(item.overview, item.title);
+      }
+    });
+    upstreamData.results = rawResults;
     res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
     return res.status(200).json(upstreamData);
   }
@@ -1118,7 +1141,7 @@ async function probeMultiProviders(
   audio: string,
   preferredProvider?: string
 ): Promise<any> {
-  const backends = ['https://api.framextv.cc'];
+  const backends = ['https://api.framextv.cc', 'https://api.framextv.xyz'];
   const priorityList = audio === 'dub'
     ? ['grand_warden_dub', 'wizard_dub', 'valkyrie_dub', 'goblin_dub', 'dragon_dub', 'archer_dub']
     : ['grand_warden', 'wizard', 'super_pekka', 'giant', 'valkyrie', 'goblin', 'dragon', 'archer'];

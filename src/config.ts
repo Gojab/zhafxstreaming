@@ -106,7 +106,7 @@ export const CONFIG = {
   SORT_OPTIONS: [
     { value: 'popularity.desc', label: 'Paling Populer' },
     { value: 'vote_average.desc', label: 'Rating Tertinggi' },
-    { value: 'primary_release_date.desc', label: 'Terbaru' },
+    { value: 'year.desc', label: 'Terbaru' },
     { value: 'title.asc', label: 'Abjad (A - Z)' },
   ],
 

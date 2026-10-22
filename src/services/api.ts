@@ -415,12 +415,12 @@ export const api = {
 
     const url = `${CONFIG.API_BASE_URL}${CONFIG.ENDPOINTS.DISCOVER}?${q.toString()}`;
     const data = await fetchWithRetry<any>(url, { signal });
-    const results = data.results || [];
+    const results = Array.isArray(data?.results) ? data.results : [];
     return {
       titles: results.map((r: any) => normalize(r, type)),
-      page: data.page || 1,
-      totalPages: data.totalPages || 1,
-      totalResults: data.totalResults || results.length,
+      page: data?.page || 1,
+      totalPages: data?.totalPages || 1,
+      totalResults: data?.totalResults || results.length,
     };
   },
 
@@ -445,6 +445,7 @@ export const api = {
     const sortMap: Record<string, string> = {
       'popularity.desc': 'POPULARITY_DESC',
       'vote_average.desc': 'SCORE_DESC',
+      'year.desc': 'START_DATE_DESC',
       'primary_release_date.desc': 'START_DATE_DESC',
       'trending.desc': 'TRENDING_DESC',
       'title.asc': 'TITLE_ROMAJI',

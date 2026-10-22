@@ -313,8 +313,10 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
   const [currentServerIndex, setCurrentServerIndex] = useState(0);
   const [animeAudio, setAnimeAudio] = useState<'sub' | 'dub'>('sub');
 
-  // Player mode: Default to official FrameX Embed Server as requested
-  const [playerMode, setPlayerMode] = useState<'direct' | 'embed'>('embed');
+  // Player mode: For Anime, strictly use 100% Ad-Free Direct HLS Stream from FrameX. For Movie/TV, use FrameX Embed.
+  const [playerMode, setPlayerMode] = useState<'direct' | 'embed'>(
+    mediaType === 'anime' ? 'direct' : 'embed'
+  );
   const [streamData, setStreamData] = useState<StreamData | null>(null);
   const [isStreamLoading, setIsStreamLoading] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -353,6 +355,11 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
   const [episodesList, setEpisodesList] = useState<Episode[]>([]);
   const [showShareToast, setShowShareToast] = useState(false);
   const [isTipDismissed, setIsTipDismissed] = useState(false);
+
+  // Sync playerMode on mediaType changes
+  useEffect(() => {
+    setPlayerMode(mediaType === 'anime' ? 'direct' : 'embed');
+  }, [mediaType]);
 
   const { isSaved, toggle } = useMyList();
   const { setActiveMedia } = useActiveMedia();
@@ -714,23 +721,26 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
         } else {
           // Cascading fallback to next server
           const nextIdx = (safeServerIndex + 1) % activeServerList.length;
-          if (nextIdx !== 0) {
+          if (nextIdx !== 0 && nextIdx !== safeServerIndex) {
             setFailoverNotice(`Server ${activeServer.name} tidak merespons, beralih ke ${activeServerList[nextIdx].name}...`);
             setTimeout(() => setFailoverNotice(null), 3000);
             setCurrentServerIndex(nextIdx);
           } else {
-            // Direct HLS exhausted, seamlessly fallback to Embed player
-            setFailoverNotice('Beralih ke pemutar embed cadangan...');
-            setTimeout(() => setFailoverNotice(null), 3000);
-            setPlayerMode('embed');
+            // Direct HLS exhausted across all servers
+            setFailoverNotice('Stream sedang disiapkan oleh server FrameX, silakan coba sesaat lagi.');
+            setTimeout(() => setFailoverNotice(null), 4000);
             setIsStreamLoading(false);
           }
         }
       } catch (err: any) {
         if (!isMounted || controller.signal.aborted) return;
         console.warn('[Direct Anime Stream Error]:', err?.message || err);
-        setPlayerMode('embed');
-        setIsStreamLoading(false);
+        const nextIdx = (safeServerIndex + 1) % activeServerList.length;
+        if (nextIdx !== safeServerIndex && nextIdx !== 0) {
+          setCurrentServerIndex(nextIdx);
+        } else {
+          setIsStreamLoading(false);
+        }
       }
     };
 
@@ -1462,6 +1472,36 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
                   </div>
                 )}
 
+                {/* Stream Retry / Reconnect Overlay */}
+                {!isStreamLoading && !streamData?.sources?.length && (
+                  <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-zinc-950/90 backdrop-blur-md p-6 text-center space-y-3 pointer-events-auto">
+                    <AlertTriangle className="w-10 h-10 text-[#FFB224]" />
+                    <h3 className="text-sm font-bold text-white">Menghubungkan ke Server FrameX</h3>
+                    <p className="text-xs text-white/60 max-w-sm">
+                      Koneksi ke server {activeServer.name} sedang sibuk. Silakan coba sambungkan kembali atau pilih server lain.
+                    </p>
+                    <div className="flex items-center gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsStreamLoading(true);
+                          setIframeKey((k) => k + 1);
+                        }}
+                        className="px-4 py-2 rounded-full bg-[#FFB224] text-black text-xs font-bold hover:bg-[#FFA500] cursor-pointer"
+                      >
+                        Coba Sambungkan Lagi
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleNextServer}
+                        className="px-4 py-2 rounded-full bg-white/10 text-white text-xs font-semibold hover:bg-white/20 border border-white/15 cursor-pointer"
+                      >
+                        Ganti Server
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {/* Big Center Play/Pause button on pause */}
                 {!isPlaying && !isStreamLoading && (
                   <div
@@ -1499,20 +1539,10 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0">
-                      {/* Player Mode Switcher: Switch to Embed */}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setPlayerMode('embed');
-                          setIsIframeLoading(true);
-                          setIframeKey((k) => k + 1);
-                        }}
-                        className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/15 hover:bg-white/25 text-white text-[11px] font-semibold border border-white/20 transition-all active:scale-95 cursor-pointer shadow-md"
-                        title="Beralih ke Pemutar Embed Server"
-                      >
-                        <Server className="w-3 h-3 text-[#FFB224]" />
-                        <span className="hidden sm:inline">Mode Embed</span>
-                      </button>
+                      <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 text-[11px] font-bold shadow-sm">
+                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                        <span>FrameX HLS • Bebas Iklan</span>
+                      </div>
                     </div>
                   </div>
 
