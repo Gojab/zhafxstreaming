@@ -200,13 +200,13 @@ app.all('/api/proxy', async (req: Request, res: Response) => {
 
   const candidateUrls = [targetUrl];
   if (targetUrl.includes('framextv.tech')) {
-    candidateUrls.push(targetUrl.replace('framextv.tech', 'framextv.xyz'));
+    candidateUrls.push(targetUrl.replace('framextv.tech', 'framextv.cc'));
   } else if (targetUrl.includes('framextv.xyz')) {
-    candidateUrls.push(targetUrl.replace('framextv.xyz', 'framextv.tech'));
+    candidateUrls.push(targetUrl.replace('framextv.xyz', 'framextv.cc'));
   }
 
   const isPost = req.method === 'POST';
-  const isFrameX = targetUrl.includes('framextv.tech') || targetUrl.includes('framextv.xyz');
+  const isFrameX = targetUrl.includes('framextv.cc') || targetUrl.includes('framextv.tech') || targetUrl.includes('framextv.xyz');
 
   for (const candidate of candidateUrls) {
     try {
@@ -219,8 +219,8 @@ app.all('/api/proxy', async (req: Request, res: Response) => {
           'Accept': 'application/json, text/plain, */*',
           ...(isFrameX
             ? {
-                'Referer': 'https://framextv.xyz/',
-                'Origin': 'https://framextv.xyz',
+                'Referer': 'https://framextv.cc/',
+                'Origin': 'https://framextv.cc',
               }
             : {}),
           ...(isPost ? { 'Content-Type': 'application/json' } : {}),
@@ -420,8 +420,6 @@ app.get('/api/home', async (_req: Request, res: Response) => {
 // ==========================================
 const FRAMEX_API_BACKENDS = [
   'https://api.framextv.cc',
-  'https://api.framextv.tech',
-  'https://api.framextv.xyz',
 ];
 
 interface ServerApiCacheItem {
@@ -498,11 +496,11 @@ app.get('/api/discover', async (req: Request, res: Response) => {
       if (genre && genre !== 'all') q.set('genre', genre);
       if (year && year !== 'all') q.set('year', year);
 
-      const animeRes = await fetch(`https://api.framextv.tech/anime/api/discover?${q.toString()}`, {
+      const animeRes = await fetch(`https://api.framextv.cc/anime/api/discover?${q.toString()}`, {
         headers: {
           'User-Agent':
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-          Referer: 'https://framextv.xyz/',
+          Referer: 'https://framextv.cc/',
           Accept: 'application/json',
         },
         signal: AbortSignal.timeout(6000),
@@ -734,9 +732,7 @@ app.get('/api/search', async (req: Request, res: Response) => {
       tasks.push(
         (async () => {
           const animeHosts = [
-            'https://api.framextv.tech/anime/api/search',
             'https://api.framextv.cc/anime/api/search',
-            'https://api.framextv.xyz/anime/api/search',
           ];
           for (const host of animeHosts) {
             try {
@@ -744,7 +740,7 @@ app.get('/api/search', async (req: Request, res: Response) => {
                 headers: {
                   'User-Agent':
                     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-                  Referer: 'https://framextv.tech/',
+                  Referer: 'https://framextv.cc/',
                   Accept: 'application/json',
                 },
                 signal: AbortSignal.timeout(5500),
@@ -853,11 +849,11 @@ app.get('/api/providers', async (req: Request, res: Response) => {
 
   if (type === 'anime') {
     try {
-      const upstreamRes = await fetch('https://api.framextv.tech/anime/api/providers', {
+      const upstreamRes = await fetch('https://api.framextv.cc/anime/api/providers', {
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-          'Referer': 'https://framextv.xyz/',
-          'Origin': 'https://framextv.xyz',
+          'Referer': 'https://framextv.cc/',
+          'Origin': 'https://framextv.cc',
         },
       });
       if (upstreamRes.ok) {
@@ -870,14 +866,14 @@ app.get('/api/providers', async (req: Request, res: Response) => {
   }
 
   // Fetch Movie & TV Providers from FrameX upstream
-  const backends = ['https://api.framextv.tech', 'https://api.framextv.xyz'];
+  const backends = ['https://api.framextv.cc'];
   for (const backend of backends) {
     try {
       const upstreamRes = await fetch(`${backend}/api/providers`, {
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-          'Referer': 'https://framextv.xyz/',
-          'Origin': 'https://framextv.xyz',
+          'Referer': 'https://framextv.cc/',
+          'Origin': 'https://framextv.cc',
         },
         signal: AbortSignal.timeout(6000),
       });
@@ -982,11 +978,11 @@ app.post('/api/comments', (req: Request, res: Response) => {
 // Get FrameX Anime Providers
 app.get('/api/anime/providers', async (_req: Request, res: Response) => {
   try {
-    const upstreamRes = await fetch('https://api.framextv.tech/anime/api/providers', {
+    const upstreamRes = await fetch('https://api.framextv.cc/anime/api/providers', {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-        'Referer': 'https://framextv.xyz/',
-        'Origin': 'https://framextv.xyz',
+        'Referer': 'https://framextv.cc/',
+        'Origin': 'https://framextv.cc',
       },
     });
     if (upstreamRes.ok) {
@@ -1022,9 +1018,9 @@ app.get('/api/anime/providers', async (_req: Request, res: Response) => {
   });
 });
 
-// Helper: Query FrameX API directly to resolve anime ID or title (Strictly https://framextv.xyz, no AniList)
+// Helper: Query FrameX API directly to resolve anime ID or title (Strictly https://framextv.cc, no AniList)
 async function resolveAnimeId(id: string, title?: string): Promise<string | null> {
-  const backends = ['https://api.framextv.xyz', 'https://api.framextv.tech'];
+  const backends = ['https://api.framextv.cc'];
   const searchTerm = title && title.trim() ? title.trim() : (isNaN(Number(id)) ? id : null);
 
   if (searchTerm) {
@@ -1035,8 +1031,8 @@ async function resolveAnimeId(id: string, title?: string): Promise<string | null
           headers: {
             'User-Agent':
               'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-            'Referer': 'https://framextv.xyz/',
-            'Origin': 'https://framextv.xyz',
+            'Referer': 'https://framextv.cc/',
+            'Origin': 'https://framextv.cc',
           },
         });
         if (res.ok) {
@@ -1059,7 +1055,7 @@ function extractRealUrl(rawUrl: string, defaultRef = 'https://megaplay.buzz/'): 
   let referer = defaultRef;
 
   if (url.startsWith('/')) {
-    url = `https://api.framextv.tech${url}`;
+    url = `https://api.framextv.cc${url}`;
   }
 
   while (url.includes('/proxy?url=') || url.includes('/proxy/?url=') || url.includes('/subtitles/proxy?url=')) {
@@ -1101,8 +1097,8 @@ async function probeSingleProvider(
     signal: AbortSignal.timeout(timeoutMs),
     headers: {
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-      'Referer': 'https://framextv.xyz/',
-      'Origin': 'https://framextv.xyz',
+      'Referer': 'https://framextv.cc/',
+      'Origin': 'https://framextv.cc',
       'Accept': 'application/json, text/plain, */*',
     },
   });
@@ -1122,7 +1118,7 @@ async function probeMultiProviders(
   audio: string,
   preferredProvider?: string
 ): Promise<any> {
-  const backends = ['https://api.framextv.tech', 'https://api.framextv.xyz'];
+  const backends = ['https://api.framextv.cc'];
   const priorityList = audio === 'dub'
     ? ['grand_warden_dub', 'wizard_dub', 'valkyrie_dub', 'goblin_dub', 'dragon_dub', 'archer_dub']
     : ['grand_warden', 'wizard', 'super_pekka', 'giant', 'valkyrie', 'goblin', 'dragon', 'archer'];
@@ -1280,25 +1276,15 @@ app.all('/api/anime/proxy', async (req: Request, res: Response) => {
     reqHeaders['Range'] = req.headers.range;
   }
 
-  // Multi-tier candidates: direct CDN -> primary FrameX proxy -> secondary FrameX proxy
+  // Multi-tier candidates: direct CDN -> primary FrameX proxy
   const candidates: Array<{ url: string; headers: Record<string, string> }> = [
     { url: targetUrl, headers: reqHeaders },
     {
-      url: `https://api.framextv.tech/anime/api/proxy?url=${encodeURIComponent(targetUrl)}&ref=${encodeURIComponent(referer)}`,
+      url: `https://api.framextv.cc/anime/api/proxy?url=${encodeURIComponent(targetUrl)}&ref=${encodeURIComponent(referer)}`,
       headers: {
         'User-Agent': reqHeaders['User-Agent'],
-        'Referer': 'https://framextv.xyz/',
-        'Origin': 'https://framextv.xyz',
-        'Accept': '*/*',
-        ...(req.headers.range ? { 'Range': req.headers.range } : {}),
-      },
-    },
-    {
-      url: `https://api.framextv.xyz/anime/api/proxy?url=${encodeURIComponent(targetUrl)}&ref=${encodeURIComponent(referer)}`,
-      headers: {
-        'User-Agent': reqHeaders['User-Agent'],
-        'Referer': 'https://framextv.xyz/',
-        'Origin': 'https://framextv.xyz',
+        'Referer': 'https://framextv.cc/',
+        'Origin': 'https://framextv.cc',
         'Accept': '*/*',
         ...(req.headers.range ? { 'Range': req.headers.range } : {}),
       },
@@ -1488,7 +1474,7 @@ app.get('/api/stream', async (req: Request, res: Response) => {
     return res.status(400).json({ success: false, error: 'ID tayangan wajib diisi.' });
   }
 
-  const backends = ['https://api.framextv.tech', 'https://api.framextv.xyz'];
+  const backends = ['https://api.framextv.cc'];
   const q = new URLSearchParams();
   q.set('id', id);
   q.set('type', type);
@@ -1506,8 +1492,8 @@ app.get('/api/stream', async (req: Request, res: Response) => {
         headers: {
           'User-Agent':
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-          'Referer': 'https://framextv.xyz/',
-          'Origin': 'https://framextv.xyz',
+          'Referer': 'https://framextv.cc/',
+          'Origin': 'https://framextv.cc',
           'Accept': 'application/json, text/plain, */*',
         },
       });

@@ -257,6 +257,10 @@ function AppLayout() {
                   element={<PlayerPage onOpenAIWithContext={handleOpenAIWithContext} />}
                 />
                 <Route
+                  path="/watch/:type/:id/:episode"
+                  element={<PlayerPage onOpenAIWithContext={handleOpenAIWithContext} />}
+                />
+                <Route
                   path="/watch/:type/:id/:season/:episode"
                   element={<PlayerPage onOpenAIWithContext={handleOpenAIWithContext} />}
                 />

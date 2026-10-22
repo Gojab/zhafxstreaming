@@ -15,7 +15,7 @@ export default async function handler(req: any, res: any) {
 
   // 1. GET /api/anime/providers
   if (action === 'providers') {
-    const backends = ['https://api.framextv.tech', 'https://api.framextv.xyz'];
+    const backends = ['https://api.framextv.cc'];
     for (const backend of backends) {
       try {
         const controller = new AbortController();
@@ -25,8 +25,8 @@ export default async function handler(req: any, res: any) {
           signal: controller.signal,
           headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-            'Referer': 'https://framextv.xyz/',
-            'Origin': 'https://framextv.xyz',
+            'Referer': 'https://framextv.cc/',
+            'Origin': 'https://framextv.cc',
           },
         });
         clearTimeout(timeoutId);
@@ -64,19 +64,19 @@ export default async function handler(req: any, res: any) {
     });
   }
 
-  // Helper: Query FrameX API directly to resolve anime title or ID (Strictly https://framextv.xyz, no AniList)
+  // Helper: Query FrameX API directly to resolve anime title or ID (Strictly https://framextv.cc, no AniList)
   const resolveAnimeId = async (targetId: string, searchTitle?: string): Promise<string | null> => {
     const searchKey = searchTitle || (isNaN(Number(targetId)) ? targetId : null);
     if (!searchKey) return targetId ? String(targetId) : null;
-    const backends = ['https://api.framextv.xyz', 'https://api.framextv.tech'];
+    const backends = ['https://api.framextv.cc'];
     for (const backend of backends) {
       try {
         const r = await fetch(`${backend}/api/search?q=${encodeURIComponent(searchKey)}&type=anime`, {
           signal: AbortSignal.timeout(3000),
           headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-            'Referer': 'https://framextv.xyz/',
-            'Origin': 'https://framextv.xyz',
+            'Referer': 'https://framextv.cc/',
+            'Origin': 'https://framextv.cc',
           },
         });
         if (r.ok) {
@@ -111,8 +111,8 @@ export default async function handler(req: any, res: any) {
       signal: AbortSignal.timeout(timeoutMs),
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-        'Referer': 'https://framextv.xyz/',
-        'Origin': 'https://framextv.xyz',
+        'Referer': 'https://framextv.cc/',
+        'Origin': 'https://framextv.cc',
         'Accept': 'application/json, text/plain, */*',
       },
     });
@@ -132,7 +132,7 @@ export default async function handler(req: any, res: any) {
     audio: string,
     preferredProvider?: string
   ): Promise<any> => {
-    const backends = ['https://api.framextv.tech', 'https://api.framextv.xyz'];
+    const backends = ['https://api.framextv.cc'];
     const priorityList = audio === 'dub'
       ? ['grand_warden_dub', 'wizard_dub', 'valkyrie_dub', 'goblin_dub', 'dragon_dub', 'archer_dub']
       : ['grand_warden', 'wizard', 'super_pekka', 'giant', 'valkyrie', 'goblin', 'dragon', 'archer'];
@@ -212,7 +212,7 @@ export default async function handler(req: any, res: any) {
 
       let directUrl = rawUrl;
       if (directUrl.startsWith('/')) {
-        directUrl = `https://api.framextv.tech${directUrl}`;
+        directUrl = `https://api.framextv.cc${directUrl}`;
       }
 
       const proxiedUrl = `/api/anime/proxy?url=${encodeURIComponent(directUrl)}&ref=${encodeURIComponent(referer)}`;
@@ -235,7 +235,7 @@ export default async function handler(req: any, res: any) {
       ? finalData.subtitles.map((sub: any) => {
           let subUrl = sub.url || '';
           if (subUrl.startsWith('/')) {
-            subUrl = `https://api.framextv.tech${subUrl}`;
+            subUrl = `https://api.framextv.cc${subUrl}`;
           }
 
           const proxiedSubUrl = `/api/anime/subtitles?url=${encodeURIComponent(subUrl)}&lang=${encodeURIComponent(sub.lang || '')}&label=${encodeURIComponent(sub.label || '')}`;
@@ -285,21 +285,11 @@ export default async function handler(req: any, res: any) {
     const candidates: Array<{ url: string; headers: Record<string, string> }> = [
       { url: targetUrl, headers: reqHeaders },
       {
-        url: `https://api.framextv.tech/anime/api/proxy?url=${encodeURIComponent(targetUrl)}&ref=${encodeURIComponent(referer)}`,
+        url: `https://api.framextv.cc/anime/api/proxy?url=${encodeURIComponent(targetUrl)}&ref=${encodeURIComponent(referer)}`,
         headers: {
           'User-Agent': reqHeaders['User-Agent'],
-          'Referer': 'https://framextv.xyz/',
-          'Origin': 'https://framextv.xyz',
-          'Accept': '*/*',
-          ...(req.headers?.range ? { 'Range': req.headers.range } : {}),
-        },
-      },
-      {
-        url: `https://api.framextv.xyz/anime/api/proxy?url=${encodeURIComponent(targetUrl)}&ref=${encodeURIComponent(referer)}`,
-        headers: {
-          'User-Agent': reqHeaders['User-Agent'],
-          'Referer': 'https://framextv.xyz/',
-          'Origin': 'https://framextv.xyz',
+          'Referer': 'https://framextv.cc/',
+          'Origin': 'https://framextv.cc',
           'Accept': '*/*',
           ...(req.headers?.range ? { 'Range': req.headers.range } : {}),
         },
@@ -411,7 +401,7 @@ export default async function handler(req: any, res: any) {
       const upstreamRes = await fetch(targetUrl, {
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-          'Referer': 'https://framextv.xyz/',
+          'Referer': 'https://framextv.cc/',
         },
       });
 

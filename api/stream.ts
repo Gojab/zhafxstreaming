@@ -11,7 +11,7 @@ export default async function handler(req: any, res: any) {
   const isSeason = action === 'season' || Boolean(req.query?.is_season) || req.url?.includes('/season');
   const isProviders = action === 'providers' || Boolean(req.query?.is_providers) || req.url?.includes('/providers');
 
-  const backends = ['https://api.framextv.cc', 'https://api.framextv.tech', 'https://api.framextv.xyz'];
+  const backends = ['https://api.framextv.cc'];
 
   // 1. Handle Providers Requests
   if (isProviders) {
@@ -153,8 +153,8 @@ export default async function handler(req: any, res: any) {
         headers: {
           'User-Agent':
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-          'Referer': 'https://framextv.xyz/',
-          'Origin': 'https://framextv.xyz',
+          'Referer': 'https://framextv.cc/',
+          'Origin': 'https://framextv.cc',
           'Accept': 'application/json, text/plain, */*',
         },
       });

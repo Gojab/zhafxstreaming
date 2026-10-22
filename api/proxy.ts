@@ -16,14 +16,14 @@ export default async function handler(req: any, res: any) {
   const timeoutId = setTimeout(() => controller.abort(), 12000);
 
   const isPost = req.method === 'POST';
-  const isFrameX = targetUrl.includes('framextv.tech') || targetUrl.includes('framextv.xyz');
+  const isFrameX = targetUrl.includes('framextv.cc') || targetUrl.includes('framextv.tech') || targetUrl.includes('framextv.xyz');
 
-  // Candidate URLs with auto-failover between .xyz and .tech
+  // Candidate URLs with auto-failover to .cc
   const candidateUrls = [targetUrl];
   if (targetUrl.includes('framextv.tech')) {
-    candidateUrls.push(targetUrl.replace('framextv.tech', 'framextv.xyz'));
+    candidateUrls.push(targetUrl.replace('framextv.tech', 'framextv.cc'));
   } else if (targetUrl.includes('framextv.xyz')) {
-    candidateUrls.push(targetUrl.replace('framextv.xyz', 'framextv.tech'));
+    candidateUrls.push(targetUrl.replace('framextv.xyz', 'framextv.cc'));
   }
 
   for (const candidate of candidateUrls) {
@@ -34,8 +34,8 @@ export default async function handler(req: any, res: any) {
         'Accept': 'application/json, text/plain, */*',
         ...(isFrameX
           ? {
-              'Referer': 'https://framextv.xyz/',
-              'Origin': 'https://framextv.xyz',
+              'Referer': 'https://framextv.cc/',
+              'Origin': 'https://framextv.cc',
             }
           : {}),
         ...(isPost ? { 'Content-Type': 'application/json' } : {}),

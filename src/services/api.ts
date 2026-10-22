@@ -212,7 +212,7 @@ async function fetchWithRetry<T>(
 
       try {
         let requestUrl = url;
-        const isFrameX = url.includes('framextv.tech') || url.includes('framextv.xyz');
+        const isFrameX = url.includes('framextv.cc') || url.includes('framextv.tech') || url.includes('framextv.xyz');
 
         // FrameX does not send browser CORS headers, proxy directly or on retry
         if ((isFrameX || attempt > 0) && useProxyFallback && !url.startsWith('/api')) {
@@ -1077,7 +1077,7 @@ export const api = {
         const directSources = data.sources.map((src: any) => {
           let u = src.url || src.proxiedUrl || '';
           if (u.startsWith('/') && !u.startsWith('/api')) {
-            u = `https://api.framextv.tech${u}`;
+            u = `https://api.framextv.cc${u}`;
           }
           return {
             ...src,
@@ -1092,7 +1092,7 @@ export const api = {
           ? data.subtitles.map((sub: any) => {
               let u = sub.url || sub.proxiedUrl || '';
               if (u.startsWith('/') && !u.startsWith('/api')) {
-                u = `https://api.framextv.tech${u}`;
+                u = `https://api.framextv.cc${u}`;
               }
               return {
                 ...sub,
@@ -1119,7 +1119,7 @@ export const api = {
     }
 
     // 2. Resilient failover directly to FrameX upstream backends (routed through web app /api/anime/proxy)
-    const backends = ['https://api.framextv.tech', 'https://api.framextv.xyz'];
+    const backends = ['https://api.framextv.cc'];
     for (const backend of backends) {
       try {
         const targetUrl = `${backend}/anime/api/stream?${queryStr}`;
@@ -1228,7 +1228,7 @@ export const api = {
     }
 
     // 2. Direct proxy fallback
-    const backends = ['https://api.framextv.tech', 'https://api.framextv.xyz'];
+    const backends = ['https://api.framextv.cc'];
     for (const backend of backends) {
       try {
         const targetUrl = `${backend}/api/stream?${queryStr}`;

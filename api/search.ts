@@ -17,9 +17,9 @@ export default async function handler(req: any, res: any) {
 
   const queryClean = q.trim();
 
-  // Multi-backend endpoints with resilience
-  const backends = ['https://api.framextv.tech', 'https://api.framextv.cc', 'https://api.framextv.xyz'];
-  const animeBackends = ['https://api.framextv.tech/anime', 'https://api.framextv.cc/anime', 'https://api.framextv.xyz/anime'];
+  // Multi-backend endpoints with resilience (Strictly framextv.cc)
+  const backends = ['https://api.framextv.cc'];
+  const animeBackends = ['https://api.framextv.cc/anime'];
 
   // Common typo alias map for instant resolution
   const TYPO_MAP: Record<string, string> = {
@@ -72,7 +72,7 @@ export default async function handler(req: any, res: any) {
               const r = await fetch(`${backend}/api/search?${movieTvParams.toString()}`, {
                 headers: {
                   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-                  Referer: 'https://framextv.tech/',
+                  Referer: 'https://framextv.cc/',
                   Accept: 'application/json',
                 },
                 signal: AbortSignal.timeout(5500),
@@ -99,7 +99,7 @@ export default async function handler(req: any, res: any) {
               const r = await fetch(`${ab}/api/search?${animeParams.toString()}`, {
                 headers: {
                   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-                  Referer: 'https://framextv.tech/',
+                  Referer: 'https://framextv.cc/',
                   Accept: 'application/json',
                 },
                 signal: AbortSignal.timeout(5500),

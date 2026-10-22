@@ -285,8 +285,24 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
   const mediaType: MediaType =
     rawType === 'tv' || rawType === 'anime' || rawType === 'movie' ? rawType : 'movie';
 
-  const seasonNum = parseInt(rawSeason || '1', 10);
-  const episodeNum = parseInt(rawEpisode || '1', 10);
+  let seasonNum = 1;
+  let episodeNum = 1;
+
+  if (rawEpisode !== undefined) {
+    seasonNum = parseInt(rawSeason || '1', 10);
+    episodeNum = parseInt(rawEpisode || '1', 10);
+  } else if (rawSeason !== undefined) {
+    if (mediaType === 'anime') {
+      seasonNum = 1;
+      episodeNum = parseInt(rawSeason, 10);
+    } else {
+      seasonNum = parseInt(rawSeason, 10);
+      episodeNum = 1;
+    }
+  }
+
+  if (isNaN(seasonNum) || seasonNum < 1) seasonNum = 1;
+  if (isNaN(episodeNum) || episodeNum < 1) episodeNum = 1;
 
   // Validation: Check if ID and Episode are valid
   const isIdValid = Boolean(id && String(id).trim() !== '' && String(id) !== 'undefined' && String(id) !== 'null');
@@ -1633,7 +1649,7 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
               </div>
             ) : (
               /* =========================================================
-                 2. Official FrameX Embed Iframe (With iOS optimizations)
+                 2. Official FrameX Embed Iframe (With iOS optimizations, No Sandbox)
                  ========================================================= */
               <iframe
                 key={`${id}-${mediaType}-${seasonNum}-${episodeNum}-${safeServerIndex}-${iframeKey}-${animeAudio}`}
@@ -1648,7 +1664,6 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
                 // @ts-ignore
                 mozallowfullscreen="true"
                 allow="autoplay *; fullscreen *; picture-in-picture *; encrypted-media *; accelerometer *; gyroscope *; clipboard-write *; web-share *"
-                sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
                 referrerPolicy="origin"
                 loading="eager"
                 title={title?.title || 'Zhafx Stream Player'}
@@ -1910,56 +1925,35 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
                 Pilihan Server
               </span>
 
-              {/* Anime Player Mode & Sub/Dub Selector */}
+              {/* Anime Sub/Dub Selector (Official FrameX Engine) */}
               {mediaType === 'anime' && (
                 <div className="flex items-center gap-2 flex-wrap">
-                  {/* Mode Selector */}
                   <div className="flex items-center p-0.5 rounded-full bg-white/10 border border-white/15 text-[11px]">
-                    <button
-                      type="button"
-                      onClick={() => setPlayerMode('direct')}
-                      className={`px-2.5 py-1 rounded-full font-bold transition-all cursor-pointer flex items-center gap-1 ${
-                        playerMode === 'direct' ? 'bg-[#FFB224] text-black shadow-sm' : 'text-white/70 hover:text-white'
-                      }`}
-                      title="Mode HLS Native (Optimal untuk iOS & bebas iklan)"
-                    >
-                      <Zap className="w-3 h-3" />
-                      <span>HLS Native (iOS)</span>
-                    </button>
                     <button
                       type="button"
                       onClick={() => {
-                        setPlayerMode('embed');
+                        setAnimeAudio('sub');
                         setIsIframeLoading(true);
                         setIframeKey((k) => k + 1);
                       }}
-                      className={`px-2.5 py-1 rounded-full font-bold transition-all cursor-pointer flex items-center gap-1 ${
-                        playerMode === 'embed' ? 'bg-[#FFB224] text-black shadow-sm' : 'text-white/70 hover:text-white'
+                      className={`px-3 py-1 rounded-full font-bold transition-all cursor-pointer ${
+                        animeAudio === 'sub' ? 'bg-[#FFB224] text-black shadow-sm' : 'text-white/70 hover:text-white'
                       }`}
-                      title="Mode FrameX Embed Server"
-                    >
-                      <Server className="w-3 h-3" />
-                      <span>Embed Server</span>
-                    </button>
-                  </div>
-
-                  {/* Sub/Dub Selector */}
-                  <div className="flex items-center p-0.5 rounded-full bg-white/10 border border-white/15 text-[11px]">
-                    <button
-                      type="button"
-                      onClick={() => setAnimeAudio('sub')}
-                      className={`px-2.5 py-1 rounded-full font-bold transition-all cursor-pointer ${
-                        animeAudio === 'sub' ? 'bg-[#FFB224] text-black' : 'text-white/70 hover:text-white'
-                      }`}
+                      title="Audio Asli / Japanese Audio dengan Subtitle"
                     >
                       SUB (Jepang)
                     </button>
                     <button
                       type="button"
-                      onClick={() => setAnimeAudio('dub')}
-                      className={`px-2.5 py-1 rounded-full font-bold transition-all cursor-pointer ${
-                        animeAudio === 'dub' ? 'bg-[#FFB224] text-black' : 'text-white/70 hover:text-white'
+                      onClick={() => {
+                        setAnimeAudio('dub');
+                        setIsIframeLoading(true);
+                        setIframeKey((k) => k + 1);
+                      }}
+                      className={`px-3 py-1 rounded-full font-bold transition-all cursor-pointer ${
+                        animeAudio === 'dub' ? 'bg-[#FFB224] text-black shadow-sm' : 'text-white/70 hover:text-white'
                       }`}
+                      title="Audio Sulih Suara (Dubbing)"
                     >
                       DUB (Inggris)
                     </button>
