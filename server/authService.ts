@@ -41,10 +41,22 @@ export interface StoredOtp {
   ip?: string;
 }
 
+export interface AuthComment {
+  id: string;
+  contentId: string;
+  mediaType: string;
+  userId: string;
+  userName: string;
+  rating?: number;
+  text?: string;
+  createdAt: number;
+}
+
 export interface AuthDb {
   users: StoredUser[];
   sessions: StoredSession[];
   otps: StoredOtp[];
+  comments?: AuthComment[];
 }
 
 export function initAuthDb(): AuthDb {

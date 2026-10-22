@@ -18,6 +18,8 @@ import {
   IoPeopleOutline as Users,
   IoMicOutline as Mic,
   IoCloseOutline as X,
+  IoChatbubbleEllipsesOutline as MessageCircle,
+  IoSendOutline as Send,
 } from 'react-icons/io5';
 import { api } from '../services/api';
 import { Title, Episode, MediaType, CastMember, VideoTrailer } from '../types';
@@ -59,6 +61,11 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
 
   // Share feedback toast
   const [showShareToast, setShowShareToast] = useState(false);
+  const [comments, setComments] = useState<Array<{ id: string; userName: string; text?: string; rating?: number; createdAt: number }>>([]);
+  const [commentText, setCommentText] = useState('');
+  const [selectedRating, setSelectedRating] = useState(0);
+  const [isSubmittingComment, setIsSubmittingComment] = useState(false);
+  const [commentError, setCommentError] = useState<string | null>(null);
 
   const { isSaved, toggle } = useMyList();
   const { setActiveMedia } = useActiveMedia();
@@ -103,6 +110,44 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
     loadDetails(controller.signal);
     return () => controller.abort();
   }, [id, mediaType]);
+
+  useEffect(() => {
+    if (!id) return;
+    fetch(`/api/comments?contentId=${encodeURIComponent(id)}`, { signal: AbortSignal.timeout(8000) })
+      .then((response) => (response.ok ? response.json() : Promise.reject(new Error('Gagal memuat komentar.'))))
+      .then((data) => setComments(Array.isArray(data.comments) ? data.comments : []))
+      .catch(() => setCommentError('Komentar belum dapat dimuat.'));
+  }, [id]);
+
+  const submitComment = async () => {
+    const user = storage.getUser();
+    if (!user) {
+      setCommentError('Kalau mau yapping, login dulu.');
+      return;
+    }
+    if (!commentText.trim() && !selectedRating) {
+      setCommentError('Tulis komentar atau pilih rating dulu.');
+      return;
+    }
+    setIsSubmittingComment(true);
+    setCommentError(null);
+    try {
+      const response = await fetch('/api/comments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${storage.getToken() || ''}` },
+        body: JSON.stringify({ contentId: id, mediaType, text: commentText, rating: selectedRating || undefined }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Gagal mengirim komentar.');
+      setComments((current) => [data.comment, ...current]);
+      setCommentText('');
+      setSelectedRating(0);
+    } catch (submissionError: any) {
+      setCommentError(submissionError.message || 'Gagal mengirim komentar.');
+    } finally {
+      setIsSubmittingComment(false);
+    }
+  };
 
   // Load episodes when season changes for TV series
   useEffect(() => {
@@ -767,6 +812,48 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
           </div>
         </div>
       )}
+
+      {/* Comments & Ratings */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8 space-y-4 pt-2" aria-labelledby="comments-heading">
+        <div className="flex items-center gap-2.5">
+          <div className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center text-white">
+            <MessageCircle className="w-4 h-4" />
+          </div>
+          <div>
+            <h2 id="comments-heading" className="text-lg sm:text-xl font-bold text-white tracking-tight">Komentar & Rating</h2>
+            <p className="text-xs text-white/50">Bagikan pendapatmu tentang tayangan ini</p>
+          </div>
+        </div>
+        <div className="rounded-[24px] liquid-glass p-4 sm:p-5 space-y-4">
+          <div className="flex items-center gap-1" aria-label="Pilih rating dari 1 sampai 5">
+            <span className="text-xs text-white/60 mr-2">Rating</span>
+            {[1, 2, 3, 4, 5].map((value) => (
+              <button key={value} type="button" onClick={() => setSelectedRating(value)} aria-label={`${value} bintang`} className="p-1 cursor-pointer">
+                <Star className={`w-5 h-5 ${value <= selectedRating ? 'text-amber-300 fill-current' : 'text-white/30'}`} />
+              </button>
+            ))}
+          </div>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <textarea value={commentText} onChange={(event) => setCommentText(event.target.value)} maxLength={1000} rows={2} placeholder="Tulis yapping kamu..." className="flex-1 resize-none rounded-2xl bg-black/20 border border-white/10 px-4 py-3 text-sm text-white placeholder:text-white/35 outline-none focus:border-white/30" />
+            <button type="button" onClick={submitComment} disabled={isSubmittingComment} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white text-black px-5 py-3 text-xs font-bold disabled:opacity-50 cursor-pointer">
+              <Send className="w-4 h-4" /> {isSubmittingComment ? 'Mengirim...' : 'Kirim'}
+            </button>
+          </div>
+          {commentError && <p className="text-xs text-rose-300">{commentError}</p>}
+          {!storage.getUser() && <p className="text-xs text-white/45">Kalau mau yapping, login dulu.</p>}
+          <div className="space-y-3">
+            {comments.length === 0 ? <p className="text-sm text-white/45">Belum ada komentar. Jadilah yang pertama.</p> : comments.map((comment) => (
+              <article key={comment.id} className="border-t border-white/10 pt-3">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-sm font-semibold text-white">{comment.userName}</span>
+                  {comment.rating && <span className="inline-flex items-center gap-1 text-xs text-amber-300"><Star className="w-3.5 h-3.5 fill-current" />{comment.rating}/5</span>}
+                </div>
+                {comment.text && <p className="text-sm text-white/75 mt-1 leading-relaxed">{comment.text}</p>}
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
 
       {/* Similar Titles Row */}
       {title.similar && title.similar.length > 0 && (

@@ -909,6 +909,38 @@ app.get('/api/providers', async (req: Request, res: Response) => {
 });
 
 // ==========================================
+// Comments & ratings (authenticated users only)
+// ==========================================
+app.get('/api/comments', (req: Request, res: Response) => {
+  const contentId = String(req.query.contentId || '').trim();
+  if (!contentId) return res.status(400).json({ error: 'contentId wajib diisi.' });
+  const db = readAuthDb();
+  const comments = (db.comments || []).filter((comment: any) => comment.contentId === contentId);
+  return res.json({ comments: comments.sort((a: any, b: any) => b.createdAt - a.createdAt) });
+});
+
+app.post('/api/comments', (req: Request, res: Response) => {
+  const userId = getUserIdFromAuthHeader(req);
+  if (!userId) return res.status(401).json({ error: 'Silakan login dulu untuk yapping.' });
+  const { contentId, mediaType, text, rating } = req.body || {};
+  const cleanText = typeof text === 'string' ? text.trim().slice(0, 1000) : '';
+  const numericRating = rating === undefined || rating === null || rating === '' ? undefined : Number(rating);
+  if (!contentId || (!cleanText && numericRating === undefined)) {
+    return res.status(400).json({ error: 'Komentar atau rating wajib diisi.' });
+  }
+  if (numericRating !== undefined && (!Number.isInteger(numericRating) || numericRating < 1 || numericRating > 5)) {
+    return res.status(400).json({ error: 'Rating harus antara 1 sampai 5.' });
+  }
+  const db = readAuthDb();
+  const user = db.users.find((item) => item.id === userId);
+  if (!user) return res.status(401).json({ error: 'Sesi login tidak valid.' });
+  const comment = { id: crypto.randomUUID(), contentId: String(contentId), mediaType: String(mediaType || 'movie'), userId, userName: user.name || user.email, text: cleanText || undefined, rating: numericRating, createdAt: Date.now() };
+  db.comments = [comment, ...(db.comments || [])].slice(0, 5000);
+  writeAuthDb(db);
+  return res.status(201).json({ comment });
+});
+
+// ==========================================
 // Native Anime Stream & Proxy (FrameX API Engine)
 // ==========================================
 
