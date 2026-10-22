@@ -196,11 +196,20 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
       onLogout();
     } else {
       try {
+        await fetch('/api/auth/logout', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${storage.getToken() || ''}`,
+          },
+        });
+      } catch {}
+      try {
         await supabase.auth.signOut();
       } catch {
         // silent
       }
       storage.clearAuth();
+      setCurrentUser(null);
       window.dispatchEvent(new Event('zhafx_auth_change'));
     }
   };

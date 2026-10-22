@@ -45,15 +45,20 @@ export const DashboardPage: React.FC = () => {
   const [copiedId, setCopiedId] = useState(false);
 
   useEffect(() => {
-    const u = storage.getUser();
-    if (!u) {
-      navigate('/');
-      return;
-    }
-    setCurrentUser(u);
-    setName(u.name || '');
-    setEmail(u.email || '');
-    setAvatar(u.avatar || '');
+    const syncUser = () => {
+      const u = storage.getUser();
+      if (!u) {
+        navigate('/');
+        return;
+      }
+      setCurrentUser(u);
+      setName(u.name || '');
+      setEmail(u.email || '');
+      setAvatar(u.avatar || '');
+    };
+    syncUser();
+    window.addEventListener('zhafx_auth_change', syncUser);
+    return () => window.removeEventListener('zhafx_auth_change', syncUser);
   }, [navigate]);
 
   const handleCopyId = () => {
@@ -163,12 +168,12 @@ export const DashboardPage: React.FC = () => {
           Authorization: `Bearer ${storage.getToken() || ''}`,
         },
       });
+    } catch {}
+    try {
       await supabase.auth.signOut();
-    } catch {
-      // silent
-    }
-    storage.removeToken();
-    storage.removeUser();
+    } catch {}
+    storage.clearAuth();
+    setCurrentUser(null);
     window.dispatchEvent(new Event('zhafx_auth_change'));
     navigate('/');
   };

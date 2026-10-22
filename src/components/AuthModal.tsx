@@ -39,6 +39,19 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
+  // Reset form when modal opens to ensure a fresh session and prevent old account data leakage
+  useEffect(() => {
+    if (isOpen) {
+      setError(null);
+      setSuccessMessage(null);
+      setIsLoading(false);
+      setIsGoogleLoading(false);
+      setEmail('');
+      setPassword('');
+      setName('');
+    }
+  }, [isOpen]);
+
   // Close on ESC & freeze background scroll
   useEffect(() => {
     if (!isOpen) return;
@@ -89,16 +102,19 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
   }, [isOpen]);
 
   const handleFinishAuth = (user: User, token: string, msg: string) => {
+    // Save fresh user and token
     storage.saveToken(token);
     storage.saveUser(user);
     setSuccessMessage(msg);
     setIsLoading(false);
     setIsGoogleLoading(false);
     window.dispatchEvent(new Event('zhafx_auth_change'));
+    window.dispatchEvent(new Event('zhafx_storage_change'));
+    window.dispatchEvent(new Event('storage'));
     setTimeout(() => {
       onSuccess?.(user);
       onClose();
-    }, 1000);
+    }, 600);
   };
 
   // Google OAuth Login
@@ -174,7 +190,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
     }
   };
 
-  // Email/password auth handled directly by Supabase Auth (Serverless Auth)
+  // Email/password auth handled with Supabase Auth + local backend fallback for reliable multi-account support
   const handlePasswordAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleanEmail = email.trim().toLowerCase();
@@ -192,64 +208,134 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
     setError(null);
     setSuccessMessage(null);
 
+    // Completely clear any previous session before authenticating new account
     try {
       await supabase.auth.signOut().catch(() => {});
-      storage.clearAuth();
+    } catch {}
+    storage.clearAuth();
 
+    try {
       if (mode === 'register') {
-        const { data, error: signUpError } = await supabase.auth.signUp({
-          email: cleanEmail,
-          password,
-          options: {
-            data: {
-              name: name.trim() || cleanEmail.split('@')[0],
+        let registeredUser: User | null = null;
+        let registeredToken: string | null = null;
+
+        // 1. Try Supabase signUp
+        try {
+          const { data, error: signUpError } = await supabase.auth.signUp({
+            email: cleanEmail,
+            password,
+            options: {
+              data: {
+                name: name.trim() || cleanEmail.split('@')[0],
+              },
             },
-          },
-        });
+          });
 
-        if (signUpError) throw signUpError;
+          if (!signUpError && data?.user) {
+            registeredUser = {
+              id: data.user.id,
+              email: data.user.email || cleanEmail,
+              name: String(data.user.user_metadata?.name || name.trim() || cleanEmail.split('@')[0]),
+              avatar: data.user.user_metadata?.avatar_url,
+              joinedAt: new Date(data.user.created_at).getTime(),
+            };
+            if (data.session) {
+              registeredToken = data.session.access_token;
+            }
+          }
+        } catch {
+          // continue to backend sync
+        }
 
-        const authUser = data.user;
-        const session = data.session;
+        // 2. Also register in local server DB
+        try {
+          const res = await fetch('/api/auth/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              name: name.trim() || cleanEmail.split('@')[0],
+              email: cleanEmail,
+              password,
+            }),
+          });
+          const serverData = await res.json().catch(() => ({}));
+          if (res.ok && serverData.success && serverData.user && serverData.token) {
+            registeredUser = serverData.user;
+            registeredToken = serverData.token;
+          }
+        } catch {}
 
-        if (session && authUser) {
-          const user: User = {
-            id: authUser.id,
-            email: authUser.email || cleanEmail,
-            name: String(authUser.user_metadata?.name || cleanEmail.split('@')[0]),
-            avatar: authUser.user_metadata?.avatar_url,
-            joinedAt: new Date(authUser.created_at).getTime(),
-          };
-          handleFinishAuth(user, session.access_token, `Pendaftaran berhasil! Selamat datang, ${user.name}.`);
-        } else {
+        if (registeredUser && registeredToken) {
+          handleFinishAuth(registeredUser, registeredToken, `Pendaftaran berhasil! Selamat datang, ${registeredUser.name}.`);
+        } else if (registeredUser) {
           setIsLoading(false);
           setSuccessMessage(
             'Pendaftaran berhasil! Tautan konfirmasi telah dikirim ke email Anda. Silakan periksa kotak masuk atau spam.'
           );
+        } else {
+          throw new Error('Pendaftaran gagal. Silakan periksa kembali data Anda.');
         }
       } else {
-        const { data, error: signInError } = await supabase.auth.signInWithPassword({
-          email: cleanEmail,
-          password,
-        });
+        // Mode: 'login'
+        let loggedInUser: User | null = null;
+        let loggedInToken: string | null = null;
+        let lastErrorMsg = '';
 
-        if (signInError) throw signInError;
+        // 1. Try Supabase Auth first
+        try {
+          const { data, error: signInError } = await supabase.auth.signInWithPassword({
+            email: cleanEmail,
+            password,
+          });
 
-        const authUser = data.user;
-        const session = data.session;
-
-        if (!authUser || !session) {
-          throw new Error('Sesi login tidak valid. Silakan coba lagi.');
+          if (!signInError && data?.session && data?.user) {
+            loggedInUser = {
+              id: data.user.id,
+              email: data.user.email || cleanEmail,
+              name: String(data.user.user_metadata?.name || cleanEmail.split('@')[0]),
+              avatar: data.user.user_metadata?.avatar_url,
+              joinedAt: new Date(data.user.created_at).getTime(),
+            };
+            loggedInToken = data.session.access_token;
+          } else if (signInError) {
+            lastErrorMsg = signInError.message;
+          }
+        } catch (sbErr: any) {
+          lastErrorMsg = sbErr?.message || '';
         }
 
-        const user: User = {
-          id: authUser.id,
-          email: authUser.email || cleanEmail,
-          name: String(authUser.user_metadata?.name || cleanEmail.split('@')[0]),
-          avatar: authUser.user_metadata?.avatar_url,
-          joinedAt: new Date(authUser.created_at).getTime(),
-        };
-        handleFinishAuth(user, session.access_token, `Berhasil masuk! Selamat datang kembali, ${user.name}.`);
+        // 2. If not authenticated via Supabase, fallback to native server /api/auth/login
+        if (!loggedInUser || !loggedInToken) {
+          try {
+            const res = await fetch('/api/auth/login', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                login: cleanEmail,
+                password,
+              }),
+            });
+            const serverData = await res.json().catch(() => ({}));
+            if (res.ok && serverData.success && serverData.user && serverData.token) {
+              loggedInUser = serverData.user;
+              loggedInToken = serverData.token;
+            } else if (serverData.error) {
+              lastErrorMsg = serverData.error;
+            }
+          } catch {}
+        }
+
+        if (!loggedInUser || !loggedInToken) {
+          if (lastErrorMsg.includes('Invalid login credentials') || lastErrorMsg.includes('tidak cocok') || lastErrorMsg.includes('salah')) {
+            throw new Error('Email atau kata sandi tidak cocok. Silakan periksa kembali.');
+          } else if (lastErrorMsg.includes('Email not confirmed')) {
+            throw new Error('Email belum dikonfirmasi. Periksa kotak masuk untuk tautan verifikasi.');
+          } else {
+            throw new Error(lastErrorMsg || 'Email atau kata sandi tidak cocok. Silakan periksa kembali.');
+          }
+        }
+
+        handleFinishAuth(loggedInUser, loggedInToken, `Berhasil masuk! Selamat datang kembali, ${loggedInUser.name}.`);
       }
     } catch (err: any) {
       setIsLoading(false);

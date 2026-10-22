@@ -132,6 +132,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAI, onOpenFeatures, onOpen
       // silent
     }
     storage.clearAuth();
+    setUser(null);
     setIsProfileMenuOpen(false);
   };
 

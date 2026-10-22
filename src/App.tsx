@@ -55,7 +55,7 @@ function AppLayout() {
 
   // Validate active session on mount & handle OAuth redirect tokens
   useEffect(() => {
-    // Check if token is passed via OAuth redirect callback (?token=... or ?auth_token=...)
+    // 1. Check if token is passed via OAuth redirect callback (?token=... or ?auth_token=...)
     try {
       const searchParams = new URLSearchParams(window.location.search);
       const urlToken = searchParams.get('token') || searchParams.get('auth_token');
@@ -66,11 +66,41 @@ function AppLayout() {
         const cleanQuery = searchParams.toString();
         const cleanUrl = window.location.pathname + (cleanQuery ? `?${cleanQuery}` : '') + window.location.hash;
         window.history.replaceState(null, '', cleanUrl);
+
+        // Fetch user data for this token
+        fetch('/api/auth/me', {
+          headers: { Authorization: `Bearer ${urlToken}` },
+        })
+          .then((res) => (res.ok ? res.json() : null))
+          .then((data) => {
+            if (data?.user) {
+              storage.saveUser(data.user);
+            }
+          })
+          .catch(() => {});
       }
     } catch {
       // safe fallback
     }
 
+    // 2. Validate and refresh existing session from server in background if token exists
+    const activeToken = storage.getToken();
+    if (activeToken) {
+      fetch('/api/auth/me', {
+        headers: { Authorization: `Bearer ${activeToken}` },
+      })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (data?.user) {
+            storage.saveUser(data.user);
+          }
+        })
+        .catch(() => {
+          // Keep existing local user on offline or temporary network hiccups
+        });
+    }
+
+    // 3. Sync Supabase session if present
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session?.user) return;
       const authUser = session.user;
@@ -82,23 +112,26 @@ function AppLayout() {
         avatar: authUser.user_metadata?.avatar_url,
         joinedAt: new Date(authUser.created_at).getTime(),
       });
-    });
+    }).catch(() => {});
 
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!session) {
-        storage.removeToken();
-        storage.removeUser();
+    // 4. Listen for auth changes WITHOUT nuking storage on INITIAL_SESSION
+    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') {
+        storage.clearAuth();
         return;
       }
-      const authUser = session.user;
-      storage.saveToken(session.access_token);
-      storage.saveUser({
-        id: authUser.id,
-        email: authUser.email || '',
-        name: String(authUser.user_metadata?.name || authUser.email?.split('@')[0] || 'Pengguna'),
-        avatar: authUser.user_metadata?.avatar_url,
-        joinedAt: new Date(authUser.created_at).getTime(),
-      });
+
+      if (session?.user && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED')) {
+        const authUser = session.user;
+        storage.saveToken(session.access_token);
+        storage.saveUser({
+          id: authUser.id,
+          email: authUser.email || '',
+          name: String(authUser.user_metadata?.name || authUser.email?.split('@')[0] || 'Pengguna'),
+          avatar: authUser.user_metadata?.avatar_url,
+          joinedAt: new Date(authUser.created_at).getTime(),
+        });
+      }
     });
 
     return () => listener.subscription.unsubscribe();
