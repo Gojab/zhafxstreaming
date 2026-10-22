@@ -1,5 +1,3 @@
-import { resolveNonoyaAnimeStream, resolveOtakudesuServer, extractDirectMedia } from '../../server/nonoyaAnime.ts';
-
 export default async function handler(req: any, res: any) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, POST, OPTIONS');
@@ -18,32 +16,18 @@ export default async function handler(req: any, res: any) {
   // 1. GET /api/anime/providers
   if (action === 'providers') {
     return res.status(200).json({
-      engine: 'nonoya-api',
       providers: [
-        { id: 'nonoya_fast', name: 'Server 1 (Nonoya Fast)', tagline: 'Otakudesu Cloud HD • 100% Bebas Iklan', audio: 'sub', category: 'anime', isNonoya: true, status: 'available' },
-        { id: 'nonoya_odcdn', name: 'Server 2 (ODStream)', tagline: 'ODStream 720p/1080p Direct • Bebas Iklan', audio: 'sub', category: 'anime', isNonoya: true, status: 'available' },
-        { id: 'nonoya_desu', name: 'Server 3 (DesuStream)', tagline: 'DesuStream Cloud • Bebas Iklan', audio: 'sub', category: 'anime', isNonoya: true, status: 'available' },
-        { id: 'nonoya_vidhide', name: 'Server 4 (VidHide)', tagline: 'VidHide Multi-Quality • Anti-Popup', audio: 'sub', category: 'anime', isNonoya: true, status: 'available' },
-        { id: 'nonoya_anoboy', name: 'Server 5 (Anoboy)', tagline: 'Anoboy Multi-Server • Sub Indo', audio: 'sub', category: 'anime', isNonoya: true, status: 'available' },
-        { id: 'framex_cloud', name: 'Server 6 (FrameX Backup)', tagline: 'FrameX Multi-CDN Cadangan', audio: 'sub', category: 'anime', isNonoya: false, status: 'available' },
+        { id: 'grand_warden', name: 'Grand Warden XI', tagline: 'Multi-Source Cloud • 1080p Ultra Fast', audio: 'sub', category: 'anime', status: 'active' },
+        { id: 'grand_warden_dub', name: 'Grand Warden XI (Dub)', tagline: 'Multi-Source Cloud Dub', audio: 'dub', category: 'anime', status: 'active' },
+        { id: 'wizard', name: 'Wizard I', tagline: 'Dual Audio & Softsub • Ultra Fast', audio: 'sub', category: 'anime', status: 'active' },
+        { id: 'wizard_dub', name: 'Wizard I (Dub)', tagline: 'Dual Audio & Softsub • Ultra Fast', audio: 'dub', category: 'anime', status: 'active' },
+        { id: 'valkyrie', name: 'Valkyrie II', tagline: 'FlixCloud HD • Fast Stream', audio: 'sub', category: 'anime', status: 'active' },
+        { id: 'valkyrie_dub', name: 'Valkyrie II (Dub)', tagline: 'FlixCloud Dub HD', audio: 'dub', category: 'anime', status: 'active' },
+        { id: 'goblin', name: 'Goblin V', tagline: 'Direct Fast Auto Stream', audio: 'sub', category: 'anime', status: 'active' },
+        { id: 'goblin_dub', name: 'Goblin V (Dub)', tagline: 'Direct Fast Auto Stream Dub', audio: 'dub', category: 'anime', status: 'active' },
+        { id: 'giant', name: 'Giant IX', tagline: 'Ultra High Speed Cloud Server', audio: 'sub', category: 'anime', status: 'active' },
+        { id: 'super_pekka', name: 'Super PEKKA X', tagline: '1080p Ultra High Bitrate', audio: 'sub', category: 'anime', status: 'active' },
       ],
-    });
-  }
-
-  // 1b. GET /api/anime/server
-  if (action === 'server') {
-    const dataContent = (req.query?.dataContent || req.query?.id || req.url?.split('/').pop()) as string;
-    if (!dataContent) return res.status(400).json({ success: false, error: 'dataContent wajib diisi' });
-    const resolvedEmbed = await resolveOtakudesuServer(dataContent);
-    if (!resolvedEmbed) return res.status(502).json({ success: false, error: 'Gagal mengurai server anime' });
-    const directMedia = await extractDirectMedia(resolvedEmbed);
-    return res.status(200).json({
-      success: true,
-      embedUrl: resolvedEmbed,
-      directUrl: directMedia,
-      proxiedUrl: directMedia ? `/api/anime/proxy?url=${encodeURIComponent(directMedia)}&ref=${encodeURIComponent('https://otakudesu.blog/')}` : undefined,
-      isDirect: Boolean(directMedia),
-      type: directMedia?.includes('.m3u8') ? 'hls' : 'mp4',
     });
   }
 
@@ -169,51 +153,7 @@ export default async function handler(req: any, res: any) {
 
     const epNum = parseInt(episode, 10) || 1;
 
-    // Phase 1: Primary Nonoya Anime Engine (Otakudesu & Anoboy with Direct Ad-Free Stream)
-    try {
-      const nonoyaStream = await resolveNonoyaAnimeStream({
-        id,
-        episode: epNum,
-        title,
-        provider,
-      });
-
-      if (nonoyaStream && (nonoyaStream.directUrl || nonoyaStream.embedUrl)) {
-        const isDirect = Boolean(nonoyaStream.directUrl);
-        const sources: any[] = [];
-
-        if (nonoyaStream.directUrl) {
-          const directUrl = nonoyaStream.directUrl;
-          const ref = 'https://otakudesu.blog/';
-          const proxiedUrl = `/api/anime/proxy?url=${encodeURIComponent(directUrl)}&ref=${encodeURIComponent(ref)}`;
-
-          sources.push({
-            url: proxiedUrl,
-            directUrl,
-            proxiedUrl,
-            rawUrl: directUrl,
-            type: nonoyaStream.streamType || (directUrl.includes('.m3u8') ? 'hls' : 'mp4'),
-            quality: 'HD 720p',
-          });
-        }
-
-        return res.status(200).json({
-          success: true,
-          isDirect,
-          streamType: nonoyaStream.streamType || (isDirect ? 'mp4' : 'embed'),
-          provider: provider || 'nonoya_fast',
-          title: nonoyaStream.title,
-          sources,
-          embedUrl: nonoyaStream.embedUrl,
-          servers: nonoyaStream.servers || [],
-          sourceEngine: 'nonoya-api',
-        });
-      }
-    } catch (err: any) {
-      console.warn('[Nonoya Anime Stream notice, trying FrameX fallback]:', err?.message || err);
-    }
-
-    // Phase 2: FrameX Secondary Backup
+    // FrameX Multi-Provider Anime Stream Probe (Grand Warden, Wizard, Valkyrie, etc.)
     let finalData = await probeMultiProviders(id, episode, audio, provider);
 
     // Phase 3: If no sources found with raw ID, attempt AniList ID resolution via title or non-numeric ID
@@ -227,7 +167,7 @@ export default async function handler(req: any, res: any) {
     if (!finalData) {
       return res.status(404).json({
         success: false,
-        error: `Stream anime tidak tersedia untuk episode ${episode}. Semua server Nonoya dan FrameX telah dicoba.`.trim(),
+        error: `Stream anime tidak tersedia untuk episode ${episode}. Semua server FrameX telah dicoba.`.trim(),
       });
     }
 
