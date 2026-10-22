@@ -66,6 +66,7 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
   const [selectedRating, setSelectedRating] = useState(0);
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
   const [commentError, setCommentError] = useState<string | null>(null);
+  const [isLoggedIn, setIsLoggedIn] = useState(() => Boolean(storage.getUser()));
 
   const { isSaved, toggle } = useMyList();
   const { setActiveMedia } = useActiveMedia();
@@ -110,6 +111,16 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
     loadDetails(controller.signal);
     return () => controller.abort();
   }, [id, mediaType]);
+
+  useEffect(() => {
+    const syncAuthState = () => setIsLoggedIn(Boolean(storage.getUser()));
+    window.addEventListener('zhafx_auth_change', syncAuthState);
+    window.addEventListener('storage', syncAuthState);
+    return () => {
+      window.removeEventListener('zhafx_auth_change', syncAuthState);
+      window.removeEventListener('storage', syncAuthState);
+    };
+  }, []);
 
   useEffect(() => {
     if (!id) return;
@@ -824,34 +835,40 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
             <p className="text-xs text-white/50">Bagikan pendapatmu tentang tayangan ini</p>
           </div>
         </div>
-        <div className="rounded-[24px] liquid-glass p-4 sm:p-5 space-y-4">
-          <div className="flex items-center gap-1" aria-label="Pilih rating dari 1 sampai 5">
-            <span className="text-xs text-white/60 mr-2">Rating</span>
-            {[1, 2, 3, 4, 5].map((value) => (
-              <button key={value} type="button" onClick={() => setSelectedRating(value)} aria-label={`${value} bintang`} className="p-1 cursor-pointer">
-                <Star className={`w-5 h-5 ${value <= selectedRating ? 'text-amber-300 fill-current' : 'text-white/30'}`} />
+        <div className="relative rounded-[24px] liquid-glass p-4 sm:p-5 space-y-4 overflow-hidden">
+          <div className={!isLoggedIn ? 'select-none blur-md pointer-events-none' : ''} aria-hidden={!isLoggedIn}>
+            <div className="flex items-center gap-1" aria-label="Pilih rating dari 1 sampai 5">
+              <span className="text-xs text-white/60 mr-2">Rating</span>
+              {[1, 2, 3, 4, 5].map((value) => (
+                <button key={value} type="button" onClick={() => setSelectedRating(value)} aria-label={`${value} bintang`} className="p-1 cursor-pointer">
+                  <Star className={`w-5 h-5 ${value <= selectedRating ? 'text-amber-300 fill-current' : 'text-white/30'}`} />
+                </button>
+              ))}
+            </div>
+            <div className="flex flex-col sm:flex-row gap-2 mt-4">
+              <textarea value={commentText} onChange={(event) => setCommentText(event.target.value)} maxLength={1000} rows={2} placeholder="Tulis yapping kamu..." tabIndex={isLoggedIn ? 0 : -1} className="flex-1 resize-none rounded-2xl bg-black/20 border border-white/10 px-4 py-3 text-sm text-white placeholder:text-white/35 outline-none focus:border-white/30" />
+              <button type="button" onClick={submitComment} disabled={isSubmittingComment || !isLoggedIn} tabIndex={isLoggedIn ? 0 : -1} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white text-black px-5 py-3 text-xs font-bold disabled:opacity-50 cursor-pointer">
+                <Send className="w-4 h-4" /> {isSubmittingComment ? 'Mengirim...' : 'Kirim'}
               </button>
-            ))}
+            </div>
+            {commentError && <p className="text-xs text-rose-300 mt-2">{commentError}</p>}
+            <div className="space-y-3 mt-4">
+              {comments.length === 0 ? <p className="text-sm text-white/45">Belum ada komentar. Jadilah yang pertama.</p> : comments.map((comment) => (
+                <article key={comment.id} className="border-t border-white/10 pt-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-sm font-semibold text-white">{comment.userName}</span>
+                    {comment.rating && <span className="inline-flex items-center gap-1 text-xs text-amber-300"><Star className="w-3.5 h-3.5 fill-current" />{comment.rating}/5</span>}
+                  </div>
+                  {comment.text && <p className="text-sm text-white/75 mt-1 leading-relaxed">{comment.text}</p>}
+                </article>
+              ))}
+            </div>
           </div>
-          <div className="flex flex-col sm:flex-row gap-2">
-            <textarea value={commentText} onChange={(event) => setCommentText(event.target.value)} maxLength={1000} rows={2} placeholder="Tulis yapping kamu..." className="flex-1 resize-none rounded-2xl bg-black/20 border border-white/10 px-4 py-3 text-sm text-white placeholder:text-white/35 outline-none focus:border-white/30" />
-            <button type="button" onClick={submitComment} disabled={isSubmittingComment} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white text-black px-5 py-3 text-xs font-bold disabled:opacity-50 cursor-pointer">
-              <Send className="w-4 h-4" /> {isSubmittingComment ? 'Mengirim...' : 'Kirim'}
-            </button>
-          </div>
-          {commentError && <p className="text-xs text-rose-300">{commentError}</p>}
-          {!storage.getUser() && <p className="text-xs text-white/45">Kalau mau yapping, login dulu.</p>}
-          <div className="space-y-3">
-            {comments.length === 0 ? <p className="text-sm text-white/45">Belum ada komentar. Jadilah yang pertama.</p> : comments.map((comment) => (
-              <article key={comment.id} className="border-t border-white/10 pt-3">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-sm font-semibold text-white">{comment.userName}</span>
-                  {comment.rating && <span className="inline-flex items-center gap-1 text-xs text-amber-300"><Star className="w-3.5 h-3.5 fill-current" />{comment.rating}/5</span>}
-                </div>
-                {comment.text && <p className="text-sm text-white/75 mt-1 leading-relaxed">{comment.text}</p>}
-              </article>
-            ))}
-          </div>
+          {!isLoggedIn && (
+            <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/25 px-6 text-center backdrop-blur-[1px]">
+              <p className="rounded-full border border-white/15 bg-black/45 px-4 py-2 text-sm font-semibold text-white shadow-lg">Kalau mau yapping, login dulu.</p>
+            </div>
+          )}
         </div>
       </section>
 
