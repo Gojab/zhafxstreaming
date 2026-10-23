@@ -1546,6 +1546,7 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
                   const isCurrent = ep === episodeNum;
                   const matchingEp = episodesList.find((e) => e.number === ep);
                   const epThumb = matchingEp?.still || matchingEp?.stillPath || title?.backdrop || title?.poster;
+                  const fallbackThumb = title?.backdrop || title?.poster || '';
 
                   return (
                     <button
@@ -1559,11 +1560,16 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
                     >
                       {/* Thumbnail Container */}
                       <div className="w-24 sm:w-28 aspect-video rounded-xl overflow-hidden bg-black/40 shrink-0 relative">
-                        {epThumb ? (
+                        {epThumb || fallbackThumb ? (
                           <img
-                            src={epThumb}
+                            src={epThumb || fallbackThumb}
                             alt={`Ep ${ep}`}
                             loading="lazy"
+                            onError={(e) => {
+                              if (fallbackThumb && (e.currentTarget as HTMLImageElement).src !== fallbackThumb) {
+                                (e.currentTarget as HTMLImageElement).src = fallbackThumb;
+                              }
+                            }}
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                           />
                         ) : (

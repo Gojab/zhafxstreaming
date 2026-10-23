@@ -75,21 +75,29 @@ export function normalize(raw: any, defaultType: MediaType = 'movie'): Title {
     rating = (Number(raw.averageScore) / 10).toFixed(1);
   }
 
-  // Poster & Backdrop image urls
-  const poster =
+  // Poster & Backdrop image urls with guaranteed TMDB CDN resolution
+  let rawPoster =
     raw.poster ||
     raw.image ||
     raw.poster_path ||
     raw.coverImage?.extraLarge ||
     raw.coverImage?.large ||
-    CONFIG.PLACEHOLDER_POSTER;
+    '';
+  if (typeof rawPoster === 'string' && rawPoster.startsWith('/') && !rawPoster.startsWith('//')) {
+    rawPoster = `https://image.tmdb.org/t/p/w500${rawPoster}`;
+  }
+  const poster = rawPoster || CONFIG.PLACEHOLDER_POSTER;
 
-  const backdrop =
+  let rawBackdrop =
     raw.backdrop ||
     raw.backdrop_path ||
     raw.bannerImage ||
     raw.image ||
-    CONFIG.PLACEHOLDER_BACKDROP;
+    '';
+  if (typeof rawBackdrop === 'string' && rawBackdrop.startsWith('/') && !rawBackdrop.startsWith('//')) {
+    rawBackdrop = `https://image.tmdb.org/t/p/original${rawBackdrop}`;
+  }
+  const backdrop = rawBackdrop || CONFIG.PLACEHOLDER_BACKDROP;
 
   // Genres
   let genres: string[] = [];
@@ -351,7 +359,19 @@ export const api = {
 
     const parseList = (list: any, defType: MediaType): Title[] => {
       const items = Array.isArray(list) ? list : list?.results || [];
-      return items.map((item: any) => normalize(item, defType));
+      const seen = new Set<string>();
+      const result: Title[] = [];
+      for (const item of items) {
+        if (!item) continue;
+        const normalized = normalize(item, defType);
+        const idKey = `${normalized.type}-${normalized.id}`;
+        const titleKey = (normalized.title || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (seen.has(idKey) || (titleKey && seen.has(titleKey))) continue;
+        seen.add(idKey);
+        if (titleKey) seen.add(titleKey);
+        result.push(normalized);
+      }
+      return result;
     };
 
     const trending = parseList(rails.trending_movies, 'movie');
@@ -921,18 +941,31 @@ export const api = {
    */
   async getAnimeEpisodes(id: string, signal?: AbortSignal): Promise<Episode[]> {
     try {
+      // 1. In FrameX and TMDB, anime series (Attack on Titan, Solo Leveling, Demon Slayer, Jujutsu Kaisen, etc.)
+      // have full episodes with HD stills and episode titles via /api/season
+      const tmdbSeasonEpisodes = await this.getSeasonEpisodes(id, 1, signal).catch(() => []);
+      if (tmdbSeasonEpisodes && tmdbSeasonEpisodes.length > 0) {
+        return tmdbSeasonEpisodes;
+      }
+
+      // 2. Fallback to details if /api/season didn't return episodes
       const details = await this.getDetails(id, 'anime', signal);
       if (details.episodes && details.episodes.length > 0) {
-        return details.episodes;
+        return details.episodes.map((ep) => ({
+          ...ep,
+          still: ep.still || ep.stillPath || details.backdrop || details.poster || CONFIG.PLACEHOLDER_BACKDROP,
+          stillPath: ep.stillPath || ep.still || details.backdrop || details.poster || CONFIG.PLACEHOLDER_BACKDROP,
+        }));
       }
+
       const count = details.numberOfEpisodes || 24;
       return Array.from({ length: Math.min(count, 48) }, (_, i) => ({
         id: `${id}-${i + 1}`,
         number: i + 1,
         seasonNumber: 1,
         name: `Episode ${i + 1}`,
-        still: details.backdrop || details.poster,
-        stillPath: details.backdrop || details.poster,
+        still: details.backdrop || details.poster || CONFIG.PLACEHOLDER_BACKDROP,
+        stillPath: details.backdrop || details.poster || CONFIG.PLACEHOLDER_BACKDROP,
       }));
     } catch {
       return Array.from({ length: 24 }, (_, i) => ({

@@ -277,17 +277,21 @@ export const HomePage: React.FC = () => {
       const homeData = await api.getHome(signal);
       if (homeData && (homeData.hero || homeData.trending?.length > 0)) {
         const heroId = homeData.hero?.id;
-        const heroTitle = (homeData.hero?.title || '').toLowerCase();
+        const heroTitle = (homeData.hero?.title || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 
-        // Deduplicate and filter out redundant duplicates or hero repeats from rows
-        const filterDuplicates = (items: Title[]) => {
-          const seen = new Set<string>();
+        // Deduplicate and filter out redundant duplicates ("tidak dobble") or hero repeats
+        const filterDuplicates = (items: Title[], existingKeys?: Set<string>) => {
+          const seen = existingKeys || new Set<string>();
           return (items || []).filter((item) => {
             if (!item || !item.id) return false;
-            if (seen.has(item.id)) return false;
+            const idKey = `${item.type || 'media'}-${item.id}`;
+            const cleanTitle = (item.title || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+            if (seen.has(idKey) || (cleanTitle && seen.has(cleanTitle))) return false;
             // Prevent hero duplicate in immediate rows
-            if (heroId && item.id === heroId) return false;
-            seen.add(item.id);
+            if (heroId && (item.id === heroId || idKey === `${homeData.hero?.type}-${heroId}`)) return false;
+            if (heroTitle && cleanTitle === heroTitle) return false;
+            seen.add(idKey);
+            if (cleanTitle) seen.add(cleanTitle);
             return true;
           });
         };

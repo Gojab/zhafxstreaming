@@ -91,16 +91,27 @@ export const ExplorePage: React.FC = () => {
 
         if (append) {
           setTitles((prev) => {
-            const seen = new Set(prev.map((t) => `${t.type}-${t.id}`));
-            const uniqueNew = res.titles.filter((t) => !seen.has(`${t.type}-${t.id}`));
+            const seenIds = new Set(prev.map((t) => `${t.type}-${t.id}`));
+            const seenTitles = new Set(prev.map((t) => (t.title || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '')));
+            const uniqueNew = res.titles.filter((t) => {
+              const idKey = `${t.type}-${t.id}`;
+              const titleKey = (t.title || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+              if (seenIds.has(idKey) || (titleKey && seenTitles.has(titleKey))) return false;
+              seenIds.add(idKey);
+              if (titleKey) seenTitles.add(titleKey);
+              return true;
+            });
             return [...prev, ...uniqueNew];
           });
         } else {
-          const seen = new Set<string>();
+          const seenIds = new Set<string>();
+          const seenTitles = new Set<string>();
           const unique = res.titles.filter((t) => {
-            const key = `${t.type}-${t.id}`;
-            if (seen.has(key)) return false;
-            seen.add(key);
+            const idKey = `${t.type}-${t.id}`;
+            const titleKey = (t.title || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+            if (seenIds.has(idKey) || (titleKey && seenTitles.has(titleKey))) return false;
+            seenIds.add(idKey);
+            if (titleKey) seenTitles.add(titleKey);
             return true;
           });
           setTitles(unique);

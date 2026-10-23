@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
   IoPlay as Play,
@@ -24,6 +24,12 @@ export const MediaCard: React.FC<MediaCardProps> = React.memo(({ item, className
   const { isSaved, toggle } = useMyList();
   const { setActiveMedia } = useActiveMedia();
   const [imageError, setImageError] = useState(false);
+  const [currentPoster, setCurrentPoster] = useState(() => item.poster || item.backdrop || '');
+
+  useEffect(() => {
+    setImageError(false);
+    setCurrentPoster(item.poster || item.backdrop || '');
+  }, [item.id, item.poster, item.backdrop]);
 
   const typeLabel = item.type === 'anime' ? 'Anime' : item.type === 'tv' ? 'Serial' : 'Film';
   const saved = isSaved(item.id);
@@ -128,17 +134,23 @@ export const MediaCard: React.FC<MediaCardProps> = React.memo(({ item, className
           aria-label={`${item.title} (${item.year || 'Detail'})`}
           className="absolute inset-0 block cursor-pointer z-10"
         >
-          {!imageError && item.poster ? (
+          {!imageError && currentPoster ? (
             <img
-              src={optimizeTmdbImage(item.poster, 'w342')}
-              srcSet={getTmdbPosterSrcSet(item.poster)}
+              src={optimizeTmdbImage(currentPoster, 'w342')}
+              srcSet={getTmdbPosterSrcSet(currentPoster)}
               sizes="(max-width: 640px) 140px, (max-width: 1024px) 180px, 220px"
               alt={item.title}
               width={342}
               height={513}
               loading="lazy"
               decoding="async"
-              onError={() => setImageError(true)}
+              onError={() => {
+                if (currentPoster !== item.backdrop && item.backdrop) {
+                  setCurrentPoster(item.backdrop);
+                } else {
+                  setImageError(true);
+                }
+              }}
               className="w-full h-full object-cover transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-[1.05] pointer-events-none transform-gpu"
             />
           ) : (

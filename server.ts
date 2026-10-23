@@ -36,7 +36,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = parseInt(process.env.PORT || '3000', 10);
+const portArgIndex = process.argv.findIndex((arg) => arg === '--port' || arg === '-p');
+const portFromArg = portArgIndex !== -1 ? parseInt(process.argv[portArgIndex + 1], 10) : NaN;
+const PORT = !isNaN(portFromArg) ? portFromArg : parseInt(process.env.PORT || '3000', 10);
 
 // Parse JSON and URL-encoded request bodies
 app.use(express.json({ limit: '10mb' }));
@@ -298,6 +300,70 @@ function getManualSynopsis(text: string, title?: string): string {
   return text || 'Sinopsis tayangan ini tersedia di Zhafx Streaming.';
 }
 
+function formatPosterUrl(raw?: string | null, size: 'w500' | 'w342' | 'original' = 'w500'): string {
+  if (!raw || typeof raw !== 'string') return '';
+  const trimmed = raw.trim();
+  if (!trimmed) return '';
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    return trimmed;
+  }
+  if (trimmed.startsWith('//')) {
+    return `https:${trimmed}`;
+  }
+  if (trimmed.startsWith('/')) {
+    return `https://image.tmdb.org/t/p/${size}${trimmed}`;
+  }
+  return `https://image.tmdb.org/t/p/${size}/${trimmed}`;
+}
+
+function formatBackdropUrl(raw?: string | null): string {
+  return formatPosterUrl(raw, 'original');
+}
+
+const ANIME_TMDB_MAP: Record<string, string> = {
+  '16498': '1429', // Attack on Titan
+  'attack on titan': '1429',
+  'solo leveling': '209867',
+  'demon slayer': '85937',
+  'demon slayer: kimetsu no yaiba': '85937',
+  'jujutsu kaisen': '95479',
+  'one piece': '37854',
+  'naruto': '46260',
+  'naruto shippuden': '46261',
+  'death note': '13916',
+  'chainsaw man': '114410',
+  'vinland saga': '86588',
+  'bleach': '30984',
+};
+
+function deduplicateTitles<T extends { id?: any; title?: string; type?: string; poster?: string; backdrop?: string; overview?: string }>(
+  items: T[],
+  seenKeys = new Set<string>()
+): T[] {
+  const result: T[] = [];
+  for (const item of items) {
+    if (!item) continue;
+    const cleanId = String(item.id || '').trim();
+    const cleanTitle = String(item.title || '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, '');
+    const idKey = `${item.type || 'media'}-${cleanId}`;
+    if ((cleanId && seenKeys.has(idKey)) || (cleanTitle && seenKeys.has(cleanTitle))) {
+      continue;
+    }
+    if (cleanId) seenKeys.add(idKey);
+    if (cleanTitle) seenKeys.add(cleanTitle);
+
+    // Ensure absolute poster & backdrop URLs matching framextv.cc
+    if (item.poster) item.poster = formatPosterUrl(item.poster, 'w500');
+    if (item.backdrop) item.backdrop = formatBackdropUrl(item.backdrop);
+    if (item.overview) item.overview = getManualSynopsis(item.overview, item.title);
+
+    result.push(item);
+  }
+  return result;
+}
+
 // ==========================================
 // FrameX Home Catalog API with Auto Failover & Indonesian Translation
 // ==========================================
@@ -312,7 +378,8 @@ app.get('/api/home', async (req: Request, res: Response) => {
     return res.status(200).json(serverCachedHomeData);
   }
 
-  const backends = ['https://api.framextv.cc', 'https://api.framextv.tech', 'https://api.framextv.xyz'];
+  // Active FrameX backends (primary: https://api.framextv.xyz)
+  const backends = ['https://api.framextv.xyz', 'https://api.framextv.tech', 'https://api.framextv.cc'];
   let rawHomeData: any = null;
 
   for (const backend of backends) {
@@ -321,11 +388,11 @@ app.get('/api/home', async (req: Request, res: Response) => {
         headers: {
           'User-Agent':
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-          Referer: 'https://framextv.cc/',
-          Origin: 'https://framextv.cc',
+          Referer: 'https://framextv.xyz/',
+          Origin: 'https://framextv.xyz',
           Accept: 'application/json',
         },
-        signal: AbortSignal.timeout(5000),
+        signal: AbortSignal.timeout(4500),
       });
 
       if (upstreamRes.ok) {
@@ -350,12 +417,20 @@ app.get('/api/home', async (req: Request, res: Response) => {
   try {
     const rails = rawHomeData.rails || {};
 
-    // Manual Hero Overview translation to Indonesian
-    if (rawHomeData.hero && rawHomeData.hero.overview) {
-      rawHomeData.hero.overview = getManualSynopsis(
-        rawHomeData.hero.overview,
-        rawHomeData.hero.title
-      );
+    // Normalize Hero poster & backdrop and translate overview
+    if (rawHomeData.hero) {
+      if (rawHomeData.hero.poster) {
+        rawHomeData.hero.poster = formatPosterUrl(rawHomeData.hero.poster, 'w500');
+      }
+      if (rawHomeData.hero.backdrop) {
+        rawHomeData.hero.backdrop = formatBackdropUrl(rawHomeData.hero.backdrop);
+      }
+      if (rawHomeData.hero.overview) {
+        rawHomeData.hero.overview = getManualSynopsis(
+          rawHomeData.hero.overview,
+          rawHomeData.hero.title
+        );
+      }
     }
 
     // Populate Anime if FrameX upstream anime rails are empty
@@ -364,51 +439,75 @@ app.get('/api/home', async (req: Request, res: Response) => {
       : rails.popular_anime?.results || [];
 
     if (currentAnime.length === 0) {
-      try {
-        const animeRes = await fetch('https://api.framextv.cc/anime/api/discover?page=1', {
-          headers: {
-            'User-Agent':
-              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-            Referer: 'https://framextv.cc/',
-            Accept: 'application/json',
-          },
-          signal: AbortSignal.timeout(5000),
-        });
+      for (const animeHost of ['https://api.framextv.xyz', 'https://api.framextv.tech']) {
+        try {
+          const animeRes = await fetch(`${animeHost}/anime/api/discover?page=1`, {
+            headers: {
+              'User-Agent':
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+              Referer: 'https://framextv.xyz/',
+              Accept: 'application/json',
+            },
+            signal: AbortSignal.timeout(4500),
+          });
 
-        if (animeRes.ok) {
-          const animeData = await animeRes.json();
-          const items = Array.isArray(animeData.results) ? animeData.results : [];
-          rails.popular_anime = {
-            success: true,
-            results: items.slice(0, 10).map((a: any) => ({
-              id: String(a.id),
-              type: 'anime',
-              title: a.title,
-              poster: a.poster,
-              backdrop: a.backdrop || a.poster,
-              year: String(a.year || '2024'),
-              rating: a.rating || '8.5',
-              overview: a.synopsis || a.overview || 'Anime terpopuler di Zhafx.',
-              genres: a.genres || ['Action', 'Fantasy'],
-            })),
-          };
-          rails.airing_anime = {
-            success: true,
-            results: items.slice(10, 20).map((a: any) => ({
-              id: String(a.id),
-              type: 'anime',
-              title: a.title,
-              poster: a.poster,
-              backdrop: a.backdrop || a.poster,
-              year: String(a.year || '2024'),
-              rating: a.rating || '8.5',
-              overview: a.synopsis || a.overview || 'Anime terpopuler di Zhafx.',
-              genres: a.genres || ['Action', 'Fantasy'],
-            })),
-          };
+          if (animeRes.ok) {
+            const animeData = await animeRes.json();
+            const items = Array.isArray(animeData.results) ? animeData.results : [];
+            if (items.length > 0) {
+              rails.popular_anime = {
+                success: true,
+                results: items.slice(0, 10).map((a: any) => ({
+                  id: String(a.id),
+                  type: 'anime',
+                  title: a.title,
+                  poster: formatPosterUrl(a.poster, 'w500'),
+                  backdrop: formatBackdropUrl(a.backdrop || a.poster),
+                  year: String(a.year || '2024'),
+                  rating: a.rating || '8.5',
+                  overview: a.synopsis || a.overview || 'Anime terpopuler di Zhafx.',
+                  genres: a.genres || ['Action', 'Fantasy'],
+                })),
+              };
+              rails.airing_anime = {
+                success: true,
+                results: items.slice(10, 20).map((a: any) => ({
+                  id: String(a.id),
+                  type: 'anime',
+                  title: a.title,
+                  poster: formatPosterUrl(a.poster, 'w500'),
+                  backdrop: formatBackdropUrl(a.backdrop || a.poster),
+                  year: String(a.year || '2024'),
+                  rating: a.rating || '8.5',
+                  overview: a.synopsis || a.overview || 'Anime terpopuler di Zhafx.',
+                  genres: a.genres || ['Action', 'Fantasy'],
+                })),
+              };
+              break;
+            }
+          }
+        } catch {
+          // try next
         }
-      } catch {
-        // Safe fallback
+      }
+    }
+
+    // Deduplicate all rails and normalize poster URLs (Zero duplicates / tidak dobble)
+    const heroKeys = new Set<string>();
+    if (rawHomeData.hero?.id) {
+      heroKeys.add(`${rawHomeData.hero.type || 'movie'}-${rawHomeData.hero.id}`);
+      if (rawHomeData.hero.title) {
+        heroKeys.add(rawHomeData.hero.title.toLowerCase().replace(/[^a-z0-9]/g, ''));
+      }
+    }
+
+    for (const [key, railVal] of Object.entries(rails)) {
+      const items = Array.isArray(railVal) ? railVal : (railVal as any)?.results || [];
+      const deduplicated = deduplicateTitles(items, new Set(heroKeys));
+      if (Array.isArray(railVal)) {
+        rails[key] = deduplicated;
+      } else if (railVal && typeof railVal === 'object') {
+        (railVal as any).results = deduplicated;
       }
     }
 
@@ -427,9 +526,9 @@ app.get('/api/home', async (req: Request, res: Response) => {
 // FrameX Dedicated Catalog & Search Engine (Movie, TV & Anime)
 // ==========================================
 const FRAMEX_API_BACKENDS = [
-  'https://api.framextv.cc',
-  'https://api.framextv.tech',
   'https://api.framextv.xyz',
+  'https://api.framextv.tech',
+  'https://api.framextv.cc',
 ];
 
 interface ServerApiCacheItem {
@@ -500,46 +599,51 @@ app.get('/api/discover', async (req: Request, res: Response) => {
 
   // Anime Discover via FrameX Anime API
   if (type === 'anime') {
-    try {
-      const q = new URLSearchParams();
-      q.set('page', page);
-      if (genre && genre !== 'all') q.set('genre', genre);
-      if (year && year !== 'all') q.set('year', year);
+    for (const animeHost of ['https://api.framextv.xyz', 'https://api.framextv.tech']) {
+      try {
+        const q = new URLSearchParams();
+        q.set('page', page);
+        if (genre && genre !== 'all') q.set('genre', genre);
+        if (year && year !== 'all') q.set('year', year);
 
-      const animeRes = await fetch(`https://api.framextv.tech/anime/api/discover?${q.toString()}`, {
-        headers: {
-          'User-Agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-          Referer: 'https://framextv.xyz/',
-          Accept: 'application/json',
-        },
-        signal: AbortSignal.timeout(6000),
-      });
-
-      if (animeRes.ok) {
-        const animeData = await animeRes.json();
-        const items = Array.isArray(animeData.results) ? animeData.results : [];
-        res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
-        return res.json({
-          success: true,
-          page: animeData.page || parseInt(page, 10),
-          totalPages: animeData.totalPages || 50,
-          totalResults: animeData.totalResults || items.length,
-          results: items.map((a: any) => ({
-            id: String(a.id),
-            type: 'anime',
-            title: a.title,
-            poster: a.poster,
-            backdrop: a.backdrop || a.poster,
-            year: String(a.year || '2024'),
-            rating: a.rating || '8.5',
-            overview: a.synopsis || a.overview || 'Anime terpopuler di Zhafx.',
-            genres: a.genres || ['Action', 'Fantasy'],
-          })),
+        const animeRes = await fetch(`${animeHost}/anime/api/discover?${q.toString()}`, {
+          headers: {
+            'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+            Referer: 'https://framextv.xyz/',
+            Accept: 'application/json',
+          },
+          signal: AbortSignal.timeout(5000),
         });
+
+        if (animeRes.ok) {
+          const animeData = await animeRes.json();
+          const items = Array.isArray(animeData.results) ? animeData.results : [];
+          const deduplicated = deduplicateTitles(
+            items.map((a: any) => ({
+              id: String(a.id),
+              type: 'anime',
+              title: a.title,
+              poster: formatPosterUrl(a.poster, 'w500'),
+              backdrop: formatBackdropUrl(a.backdrop || a.poster),
+              year: String(a.year || '2024'),
+              rating: a.rating || '8.5',
+              overview: a.synopsis || a.overview || 'Anime terpopuler di Zhafx.',
+              genres: a.genres || ['Action', 'Fantasy'],
+            }))
+          );
+          res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
+          return res.json({
+            success: true,
+            page: animeData.page || parseInt(page, 10),
+            totalPages: animeData.totalPages || 50,
+            totalResults: animeData.totalResults || deduplicated.length,
+            results: deduplicated,
+          });
+        }
+      } catch {
+        // try next
       }
-    } catch (err) {
-      console.warn('[Discover Anime Error]:', err);
     }
   }
 
@@ -555,11 +659,7 @@ app.get('/api/discover', async (req: Request, res: Response) => {
 
   if (upstreamData) {
     if (Array.isArray(upstreamData.results)) {
-      upstreamData.results.forEach((item: any) => {
-        if (item.overview) {
-          item.overview = getManualSynopsis(item.overview, item.title);
-        }
-      });
+      upstreamData.results = deduplicateTitles(upstreamData.results);
     }
     res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
     return res.status(200).json(upstreamData);
@@ -583,11 +683,7 @@ app.get('/api/trending', async (req: Request, res: Response) => {
 
   if (upstreamData) {
     if (Array.isArray(upstreamData.results)) {
-      upstreamData.results.forEach((item: any) => {
-        if (item.overview) {
-          item.overview = getManualSynopsis(item.overview, item.title);
-        }
-      });
+      upstreamData.results = deduplicateTitles(upstreamData.results);
     }
     res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
     return res.status(200).json(upstreamData);
@@ -785,23 +881,9 @@ app.get('/api/search', async (req: Request, res: Response) => {
 
     const [movieTvList, animeList] = await Promise.all(tasks);
 
-    // Merge with deduplication
-    const seen = new Set<string>();
-    const combined: any[] = [];
+    // Merge with strict title & ID deduplication to prevent double posters
     const ordered = type === 'anime' ? [...animeList, ...movieTvList] : [...movieTvList, ...animeList];
-
-    for (const item of ordered) {
-      const key = `${item.type || 'movie'}-${item.id}`;
-      if (!seen.has(key)) {
-        seen.add(key);
-        if (item.overview) {
-          item.overview = getManualSynopsis(item.overview, item.title);
-        }
-        combined.push(item);
-      }
-    }
-
-    return combined;
+    return deduplicateTitles(ordered);
   }
 
   try {
@@ -833,17 +915,33 @@ app.get('/api/search', async (req: Request, res: Response) => {
   }
 });
 
-// 5. TV Season episodes endpoint
+// 5. TV Season episodes endpoint with guaranteed stills
 app.get('/api/season', async (req: Request, res: Response) => {
-  const id = req.query.id as string;
+  const rawId = String(req.query.id || '').trim();
   const season = (req.query.season as string) || '1';
 
-  if (!id) {
+  if (!rawId) {
     return res.status(400).json({ error: 'ID tayangan diperlukan.' });
   }
 
+  // Resolve anime ID to TMDB TV ID if applicable (e.g. 16498 -> 1429 for Attack on Titan)
+  const id = ANIME_TMDB_MAP[rawId.toLowerCase()] || rawId;
+
   const upstreamData = await fetchFromFrameXUpstream('/api/season', { id, season });
   if (upstreamData) {
+    if (Array.isArray(upstreamData.episodes)) {
+      upstreamData.episodes = upstreamData.episodes.map((ep: any) => {
+        let stillImage = ep.still || ep.still_path || '';
+        if (stillImage && !stillImage.startsWith('http')) {
+          stillImage = `https://image.tmdb.org/t/p/w500${stillImage.startsWith('/') ? '' : '/'}${stillImage}`;
+        }
+        return {
+          ...ep,
+          still: stillImage,
+          still_path: stillImage,
+        };
+      });
+    }
     res.setHeader('Cache-Control', 'public, s-maxage=600, stale-while-revalidate=1200');
     return res.status(200).json(upstreamData);
   }
