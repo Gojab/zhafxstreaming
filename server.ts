@@ -370,42 +370,229 @@ app.all('/api/proxy', async (req: Request, res: Response) => {
 });
 
 // ==========================================
-// Indonesian Synopsis Manual Dictionary
+// Indonesian Synopsis Engine & Persistent Dictionary
 // ==========================================
+const SYNOPSIS_CACHE_PATH = path.resolve(DATA_DIR, 'synopsis_cache.json');
+let serverSynopsisCache: Record<string, string> = {};
+
+try {
+  if (fs.existsSync(SYNOPSIS_CACHE_PATH)) {
+    const raw = fs.readFileSync(SYNOPSIS_CACHE_PATH, 'utf-8');
+    serverSynopsisCache = JSON.parse(raw);
+  }
+} catch (e) {
+  console.warn('[Synopsis Cache] Failed to load:', e);
+}
+
+function saveSynopsisCache(): void {
+  try {
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
+    fs.writeFileSync(SYNOPSIS_CACHE_PATH, JSON.stringify(serverSynopsisCache, null, 2), 'utf-8');
+  } catch (e) {
+    console.error('[Synopsis Cache] Failed to save:', e);
+  }
+}
+
 const SERVER_MANUAL_SYNOPSES: Record<string, string> = {
-  'clayface': 'Kisah kebangkitan Matt Hagen dari pemuda jalanan kota Gotham menjadi aktor terkemuka Hollywood yang terhenti secara tragis saat bos mafia lokal membuatnya cacat mengerikan. Ditinggalkan dan hancur, Matt mencari perawatan mutakhir yang secara ajaib memulihkan tubuhnya, namun merusak kesadarannya dan menyeretnya ke dalam spiral balas dendam mematikan.',
-  'by any means': 'Di Mississippi era 1960-an, seorang agen FBI muda berkulit hitam terpaksa bekerja sama dengan pembunuh bayaran mafia yang terkenal kejam demi menyelidiki rentetan pembunuhan brutal bermotif hak-hak sipil.',
-  'dune: part two': 'Paul Atreides bersatu dengan Chani dan kaum Fremen saat menempuh jalan balas dendam terhadap para konspirator yang menghancurkan keluarganya, seraya berusaha mencegah masa depan kelam yang hanya bisa ia ramalkan.',
-  'dune': 'Paul Atreides, pemuda brilian yang lahir dengan takdir besar melampaui pemahamannya, harus melakukan perjalanan ke planet paling berbahaya di alam semesta demi memastikan masa depan keluarga dan rakyatnya.',
-  'interstellar': 'Di masa depan ketika bumi dilanda krisis pangan parah, sekelompok penjelajah menempuh misi terjauh dalam sejarah melintasi lubang cacing antariksa demi mencari planet baru yang layak huni bagi kelangsungan umat manusia.',
-  'oppenheimer': 'Kisah biopik dramatis seputar fisikawan teoretis J. Robert Oppenheimer yang memimpin Proyek Manhattan untuk menciptakan senjata nuklir pertama dalam sejarah peradaban manusia.',
-  'shōgun': 'Ketika sebuah kapal misterius terdampar di pesisir feodal Jepang, sang navigator Inggris terjerumus ke dalam perang politik dan intrik perebutan kekuasaan para penguasa samurai.',
-  'solo leveling': 'Di dunia di mana monster bermunculan melalui gerbang dimensi, Sung Jin-woo yang dikenal sebagai pemburu terlemah bangkit dari ambang maut dengan sistem misterius yang memungkinkannya meningkatkan kekuatan tanpa batas.',
-  'attack on titan': 'Umat manusia yang terkurung di balik benteng raksasa berjuang mati-matian mempertahankan kelangsungan hidup dari ancaman monster raksasa pemakan manusia yang dikenal sebagai Titan.',
-  'demon slayer': 'Setelah keluarganya dibantai oleh iblis dan adiknya berubah menjadi monster, Tanjiro Kamado menempuh perjalanan berbahaya menjadi pembasmi iblis demi membalaskan dendam dan menyembuhkan sang adik.',
-  'top gun: maverick': 'Setelah puluhan tahun mengabdi sebagai penerbang ulung Angkatan Laut, Pete "Maverick" Mitchell ditugaskan melatih skuadron lulusan elit terbaik untuk menjalankan misi berisiko tinggi yang menuntut pengorbanan tertinggi.',
-  'house of the dragon': 'Kisah epik wangsa Targaryen ratusan tahun sebelum peristiwa Game of Thrones, yang mencatat awal mula perang saudara paling berdarah dalam perebutan takhta Iron Throne di Westeros.',
-  'the last of us': 'Dua puluh tahun setelah wabah jamur misterius memusnahkan peradaban, seorang penyintas tangguh bernama Joel disewa untuk menyelundupkan seorang gadis muda melintasi wilayah Amerika yang berbahaya.',
-  'jujutsu kaisen': 'Yuji Itadori, siswa SMA dengan bakat fisik luar biasa, menelan artefak terkutuk dari Raja Kutukan dan bergabung dengan Akademi Jujutsu untuk membasmi roh-roh kutukan yang mengancam dunia manusia.',
-  'avatar': 'Jake Sully dan Neytiri telah berkeluarga dan melakukan segalanya untuk tetap bersama. Namun saat ancaman lama kembali, mereka harus mengungsi dan menjelajahi wilayah klan laut Pandora.',
-  'the dark knight': 'Ketika ancaman keji yang dikenal sebagai Joker menebar kekacauan di jalanan Gotham, Batman harus menghadapi salah satu ujian psikologis dan fisik terberat untuk menegakkan keadilan.',
-  'spider-man': 'Miles Morales terlempar melintasi Multiverse, di mana ia bertemu dengan tim Spider-People yang bertugas melindungi keberadaan semesta dari ancaman besar yang tak terduga.',
-  'deadpool': 'Wade Wilson yang lesu menghadapi krisis eksistensial terseret ke dalam petualangan lintas dimensi bersama Wolverine untuk menyelamatkan dunianya.',
-  'gladiator': 'Bertahun-tahun setelah menyaksikan kematian pahlawan Maximus di tangan pamannya, Lucius harus memasuki Colosseum setelah rumahnya ditaklukkan oleh kaisar tirani yang memerintah Roma.',
-  'fallout': 'Dua ratus tahun setelah kiamat nuklir, seorang penghuni bungker yang damai terpaksa keluar ke permukaan bumi yang liar, berbahaya, dan aneh untuk mencari ayahnya.',
-  'arcane': 'Di tengah ketegangan antara kota utopia Piltover dan kota bawah tanah Zaun yang tertindas, dua saudara perempuan bertarung di pihak yang berseberangan dalam perang teknologi dan sihir.',
-  'one piece': 'Monkey D. Luffy bersama kru Bajak Laut Topi Jerami mengarungi samudra Grand Line yang penuh bahaya untuk menemukan harta karun legendaris dan menjadi Raja Bajak Laut berikutnya.'
+  // Movies
+  'fight club':
+    'Seorang pekerja kantor penderita insomnia kronis yang jenuh dengan kehidupan konsumerisme bertemu dengan Tyler Durden, seorang penjual sabun eksentrik dengan filosofi hidup liar. Bersama-sama, mereka mendirikan klub petarung rahasia bawah tanah yang berkembang menjadi gerakan anarki bawah tanah di luar kendali.',
+  'the shawshank redemption':
+    'Andy Dufresne, seorang bankir sukses, dijatuhi hukuman penjara seumur hidup di Penjara Shawshank atas pembunuhan yang tidak ia lakukan. Selama dua dekade, ia menjalin persahabatan erat dengan Red dan diam-diam merancang jalan menuju kebebasan dan penebusan sejati.',
+  'the godfather':
+    'Kisah epik keluarga mafia Corleone di bawah kepemimpinan Don Vito Corleone, dan perjalanan putranya, Michael Corleone, dari seorang pahlawan perang yang enggan menjadi bos mafia yang kejam dan ditakuti.',
+  'pulp fiction':
+    'Rangkaian kisah kriminal yang saling bertaut di Los Angeles yang melibatkan dua pembunuh bayaran filosofis, istri bos mafia yang gemar berpesta, seorang petinju yang menolak mengalah, dan sepasang perampok restoran.',
+  'the dark knight':
+    'Ketika ancaman keji yang dikenal sebagai Joker menebar teror dan anarki di jalanan Gotham, Batman harus menghadapi salah satu ujian psikologis dan fisik terberat untuk menegakkan keadilan tanpa melanggar prinsip moralnya.',
+  'inception':
+    'Dom Cobb adalah seorang pencuri ulung yang ahli mengekstraksi rahasia berharga dari alam bawah sadar korban saat bermimpi. Ia ditawari misi terakhir yang hampir mustahil untuk menghapus masa lalunya: menanamkan sebuah ide ke dalam pikiran pewaris kerajaan bisnis.',
+  'interstellar':
+    'Di masa depan ketika bumi dilanda krisis pangan parah dan kepunahan mengancam, sekelompok penjelajah antariksa menempuh misi terjauh dalam sejarah melintasi lubang cacing di dekat Saturnus demi mencari planet baru yang layak huni bagi kelangsungan umat manusia.',
+  'dune: part two':
+    'Paul Atreides bersatu dengan Chani dan kaum Fremen saat menempuh jalan balas dendam terhadap para konspirator yang menghancurkan keluarganya, seraya berusaha mencegah masa depan kelam penuh perang suci yang hanya bisa ia ramalkan.',
+  'dune':
+    'Paul Atreides, pemuda brilian yang lahir dengan takdir besar melampaui pemahamannya, harus melakukan perjalanan ke planet Arrakis yang paling berbahaya dan penuh intrik demi memastikan kelangsungan masa depan keluarga dan rakyatnya.',
+  'oppenheimer':
+    'Kisah biopik dramatis seputar fisikawan teoretis J. Robert Oppenheimer yang memimpin Proyek Manhattan di Los Alamos untuk menciptakan senjata bom atom pertama dalam sejarah peradaban manusia, dan pergulatan batinnya pasca Perang Dunia II.',
+  'gladiator ii':
+    'Bertahun-tahun setelah menyaksikan kematian pahlawan Maximus di tangan pamannya, Lucius harus memasuki arena Colosseum setelah rumahnya ditaklukkan oleh kaisar tirani yang memerintah Roma dengan tangan besi.',
+  'gladiator':
+    'Seorang mantan jenderal Romawi yang dikhianati dan keluarganya dibantai bertekad membalaskan dendamnya kepada kaisar korup Commodus melalui pertarungan hidup-mati di gelanggang gladiator Colosseum.',
+  'top gun: maverick':
+    'Setelah lebih dari tiga puluh tahun mengabdi sebagai salah satu penerbang ulung Angkatan Laut, Pete "Maverick" Mitchell ditugaskan melatih detasemen lulusan TOPGUN untuk sebuah misi khusus berisiko tinggi yang menuntut pengorbanan tertinggi.',
+  'avatar: the way of water':
+    'Jake Sully dan Neytiri telah berkeluarga dan hidup damai di Pandora. Namun saat ancaman lama bangsa manusia kembali menyerang, mereka terpaksa mengungsi ke wilayah klan pesisir laut Metkayina untuk melindungi keluarga mereka.',
+  'avatar':
+    'Mantan marinir lumpuh, Jake Sully, dikirim ke bulan asing Pandora dalam misi unik mengendalikan tubuh Avatar. Namun hatinya terbelah antara menjalankan tugas militernya atau melindungi bangsa Na\'vi dan dunia yang mulai ia cintai.',
+  'spider-man: across the spider-verse':
+    'Miles Morales terlempar melintasi Multiverse, di mana ia bertemu dengan Spider-Society yang bertugas melindungi keberadaan realitas semesta, namun ia harus menentukan cara menyelamatkan orang yang paling ia cintai.',
+  'spider-man: no way home':
+    'Setelah identitas rahasianya terbongkar ke seluruh dunia, Peter Parker meminta bantuan Doctor Strange untuk membalikkan waktu, namun mantra yang salah justru membuka multiverse dan mengundang musuh-musuh legendaris dari semesta lain.',
+  'spider-man':
+    'Peter Parker, seorang remaja kutu buku yang pemalu, mendapatkan kekuatan super luar biasa setelah digigit laba-laba hasil rekayasa genetik dan belajar bahwa kekuatan besar membawa tanggung jawab yang besar pula.',
+  'deadpool & wolverine':
+    'Wade Wilson yang lesu menghadapi krisis eksistensial terseret oleh TVA ke dalam petualangan lintas dimensi bersama Wolverine dari linimasa lain untuk menyelamatkan alam semesta mereka.',
+  'deadpool':
+    'Wade Wilson, mantan anggota Pasukan Khusus yang kini menjadi tentara bayaran, menjalani eksperimen nakal yang memberinya kekuatan penyembuhan super dan selera humor yang gelap.',
+  'john wick':
+    'Seorang mantan pembunuh bayaran legendaris keluar dari masa pensiunnya yang tenang untuk membalaskan dendam kepada para gangster mafia Rusia yang telah merampas anjing peninggalan mendiang istrinya.',
+  'joker':
+    'Arthur Fleck, seorang komedian gagal yang terisolasi dan dianiaya oleh masyarakat Kota Gotham, perlahan tenggelam ke dalam kegilaan dan menjelma menjadi ikon kriminal anarkis berjuluk Joker.',
+  'titanic':
+    'Dua insan dari kelas sosial yang bertolak belakang, Jack dan Rose, saling jatuh cinta di atas kapal termewah RMS Titanic yang malang dalam pelayaran perdananya melintasi samudra Atlantik Utara.',
+  'clayface':
+    'Kisah kebangkitan Matt Hagen dari pemuda jalanan kota Gotham menjadi aktor terkemuka Hollywood yang terhenti secara tragis saat bos mafia lokal membuatnya cacat mengerikan. Ditinggalkan dan hancur, Matt mencari perawatan mutakhir yang secara ajaib memulihkan tubuhnya, namun merusak kesadarannya dan menyeretnya ke dalam spiral balas dendam mematikan.',
+  'by any means':
+    'Di Mississippi era 1960-an, seorang agen FBI muda berkulit hitam terpaksa bekerja sama dengan pembunuh bayaran mafia yang terkenal kejam demi menyelidiki rentetan pembunuhan brutal bermotif hak-hak sipil.',
+
+  // TV Series
+  'shōgun':
+    'Ketika sebuah kapal misterius terdampar di pesisir feodal Jepang abad ke-17, sang navigator Inggris John Blackthorne terjerumus ke dalam intrik perang politik dan perebutan kekuasaan para penguasa samurai dipimpin Lord Toranaga.',
+  'house of the dragon':
+    'Kisah epik wangsa Targaryen ratusan tahun sebelum peristiwa Game of Thrones, yang mencatat awal mula perang saudara berdarah "Dance of the Dragons" dalam perebutan takhta Iron Throne di Westeros.',
+  'game of thrones':
+    'Sembilan keluarga bangsawan bertarung sengit memperebutkan kendali atas tanah mistis Westeros, sementara ancaman kuno makhluk es bangkit kembali dari balik Tembok Es raksasa di utara.',
+  'the last of us':
+    'Dua puluh tahun setelah wabah jamur misterius memusnahkan peradaban modern, seorang penyintas tangguh bernama Joel disewa untuk menyelundupkan Ellie, gadis muda yang kebal terhadap infeksi, melintasi wilayah Amerika yang berbahaya.',
+  'fallout':
+    'Dua ratus tahun setelah kiamat perang nuklir, seorang penghuni bungker Vault yang damai terpaksa keluar ke permukaan bumi Los Angeles yang liar, berbahaya, dan aneh demi mencari ayahnya yang diculik.',
+  'breaking bad':
+    'Seorang guru kimia sekolah menengah bernama Walter White yang didiagnosis menderita kanker paru-paru stadium akhir beralih memproduksi metamfetamin murni bersama mantan muridnya demi menjamin masa depan finansial keluarganya.',
+  'stranger things':
+    'Ketika seorang anak laki-laki lenyap secara misterius di kota kecil Hawkins, teman-temannya membongkar rangkaian eksperimen rahasia pemerintah, kekuatan telekinetik seorang gadis misterius, dan teror monster dari dimensi Upside Down.',
+  'squid game':
+    'Ratusan pemain yang terlilit utang finansial berat menerima undangan misterius untuk bersaing dalam permainan anak-anak tradisional dengan hadiah puluhan miliar won, namun setiap kekalahan berujung pada maut seketika.',
+  'arcane':
+    'Di tengah ketegangan yang kian memuncak antara kota utopia Piltover dan kota bawah tanah Zaun yang tertindas, dua saudara perempuan yatim piatu terjerumus ke pihak yang berseberangan dalam perang revolusi sihir dan teknologi Hextech.',
+
+  // Anime
+  'solo leveling':
+    'Di dunia di mana monster bermunculan melalui gerbang dimensi, Sung Jin-woo yang dikenal sebagai pemburu terlemah rank-E bangkit dari ambang maut di sebuah dungeon ganda dengan sistem misterius yang memungkinkannya menaikkan level kekuatannya tanpa batas.',
+  'attack on titan':
+    'Umat manusia yang terkurung di balik tiga lapis benteng raksasa berjuang mati-matian mempertahankan kelangsungan hidup dari ancaman monster raksasa pemakan manusia yang dikenal sebagai Titan, dipimpin oleh Eren Yeager yang bersumpah membasmi semua Titan.',
+  'demon slayer: kimetsu no yaiba':
+    'Setelah keluarganya dibantai oleh iblis dan adiknya Nezuko berubah menjadi iblis, Tanjiro Kamado menempuh perjalanan berbahaya menjadi pembasmi iblis dari Korps Demon Slayer demi membalaskan dendam dan mengembalikan kemanusiaan sang adik.',
+  'demon slayer':
+    'Setelah keluarganya dibantai oleh iblis dan adiknya Nezuko berubah menjadi iblis, Tanjiro Kamado menempuh perjalanan berbahaya menjadi pembasmi iblis dari Korps Demon Slayer demi membalaskan dendam dan mengembalikan kemanusiaan sang adik.',
+  'jujutsu kaisen':
+    'Yuji Itadori, siswa SMA dengan bakat fisik luar biasa, menelan artefak terkutuk dari Raja Kutukan Sukuna demi menyelamatkan temannya, dan bergabung dengan Sekolah Jujutsu Tokyo untuk membasmi roh-roh kutukan yang mengancam dunia manusia.',
+  'one piece':
+    'Monkey D. Luffy bersama kru Bajak Laut Topi Jerami mengarungi samudra Grand Line yang penuh mara bahaya demi menemukan harta karun legendaris One Piece peninggalan Gol D. Roger dan menjadi Raja Bajak Laut berikutnya.',
+  'bleach: thousand-year blood war':
+    'Kedamaian Soul Society terguncang ketika kerajaan Quincy pimpinan Yhwach bangkit kembali setelah seribu tahun tidur panjang dan mendeklarasikan perang pembalasan total terhadap para Shinigami.',
+  'bleach':
+    'Ichigo Kurosaki, remaja yang mampu melihat arwah, tanpa sengaja memperoleh kekuatan Shinigami dari Rukia Kuchiki dan memikul tugas berat melindungi dunia manusia dari ancaman monster Hollow yang haus jiwa.',
+  'naruto':
+    'Kisah perjuangan Naruto Uzumaki, seorang ninja yatim piatu yang dijauhi oleh penduduk desa Konoha karena siluman rubah ekor sembilan yang tersegel di dalam tubuhnya, yang bertekad menjadi Hokage pemimpin desa yang diakui semua orang.',
+  'naruto shippuden':
+    'Setelah dua setengah tahun berlatih keras, Naruto kembali ke Konoha untuk menghadapi ancaman organisasi kriminal berbahaya Akatsuki dan berusaha membawa pulang sahabatnya Sasuke dari jalan kegelapan.',
+  'dragon ball':
+    'Petualangan Son Goku mengasah ilmu bela diri bersama teman-temannya mengelilingi dunia untuk mengumpulkan tujuh bola naga ajaib yang mampu memanggil naga Shenron untuk mengabulkan segala permohonan.',
+  'death note':
+    'Seorang siswa SMA jenius bernama Light Yagami menemukan buku catatan supranatural yang dapat membunuh siapa saja yang namanya tertulis di dalamnya, dan memutuskan untuk menghabisi para kriminal demi menciptakan dunia utopia baru tanpa kejahatan.',
+  'chainsaw man':
+    'Denji, pemuda miskin yang terikat kontrak dengan iblis gergaji peliharaannya Pochita, bangkit kembali sebagai manusia setengah iblis pemburu kejahatan berkepala gergaji untuk Divisi Keselamatan Publik.',
+  'spy x family':
+    'Seorang mata-mata elit bernama samaran Twilight harus membangun keluarga palsu bersama seorang pembunuh bayaran profesional dan anak angkat yatim piatu yang memiliki kemampuan membaca pikiran demi misi perdamaian dunia.',
+  'frieren: beyond journey\'s end':
+    'Setelah mengalahkan Raja Iblis bersama kelompok pahlawan, penyihir elf berumur panjang Frieren memulai pengembaraan baru untuk memahami arti waktu dan ikatan emosional manusia yang pernah diabaikannya.',
+  'frieren':
+    'Setelah mengalahkan Raja Iblis bersama kelompok pahlawan, penyihir elf berumur panjang Frieren memulai pengembaraan baru untuk memahami arti waktu dan ikatan emosional manusia yang pernah diabaikannya.',
+  'dandadan':
+    'Momo Ayase yang percaya pada hantu dan Okarun yang percaya pada alien saling bertaruh mengunjungi lokasi angker, yang membawa keduanya ke dalam pusaran pertempuran gaib konyol namun mematikan melawan roh penasaran dan makhluk luar angkasa.',
+  'kaiju no. 8':
+    'Kafka Hibino, pria paruh baya yang bertugas membersihkan bangkai monster kaiju, secara misterius bermutasi menjadi monster setengah manusia berkekuatan dahsyat bernomor sandi Kaiju No. 8 seraya berusaha memenuhi janjinya untuk masuk ke Pasukan Pertahanan Jepang.',
+  'blue lock':
+    'Setelah kekalahan tragis di Piala Dunia, Asosiasi Sepak Bola Jepang mengumpulkan 300 striker muda terbaik ke dalam fasilitas penjara modern Blue Lock untuk menciptakan striker paling egois dan mematikan di dunia.',
 };
+
+function checkIsIndonesianText(text?: string): boolean {
+  if (!text || text.length < 15) return false;
+  const sample = ` ${text.toLowerCase()} `;
+  const idWords = [
+    ' yang ', ' dan ', ' di ', ' dari ', ' untuk ', ' pada ', ' dengan ',
+    ' adalah ', ' sebuah ', ' seorang ', ' dalam ', ' saat ', ' oleh ',
+    ' mereka ', ' ia ', ' dia ', ' kehidupan ', ' perjalanan ', ' dunia ',
+    ' kisah ', ' melawan ', ' bersama ', ' setelah ', ' demi ', ' membalas ',
+    ' tentang ', ' ketika ', ' harus ', ' karena ', ' menjadi '
+  ];
+  let idScore = 0;
+  for (const w of idWords) {
+    if (sample.includes(w)) idScore++;
+  }
+  return idScore >= 2;
+}
+
+function applySmartSynopsisRules(text: string): string {
+  if (!text || text.length < 10) return text;
+  let res = text
+    .replace(/\bFollows the story of\b/gi, 'Mengikuti kisah')
+    .replace(/\bFollows the adventures of\b/gi, 'Mengikuti petualangan')
+    .replace(/\bIn a world where\b/gi, 'Di sebuah dunia di mana')
+    .replace(/\bSet in a world\b/gi, 'Berlatar di sebuah dunia')
+    .replace(/\bBased on the manga\b/gi, 'Diadaptasi dari manga')
+    .replace(/\bBased on the true story of\b/gi, 'Berdasarkan kisah nyata')
+    .replace(/\bAfter the events of\b/gi, 'Setelah peristiwa')
+    .replace(/\bAfter the tragic death of\b/gi, 'Setelah kematian tragis dari')
+    .replace(/\bA young boy\b/gi, 'seorang pemuda')
+    .replace(/\bA young man\b/gi, 'seorang pemuda')
+    .replace(/\bA young girl\b/gi, 'seorang gadis muda')
+    .replace(/\bAn insomniac\b/gi, 'seorang penderita insomnia')
+    .replace(/\bTogether with his friends\b/gi, 'bersama para sahabatnya')
+    .replace(/\bTogether with her friends\b/gi, 'bersama teman-temannya')
+    .replace(/\bMust fight against\b/gi, 'harus bertarung melawan')
+    .replace(/\bMust face\b/gi, 'harus menghadapi')
+    .replace(/\bIn order to save\b/gi, 'demi menyelamatkan')
+    .replace(/\bIn order to protect\b/gi, 'demi melindungi')
+    .replace(/\bStruggles to survive\b/gi, 'berjuang untuk bertahan hidup')
+    .replace(/\bEmbarks on a journey\b/gi, 'memulai sebuah perjalanan')
+    .replace(/\bEmbarks on a dangerous\b/gi, 'memulai petualangan berbahaya')
+    .replace(/\bUncovers a dark secret\b/gi, 'mengungkap rahasia kelam')
+    .replace(/\bCenturies after\b/gi, 'Berabad-abad setelah')
+    .replace(/\bWhen a mysterious\b/gi, 'Ketika sebuah ancaman misterius')
+    .replace(/\bwho embarks on\b/gi, 'yang memulai')
+    .replace(/\bwho discovers that\b/gi, 'yang menemukan bahwa')
+    .replace(/\bwho must\b/gi, 'yang harus')
+    .replace(/\bfrom darkness\b/gi, 'dari kegelapan')
+    .replace(/\bhis sister\b/gi, 'saudara perempuannya')
+    .replace(/\bhis brother\b/gi, 'saudara laki-lakinya')
+    .replace(/\bhis family\b/gi, 'keluarganya')
+    .replace(/\bher family\b/gi, 'keluarganya')
+    .replace(/\btheir world\b/gi, 'dunia mereka')
+    .replace(/\btheir lives\b/gi, 'kehidupan mereka')
+    .replace(/\bwhile trying to\b/gi, 'sembari berusaha untuk')
+    .replace(/\bwhen he\b/gi, 'ketika ia')
+    .replace(/\bwhen she\b/gi, 'ketika ia')
+    .replace(/\bwhen they\b/gi, 'ketika mereka');
+
+  res = res.replace(/(^\s*|[.!?]\s+)([a-z])/g, (_, p1, p2) => p1 + p2.toUpperCase());
+  return res;
+}
 
 function getManualSynopsis(text: string, title?: string): string {
   if (title) {
     const cleanTitle = title.toLowerCase().trim();
+    if (serverSynopsisCache[cleanTitle]) {
+      return serverSynopsisCache[cleanTitle];
+    }
     for (const [key, val] of Object.entries(SERVER_MANUAL_SYNOPSES)) {
       if (cleanTitle.includes(key) || key.includes(cleanTitle)) {
         return val;
       }
     }
   }
+
+  if (checkIsIndonesianText(text)) {
+    return text;
+  }
+
+  if (text && text.length > 10) {
+    return applySmartSynopsisRules(text);
+  }
+
   return text || 'Sinopsis tayangan ini tersedia di Zhafx Streaming.';
 }
 
@@ -877,6 +1064,219 @@ app.get('/api/details', async (req: Request, res: Response) => {
 });
 
 // 4. Search endpoint (Film, TV, and Anime) - Smart Multi-Source with Typo Tolerance
+// ==========================================
+// Typo & Fuzzy Matching Search Engine
+// ==========================================
+function calcDamerauDistance(a: string, b: string): number {
+  const al = a.length;
+  const bl = b.length;
+  if (al === 0) return bl;
+  if (bl === 0) return al;
+
+  const matrix: number[][] = [];
+  for (let i = 0; i <= al; i++) matrix[i] = [i];
+  for (let j = 0; j <= bl; j++) matrix[0][j] = j;
+
+  for (let i = 1; i <= al; i++) {
+    for (let j = 1; j <= bl; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      matrix[i][j] = Math.min(
+        matrix[i - 1][j] + 1,
+        matrix[i][j - 1] + 1,
+        matrix[i - 1][j - 1] + cost
+      );
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) {
+        matrix[i][j] = Math.min(matrix[i][j], matrix[i - 2][j - 2] + 1);
+      }
+    }
+  }
+  return matrix[al][bl];
+}
+
+function calcSimilarity(a: string, b: string): number {
+  const s1 = a.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const s2 = b.toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (s1 === s2) return 1.0;
+  if (!s1 || !s2) return 0.0;
+  const maxLen = Math.max(s1.length, s2.length);
+  const dist = calcDamerauDistance(s1, s2);
+  return Math.max(0, 1 - dist / maxLen);
+}
+
+const SERVER_SEARCH_TYPOS: Record<string, string> = {
+  fightclb: 'Fight Club',
+  fightclub: 'Fight Club',
+  avtar: 'Avatar',
+  avatr: 'Avatar',
+  avangers: 'Avengers',
+  avenger: 'Avengers',
+  'demon slyer': 'Demon Slayer',
+  demonslayer: 'Demon Slayer',
+  'on peace': 'One Piece',
+  onepece: 'One Piece',
+  onpiece: 'One Piece',
+  spidrman: 'Spider-Man',
+  spiderman: 'Spider-Man',
+  spidermen: 'Spider-Man',
+  naruo: 'Naruto',
+  narutoo: 'Naruto',
+  narutoos: 'Naruto',
+  jujutso: 'Jujutsu Kaisen',
+  jujutzu: 'Jujutsu Kaisen',
+  'jujutsu kaysen': 'Jujutsu Kaisen',
+  'attck on titan': 'Attack on Titan',
+  'atack on titan': 'Attack on Titan',
+  'attack on titn': 'Attack on Titan',
+  'solo levelng': 'Solo Leveling',
+  sololeveling: 'Solo Leveling',
+  sololevel: 'Solo Leveling',
+  chainsw: 'Chainsaw Man',
+  chainsaw: 'Chainsaw Man',
+  chainsawman: 'Chainsaw Man',
+  interstelar: 'Interstellar',
+  intrestellar: 'Interstellar',
+  openeimer: 'Oppenheimer',
+  oppenhiemer: 'Oppenheimer',
+  oppenhaimer: 'Oppenheimer',
+  'drgon ball': 'Dragon Ball',
+  dragonball: 'Dragon Ball',
+  dandadn: 'Dandadan',
+  dandadaan: 'Dandadan',
+  blech: 'Bleach',
+  bleech: 'Bleach',
+  'huter x hunter': 'Hunter x Hunter',
+  hxh: 'Hunter x Hunter',
+  frirn: 'Frieren',
+  frieran: 'Frieren',
+  kaiju8: 'Kaiju No. 8',
+  'kaiju no 8': 'Kaiju No. 8',
+  bluelock: 'Blue Lock',
+  'blue lok': 'Blue Lock',
+  'stranger thing': 'Stranger Things',
+  strangerthing: 'Stranger Things',
+  'breking bad': 'Breaking Bad',
+  squidgame: 'Squid Game',
+  peakyblinders: 'Peaky Blinders',
+  gladiatr: 'Gladiator',
+  topgun: 'Top Gun',
+  'top gun 2': 'Top Gun: Maverick',
+  batmen: 'Batman',
+  supermen: 'Superman',
+  ironman: 'Iron Man',
+  wick: 'John Wick',
+  johnwick: 'John Wick',
+  matrix: 'The Matrix',
+
+  // Acronyms
+  aot: 'Attack on Titan',
+  jjk: 'Jujutsu Kaisen',
+  op: 'One Piece',
+  csm: 'Chainsaw Man',
+  got: 'Game of Thrones',
+  hotd: 'House of the Dragon',
+  tlou: 'The Last of Us',
+  dbz: 'Dragon Ball',
+  mha: 'My Hero Academia',
+  bnha: 'My Hero Academia',
+  fmab: 'Fullmetal Alchemist',
+  sao: 'Sword Art Online',
+  opm: 'One Punch Man',
+  tybw: 'Bleach',
+  'kimetsu no yaiba': 'Demon Slayer',
+  kimetsu: 'Demon Slayer',
+  tanjiro: 'Demon Slayer',
+  'shingeki no kyojin': 'Attack on Titan',
+  'boku no hero': 'My Hero Academia',
+};
+
+const SERVER_POPULAR_TITLES = [
+  'Fight Club',
+  'The Shawshank Redemption',
+  'The Godfather',
+  'Pulp Fiction',
+  'The Dark Knight',
+  'Inception',
+  'Interstellar',
+  'Dune: Part Two',
+  'Dune',
+  'Oppenheimer',
+  'Gladiator',
+  'Top Gun: Maverick',
+  'Avatar',
+  'Spider-Man',
+  'Deadpool & Wolverine',
+  'John Wick',
+  'Joker',
+  'Titanic',
+  'Avengers: Endgame',
+  'The Matrix',
+  'House of the Dragon',
+  'Game of Thrones',
+  'The Last of Us',
+  'Fallout',
+  'Arcane',
+  'Stranger Things',
+  'Breaking Bad',
+  'Squid Game',
+  'The Boys',
+  'Wednesday',
+  'Peaky Blinders',
+  'Shogun',
+  'Solo Leveling',
+  'Attack on Titan',
+  'Demon Slayer',
+  'Jujutsu Kaisen',
+  'One Piece',
+  'Bleach',
+  'Naruto',
+  'Dragon Ball',
+  'Death Note',
+  'Chainsaw Man',
+  'Spy x Family',
+  'Frieren: Beyond Journey\'s End',
+  'Dandadan',
+  'Kaiju No. 8',
+  'Blue Lock',
+  'Haikyuu',
+  'Hunter x Hunter',
+  'My Hero Academia',
+  'Vinland Saga',
+];
+
+function findServerFuzzySuggestion(raw: string): string | null {
+  const clean = raw.toLowerCase().replace(/[^a-z0-9]/g, '').trim();
+  if (clean.length < 2) return null;
+
+  if (SERVER_SEARCH_TYPOS[clean]) {
+    return SERVER_SEARCH_TYPOS[clean];
+  }
+  const cleanSpaced = raw.toLowerCase().trim();
+  if (SERVER_SEARCH_TYPOS[cleanSpaced]) {
+    return SERVER_SEARCH_TYPOS[cleanSpaced];
+  }
+
+  let bestTitle: string | null = null;
+  let bestSim = 0;
+  let lowestDist = 999;
+
+  for (const title of SERVER_POPULAR_TITLES) {
+    const sim = calcSimilarity(clean, title);
+    const dist = calcDamerauDistance(clean, title.toLowerCase().replace(/[^a-z0-9]/g, ''));
+    if (sim > bestSim) {
+      bestSim = sim;
+      lowestDist = dist;
+      bestTitle = title;
+    }
+  }
+
+  if (bestTitle && (bestSim >= 0.58 || (lowestDist <= 3 && clean.length >= 4))) {
+    return bestTitle;
+  }
+
+  return null;
+}
+
+// 4. Search endpoint (Film, TV, and Anime) - High-resilience with instant typo auto-recovery
 app.get('/api/search', async (req: Request, res: Response) => {
   const q = req.query.q as string;
   const type = req.query.type as string;
@@ -887,36 +1287,6 @@ app.get('/api/search', async (req: Request, res: Response) => {
   }
 
   const queryClean = q.trim();
-
-  // Known typo dictionary for instant resolution
-  const SERVER_TYPO_MAP: Record<string, string> = {
-    avtar: 'avatar',
-    avatr: 'avatar',
-    'demon slyer': 'demon slayer',
-    demonslayer: 'demon slayer',
-    'on peace': 'one piece',
-    onepece: 'one piece',
-    spidrman: 'spider-man',
-    spiderman: 'spider-man',
-    naruo: 'naruto',
-    narutoo: 'naruto',
-    jujutso: 'jujutsu kaisen',
-    'jujutsu kaysen': 'jujutsu kaisen',
-    'attck on titan': 'attack on titan',
-    'atack on titan': 'attack on titan',
-    'solo levelng': 'solo leveling',
-    sololeveling: 'solo leveling',
-    chainsw: 'chainsaw man',
-    chainsaw: 'chainsaw man',
-    interstelar: 'interstellar',
-    intrestellar: 'interstellar',
-    openeimer: 'oppenheimer',
-    oppenhiemer: 'oppenheimer',
-    'drgon ball': 'dragon ball',
-    dragonball: 'dragon ball',
-    'kimetsu no yaiba': 'demon slayer',
-    'shingeki no kyojin': 'attack on titan',
-  };
 
   async function executeSearch(targetQuery: string): Promise<any[]> {
     const tasks: Promise<any[]>[] = [];
@@ -930,7 +1300,7 @@ app.get('/api/search', async (req: Request, res: Response) => {
               q: targetQuery,
               ...(type && type !== 'all' ? { type } : {}),
               page,
-            });
+            }, 4500);
             if (upstream && Array.isArray(upstream.results)) {
               return upstream.results;
             }
@@ -947,23 +1317,23 @@ app.get('/api/search', async (req: Request, res: Response) => {
       tasks.push(
         (async () => {
           const animeHosts = [
-            'https://api.framextv.tech/anime/api/search',
-            'https://api.framextv.cc/anime/api/search',
             'https://api.framextv.xyz/anime/api/search',
+            'https://api.framextv.cc/anime/api/search',
+            'https://api.framextv.tech/anime/api/search',
           ];
           for (const host of animeHosts) {
             try {
-              const res = await fetch(`${host}?q=${encodeURIComponent(targetQuery)}&page=${page}`, {
+              const r = await fetch(`${host}?q=${encodeURIComponent(targetQuery)}&page=${page}`, {
                 headers: {
                   'User-Agent':
                     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-                  Referer: 'https://framextv.tech/',
+                  Referer: 'https://framextv.xyz/',
                   Accept: 'application/json',
                 },
-                signal: AbortSignal.timeout(5500),
+                signal: AbortSignal.timeout(3500),
               });
-              if (res.ok) {
-                const data = await res.json();
+              if (r.ok) {
+                const data = await r.json();
                 const items = Array.isArray(data.results) ? data.results : [];
                 return items.map((a: any) => ({
                   id: String(a.id),
@@ -989,8 +1359,6 @@ app.get('/api/search', async (req: Request, res: Response) => {
     }
 
     const [movieTvList, animeList] = await Promise.all(tasks);
-
-    // Merge with strict title & ID deduplication to prevent double posters
     const ordered = type === 'anime' ? [...animeList, ...movieTvList] : [...movieTvList, ...animeList];
     return deduplicateTitles(ordered);
   }
@@ -998,15 +1366,43 @@ app.get('/api/search', async (req: Request, res: Response) => {
   try {
     let results = await executeSearch(queryClean);
     let didYouMean: string | undefined;
+    let autoCorrected = false;
 
-    // Typo recovery fallback
-    const lower = queryClean.toLowerCase();
-    const correctedTerm = SERVER_TYPO_MAP[lower];
-    if (results.length === 0 && correctedTerm) {
-      const recovered = await executeSearch(correctedTerm);
-      if (recovered.length > 0) {
-        results = recovered;
-        didYouMean = correctedTerm.charAt(0).toUpperCase() + correctedTerm.slice(1);
+    // Check if the returned results actually contain any title relevant to the query
+    const cleanQ = queryClean.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const hasMeaningfulMatch = results.some((r) => {
+      const t = String(r.title || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      return t.includes(cleanQ) || cleanQ.includes(t) || calcSimilarity(cleanQ, t) >= 0.55;
+    });
+
+    const knownTypo = findServerFuzzySuggestion(queryClean);
+    const isDirectTypoMap = Boolean(SERVER_SEARCH_TYPOS[cleanQ] || SERVER_SEARCH_TYPOS[queryClean.toLowerCase().trim()]);
+
+    // Typo recovery fallback: Trigger if 0 results, no meaningful title match, or explicitly known typo
+    if (results.length === 0 || !hasMeaningfulMatch || isDirectTypoMap) {
+      const suggested = knownTypo;
+      if (suggested && suggested.toLowerCase() !== queryClean.toLowerCase()) {
+        const recovered = await executeSearch(suggested);
+        if (recovered.length > 0) {
+          results = recovered;
+          didYouMean = suggested;
+          autoCorrected = true;
+        }
+      }
+    }
+
+    // Secondary fallback for multi-word phrases with common noise words ("nonton ... sub indo", "season 1", etc.)
+    if (results.length === 0 && queryClean.includes(' ')) {
+      const stripped = queryClean
+        .replace(/\b(nonton|film|movie|serial|series|anime|sub\s*indo|subtitle\s*indonesia|season\s*\d+|eps\s*\d+|episode\s*\d+)\b/gi, '')
+        .trim();
+      if (stripped && stripped.length >= 3 && stripped.toLowerCase() !== queryClean.toLowerCase()) {
+        const strippedResults = await executeSearch(stripped);
+        if (strippedResults.length > 0) {
+          results = strippedResults;
+          didYouMean = stripped;
+          autoCorrected = true;
+        }
       }
     }
 
@@ -1018,10 +1414,85 @@ app.get('/api/search', async (req: Request, res: Response) => {
       totalResults: results.length,
       results,
       didYouMean,
+      autoCorrected,
+      originalQuery: queryClean,
     });
   } catch (err: any) {
     return res.status(502).json({ success: false, error: 'Gagal melakukan pencarian di Zhafx.' });
   }
+});
+
+// Endpoint: AI-assisted or Rule-based Synopsis Translation
+app.post('/api/translate/synopsis', async (req: Request, res: Response) => {
+  const { text, title } = req.body || {};
+  if (!text || typeof text !== 'string') {
+    return res.status(400).json({ error: 'Teks sinopsis diperlukan.' });
+  }
+
+  const cleanTitle = String(title || '').toLowerCase().trim();
+
+  // 1. Check in-memory / disk cache
+  if (cleanTitle && serverSynopsisCache[cleanTitle]) {
+    return res.json({ translation: serverSynopsisCache[cleanTitle], source: 'cache' });
+  }
+
+  // 2. Check curated manual dictionary
+  if (cleanTitle) {
+    for (const [key, val] of Object.entries(SERVER_MANUAL_SYNOPSES)) {
+      if (cleanTitle.includes(key) || key.includes(cleanTitle)) {
+        serverSynopsisCache[cleanTitle] = val;
+        saveSynopsisCache();
+        return res.json({ translation: val, source: 'dictionary' });
+      }
+    }
+  }
+
+  // 3. If already Indonesian, return as-is
+  if (checkIsIndonesianText(text)) {
+    if (cleanTitle) {
+      serverSynopsisCache[cleanTitle] = text;
+      saveSynopsisCache();
+    }
+    return res.json({ translation: text, source: 'original' });
+  }
+
+  // 4. Try Gemini AI Translation if key exists
+  const currentKey = process.env.GEMINI_API_KEY || apiKey;
+  if (currentKey) {
+    try {
+      const ai = new GoogleGenAI({ apiKey: currentKey });
+      const promptText = `Terjemahkan sinopsis film/serial ini ke dalam Bahasa Indonesia yang mengalir, sinematik, dramatis, dan memikat tanpa tanda petik pembuka/penutup:\n"${text}"`;
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('AI timeout')), 3500)
+      );
+      const aiRes: any = await Promise.race([
+        ai.models.generateContent({
+          model: 'gemini-3.8-flash',
+          contents: promptText,
+        }),
+        timeoutPromise,
+      ]);
+
+      const translatedText = aiRes.text?.trim();
+      if (translatedText && checkIsIndonesianText(translatedText)) {
+        if (cleanTitle) {
+          serverSynopsisCache[cleanTitle] = translatedText;
+          saveSynopsisCache();
+        }
+        return res.json({ translation: translatedText, source: 'ai' });
+      }
+    } catch {
+      // Fall through to smart rule translation
+    }
+  }
+
+  // 5. Smart rule translation fallback
+  const smart = applySmartSynopsisRules(text);
+  if (cleanTitle) {
+    serverSynopsisCache[cleanTitle] = smart;
+    saveSynopsisCache();
+  }
+  return res.json({ translation: smart, source: 'rule' });
 });
 
 // 5. TV Season episodes endpoint with guaranteed stills

@@ -54,6 +54,8 @@ export const SearchPage: React.FC = () => {
 
   const [rawResults, setRawResults] = useState<Title[]>([]);
   const [apiDidYouMean, setApiDidYouMean] = useState<string | undefined>(undefined);
+  const [autoCorrectedQuery, setAutoCorrectedQuery] = useState<string | null>(null);
+  const [isLiteralForced, setIsLiteralForced] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchHistory, setSearchHistory] = useState<string[]>(() => storage.getSearchHistory());
@@ -92,12 +94,13 @@ export const SearchPage: React.FC = () => {
     setSearchParams(nextParams, { replace: true });
   }, [debouncedQuery, mediaType, genre, year, status, sort, setSearchParams]);
 
-  // Execute Real-Time Search across movies, tv, and anime
+  // Execute Real-Time Search across movies, tv, and anime with typo tolerance
   useEffect(() => {
     const trimmed = debouncedQuery.trim();
     if (!trimmed) {
       setRawResults([]);
       setApiDidYouMean(undefined);
+      setAutoCorrectedQuery(null);
       setIsLoading(false);
       setError(null);
       return;
@@ -109,17 +112,56 @@ export const SearchPage: React.FC = () => {
 
     api
       .search(trimmed, 1, controller.signal, mediaType === 'all' ? undefined : mediaType)
-      .then((res) => {
+      .then(async (res) => {
         const seen = new Set<string>();
-        const unique = res.titles.filter((t) => {
+        let unique = res.titles.filter((t) => {
           const key = `${t.type}-${t.id}`;
           if (seen.has(key)) return false;
           seen.add(key);
           return true;
         });
 
+        // 1. Direct API auto-correction or didYouMean
+        if (res.autoCorrected && res.didYouMean) {
+          setAutoCorrectedQuery(res.didYouMean);
+          setApiDidYouMean(res.didYouMean);
+        } else {
+          setAutoCorrectedQuery(null);
+          setApiDidYouMean(res.didYouMean);
+        }
+
+        // 2. Client-side secondary recovery: If 0 results returned and not forced literal,
+        // automatically search the closest matching title so the user sees results!
+        if (unique.length === 0 && !isLiteralForced) {
+          const suggestion = findTypoSuggestion(trimmed);
+          if (suggestion && suggestion.suggestedTitle.toLowerCase() !== trimmed.toLowerCase()) {
+            try {
+              const fallbackRes = await api.search(
+                suggestion.suggestedTitle,
+                1,
+                controller.signal,
+                mediaType === 'all' ? undefined : mediaType
+              );
+              const fallbackSeen = new Set<string>();
+              const fallbackUnique = fallbackRes.titles.filter((t) => {
+                const key = `${t.type}-${t.id}`;
+                if (fallbackSeen.has(key)) return false;
+                fallbackSeen.add(key);
+                return true;
+              });
+
+              if (fallbackUnique.length > 0) {
+                unique = fallbackUnique;
+                setAutoCorrectedQuery(suggestion.suggestedTitle);
+                setApiDidYouMean(suggestion.suggestedTitle);
+              }
+            } catch {
+              // keep unique empty
+            }
+          }
+        }
+
         setRawResults(unique);
-        setApiDidYouMean(res.didYouMean);
 
         // Record successful non-empty search query into history
         if (unique.length > 0) {
@@ -137,7 +179,7 @@ export const SearchPage: React.FC = () => {
       });
 
     return () => controller.abort();
-  }, [debouncedQuery, mediaType]);
+  }, [debouncedQuery, mediaType, isLiteralForced]);
 
   // Typo tolerance suggestion resolution
   const typoSuggestion = useMemo(() => {
@@ -280,7 +322,10 @@ export const SearchPage: React.FC = () => {
               ref={inputRef}
               type="text"
               value={input}
-              onChange={(e) => setInput(e.target.value)}
+              onChange={(e) => {
+                setInput(e.target.value);
+                setIsLiteralForced(false);
+              }}
               placeholder="Cari film, serial TV, anime, atau aktor... (tekan /)"
               className="w-full bg-transparent text-sm sm:text-base text-white placeholder-white/40 focus:outline-none"
             />
@@ -288,6 +333,8 @@ export const SearchPage: React.FC = () => {
               <button
                 onClick={() => {
                   setInput('');
+                  setIsLiteralForced(false);
+                  setAutoCorrectedQuery(null);
                   inputRef.current?.focus();
                 }}
                 aria-label="Hapus kata kunci pencarian"
@@ -299,8 +346,8 @@ export const SearchPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Typo Correction Pill ("Maksud Anda: ...?") */}
-        {typoSuggestion && input.trim() && (
+        {/* Typo Correction Pill ("Maksud Anda: ...?") when not auto-corrected */}
+        {!autoCorrectedQuery && typoSuggestion && input.trim() && (
           <div className="flex items-center gap-2 px-1 pt-0.5 animate-in fade-in duration-200">
             <button
               onClick={() => applyTypoCorrection(typoSuggestion)}
@@ -555,7 +602,40 @@ export const SearchPage: React.FC = () => {
 
       {/* 5. Success State */}
       {!isLoading && !error && processedResults.length > 0 && (
-        <div className="space-y-10 pt-2">
+        <div className="space-y-8 pt-2">
+          {/* Auto-Corrected Typo Banner */}
+          {autoCorrectedQuery && (
+            <div className="p-3.5 sm:p-4 rounded-2xl liquid-glass liquid-specular border border-amber-500/35 bg-amber-500/10 flex flex-wrap items-center justify-between gap-3 text-xs text-amber-200 shadow-xl animate-in fade-in duration-200">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-full bg-amber-500/20 border border-amber-500/40 flex items-center justify-center shrink-0">
+                  <Sparkles className="w-4 h-4 text-[#FFB224]" />
+                </div>
+                <div className="leading-snug">
+                  <span className="text-white/80">Menampilkan hasil untuk: </span>
+                  <span className="font-bold text-white text-sm">"{autoCorrectedQuery}"</span>
+                  <span className="text-amber-300/80 block sm:inline sm:ml-2 text-[11px]">
+                    (Koreksi typo otomatis dari <em>"{debouncedQuery}"</em>)
+                  </span>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setIsLiteralForced(true);
+                  setAutoCorrectedQuery(null);
+                  setRawResults([]);
+                  setIsLoading(true);
+                  api
+                    .search(debouncedQuery.trim(), 1, undefined, mediaType === 'all' ? undefined : mediaType)
+                    .then((res) => setRawResults(res.titles))
+                    .finally(() => setIsLoading(false));
+                }}
+                className="px-3.5 py-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white text-xs font-semibold cursor-pointer ios-spring border border-white/20 shrink-0 ml-auto sm:ml-0"
+              >
+                Cari tetap "{debouncedQuery}"
+              </button>
+            </div>
+          )}
+
           {/* Summary line */}
           <div className="flex items-center justify-between text-xs text-white/60 px-1 border-b border-white/[0.08] pb-2">
             <span>

@@ -586,7 +586,14 @@ export const api = {
     page = 1,
     signal?: AbortSignal,
     type?: MediaType | 'all'
-  ): Promise<{ titles: Title[]; totalPages: number; totalResults?: number; didYouMean?: string }> {
+  ): Promise<{
+    titles: Title[];
+    totalPages: number;
+    totalResults?: number;
+    didYouMean?: string;
+    autoCorrected?: boolean;
+    originalQuery?: string;
+  }> {
     const trimmed = query.trim();
     if (!trimmed) return { titles: [], totalPages: 0, totalResults: 0 };
 
@@ -601,6 +608,8 @@ export const api = {
         totalPages: data.totalPages || 1,
         totalResults: data.totalResults ?? rawResults.length,
         didYouMean: data.didYouMean,
+        autoCorrected: data.autoCorrected,
+        originalQuery: data.originalQuery,
       };
     } catch (err: any) {
       if (err.name === 'AbortError') throw err;
@@ -614,6 +623,8 @@ export const api = {
           totalPages: fbData.totalPages || 1,
           totalResults: fbData.totalResults ?? fbResults.length,
           didYouMean: fbData.didYouMean,
+          autoCorrected: fbData.autoCorrected,
+          originalQuery: fbData.originalQuery,
         };
       } catch {
         return { titles: [], totalPages: 0, totalResults: 0 };
