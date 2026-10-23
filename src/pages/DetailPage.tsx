@@ -33,9 +33,10 @@ import { translateToIndonesian, isIndonesian } from '../lib/translator';
 
 interface DetailPageProps {
   onOpenAIWithContext: (title: Title) => void;
+  onOpenAuth?: () => void;
 }
 
-export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) => {
+export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext, onOpenAuth }) => {
   const { type: rawType, id } = useParams<{ type?: string; id?: string }>();
   const navigate = useNavigate();
 
@@ -923,7 +924,7 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext }) =
           </div>
           {!isLoggedIn && (
             <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/25 px-6 text-center backdrop-blur-[1px]">
-              <p className="rounded-full border border-white/15 bg-black/45 px-4 py-2 text-sm font-semibold text-white shadow-lg">Kalau mau yapping, login dulu.</p>
+              <button type="button" onClick={onOpenAuth} className="rounded-full border border-white/15 bg-black/45 px-4 py-2 text-sm font-semibold text-white shadow-lg cursor-pointer">Kalau mau yapping, login dulu.</button>
             </div>
           )}
         </div>
