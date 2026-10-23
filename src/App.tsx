@@ -10,7 +10,6 @@ import { LiquidBackground } from './components/LiquidBackground';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { ActiveMediaProvider } from './context/ActiveMediaContext';
 import { storage } from './lib/storage';
-import { supabase } from './lib/supabase';
 import { Title } from './types';
 
 // HomePage is imported directly for instant FCP and LCP
@@ -107,45 +106,47 @@ function AppLayout() {
         });
     }
 
-    // 3. Sync Supabase session if present
-    try {
-      supabase.auth.getSession().then(({ data: { session } = { data: { session: null } } }) => {
-        if (!session?.user) return;
-        const authUser = session.user;
-        storage.saveToken(session.access_token);
-        storage.saveUser({
-          id: authUser.id,
-          email: authUser.email || '',
-          name: String(authUser.user_metadata?.name || authUser.email?.split('@')[0] || 'Pengguna'),
-          avatar: authUser.user_metadata?.avatar_url,
-          joinedAt: new Date(authUser.created_at).getTime(),
-        });
-      }).catch(() => {});
-    } catch {}
-
-    // 4. Listen for auth changes WITHOUT nuking storage on INITIAL_SESSION
+    // 3. Dynamically sync Supabase session if present without blocking initial paint
     let authSub: any = null;
-    try {
-      const { data } = supabase.auth.onAuthStateChange((event, session) => {
-        if (event === 'SIGNED_OUT') {
-          storage.clearAuth();
-          return;
-        }
+    import('./lib/supabase')
+      .then(({ supabase }) => {
+        supabase.auth
+          .getSession()
+          .then(({ data: { session } = { data: { session: null } } }) => {
+            if (!session?.user) return;
+            const authUser = session.user;
+            storage.saveToken(session.access_token);
+            storage.saveUser({
+              id: authUser.id,
+              email: authUser.email || '',
+              name: String(authUser.user_metadata?.name || authUser.email?.split('@')[0] || 'Pengguna'),
+              avatar: authUser.user_metadata?.avatar_url,
+              joinedAt: new Date(authUser.created_at).getTime(),
+            });
+          })
+          .catch(() => {});
 
-        if (session?.user && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED')) {
-          const authUser = session.user;
-          storage.saveToken(session.access_token);
-          storage.saveUser({
-            id: authUser.id,
-            email: authUser.email || '',
-            name: String(authUser.user_metadata?.name || authUser.email?.split('@')[0] || 'Pengguna'),
-            avatar: authUser.user_metadata?.avatar_url,
-            joinedAt: new Date(authUser.created_at).getTime(),
-          });
-        }
-      });
-      authSub = data?.subscription;
-    } catch {}
+        const { data } = supabase.auth.onAuthStateChange((event, session) => {
+          if (event === 'SIGNED_OUT') {
+            storage.clearAuth();
+            return;
+          }
+
+          if (session?.user && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED')) {
+            const authUser = session.user;
+            storage.saveToken(session.access_token);
+            storage.saveUser({
+              id: authUser.id,
+              email: authUser.email || '',
+              name: String(authUser.user_metadata?.name || authUser.email?.split('@')[0] || 'Pengguna'),
+              avatar: authUser.user_metadata?.avatar_url,
+              joinedAt: new Date(authUser.created_at).getTime(),
+            });
+          }
+        });
+        authSub = data?.subscription;
+      })
+      .catch(() => {});
 
     return () => {
       try {

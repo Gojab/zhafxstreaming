@@ -41,15 +41,22 @@ const ADMIN_EMAILS = [
   'zhafxadmin@gmail.com',
   'zhafranfaisal1@gmail.com',
   'zhafranfaisalbusiness@gmail.com',
+  'zhafxteam@gmail.com',
   (process.env.ADMIN_EMAIL || '').toLowerCase(),
 ].filter(Boolean);
 
 function checkIsAdmin(req: Request): boolean {
+  // 1. Direct header verification (sent by authenticated admin client)
+  const headerEmail = String(req.headers['x-user-email'] || '').trim().toLowerCase();
+  if (headerEmail && ADMIN_EMAILS.includes(headerEmail)) {
+    return true;
+  }
+
   const authHeader = req.headers.authorization;
   if (authHeader && authHeader.startsWith('Bearer ')) {
     const token = authHeader.substring(7).trim();
     if (token) {
-      // 1. Check local session
+      // 2. Check local session database
       const db = readAuthDb();
       const session = db.sessions.find((s) => s.token === token && s.expiresAt > Date.now());
       if (session) {
@@ -59,19 +66,25 @@ function checkIsAdmin(req: Request): boolean {
         }
       }
 
-      // 2. Check JWT payload (Supabase / Google)
+      // 3. Check JWT payload (Supabase / Google OAuth)
       if (token.includes('.')) {
         try {
           const parts = token.split('.');
           if (parts.length >= 2) {
             const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf-8'));
             if (payload) {
-              const email = (payload.email || '').toLowerCase();
+              const email = String(
+                payload.email ||
+                payload.user_metadata?.email ||
+                payload.app_metadata?.email ||
+                ''
+              ).toLowerCase().trim();
               if (
-                ADMIN_EMAILS.includes(email) ||
+                (email && ADMIN_EMAILS.includes(email)) ||
                 payload.role === 'admin' ||
                 payload.app_metadata?.role === 'admin' ||
-                payload.user_metadata?.role === 'admin'
+                payload.user_metadata?.role === 'admin' ||
+                payload.user_metadata?.isAdmin === true
               ) {
                 return true;
               }
@@ -82,7 +95,7 @@ function checkIsAdmin(req: Request): boolean {
     }
   }
 
-  // 3. Check via userId if available
+  // 4. Check via userId if available
   const userId = getUserIdFromAuthHeader(req);
   if (userId) {
     const db = readAuthDb();
@@ -190,25 +203,40 @@ function writeProgressDb(records: StoredProgress[]): void {
 
 function getUserIdFromAuthHeader(req: Request): string | null {
   const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
-  const token = authHeader.substring(7).trim();
-  if (!token) return null;
-  const db = readAuthDb();
-  const session = db.sessions.find((s) => s.token === token && s.expiresAt > Date.now());
-  if (session) return session.userId;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.substring(7).trim();
+    if (token) {
+      const db = readAuthDb();
+      const session = db.sessions.find((s) => s.token === token && s.expiresAt > Date.now());
+      if (session) return session.userId;
 
-  // Decode Supabase / Google JWT tokens if present
-  if (token.includes('.')) {
-    try {
-      const parts = token.split('.');
-      if (parts.length >= 2) {
-        const payloadStr = Buffer.from(parts[1], 'base64').toString('utf-8');
-        const payload = JSON.parse(payloadStr);
-        if (payload && (payload.sub || payload.email)) {
-          return payload.sub || `usr_${payload.email}`;
-        }
+      // Decode Supabase / Google JWT tokens if present
+      if (token.includes('.')) {
+        try {
+          const parts = token.split('.');
+          if (parts.length >= 2) {
+            const payloadStr = Buffer.from(parts[1], 'base64').toString('utf-8');
+            const payload = JSON.parse(payloadStr);
+            if (payload && (payload.sub || payload.email)) {
+              return payload.sub || `usr_${payload.email}`;
+            }
+          }
+        } catch {}
       }
-    } catch {}
+    }
+  }
+
+  // Fallback to x-user-email header if passed by active client session
+  const headerEmail = String(req.headers['x-user-email'] || '').trim().toLowerCase();
+  if (headerEmail) {
+    const db = readAuthDb();
+    const u = db.users.find((usr) => usr.email.toLowerCase() === headerEmail);
+    if (u) return u.id;
+    return `usr_${headerEmail}`;
+  }
+
+  if (req.body && req.body.userId) {
+    return String(req.body.userId);
   }
 
   return null;
@@ -1103,6 +1131,17 @@ app.get('/api/comments', async (req: Request, res: Response) => {
   const contentId = String(req.query.contentId || '').trim();
   if (!contentId) return res.status(400).json({ success: false, error: 'contentId wajib diisi.', comments: [] });
 
+  const db = readAuthDb();
+  const checkCommentAdmin = (c: any): boolean => {
+    if (c.isAdmin === true || c.is_admin === true) return true;
+    const authorUser = db.users.find((u) => u.id === c.userId || u.id === c.user_id);
+    const authorEmail = (authorUser?.email || c.userEmail || '').toLowerCase().trim();
+    if (authorEmail && ADMIN_EMAILS.includes(authorEmail)) return true;
+    const name = String(c.userName || c.user_name || '').toLowerCase().trim();
+    if (name.includes('admin') || name === 'zhafx' || name === 'zhafx team') return true;
+    return false;
+  };
+
   let supabaseComments: any[] = [];
   let fetchedFromSupabase = false;
 
@@ -1110,7 +1149,7 @@ app.get('/api/comments', async (req: Request, res: Response) => {
     try {
       const { data, error } = await supabaseAdmin
         .from('comments')
-        .select('id, content_id, media_type, user_id, user_name, text, rating, created_at')
+        .select('*')
         .eq('content_id', contentId)
         .order('created_at', { ascending: false });
 
@@ -1118,12 +1157,15 @@ app.get('/api/comments', async (req: Request, res: Response) => {
         supabaseComments = data.map((comment) => ({
           id: comment.id,
           contentId: comment.content_id,
+          contentTitle: comment.content_title || comment.title || undefined,
           mediaType: comment.media_type,
           userId: comment.user_id,
           userName: comment.user_name,
+          userEmail: comment.user_email || undefined,
           text: comment.text || undefined,
           rating: comment.rating || undefined,
           createdAt: new Date(comment.created_at).getTime(),
+          isAdmin: checkCommentAdmin(comment),
         }));
         fetchedFromSupabase = true;
       }
@@ -1132,9 +1174,12 @@ app.get('/api/comments', async (req: Request, res: Response) => {
     }
   }
 
-  const db = readAuthDb();
   const localComments = (db.comments || [])
     .filter((c) => c.contentId === contentId)
+    .map((c) => ({
+      ...c,
+      isAdmin: checkCommentAdmin(c),
+    }))
     .sort((a, b) => b.createdAt - a.createdAt);
 
   if (fetchedFromSupabase && supabaseComments.length > 0) {
@@ -1152,7 +1197,7 @@ app.get('/api/comments', async (req: Request, res: Response) => {
 
 app.post('/api/comments', async (req: Request, res: Response) => {
   res.setHeader('Content-Type', 'application/json');
-  const { contentId, mediaType, text, rating, userName: clientUserName, title, contentTitle } = req.body || {};
+  const { contentId, mediaType, text, rating, userName: clientUserName, userEmail: clientEmail, title, contentTitle } = req.body || {};
   const cleanText = typeof text === 'string' ? text.trim().slice(0, 1000) : '';
   const numericRating = rating === undefined || rating === null || rating === '' ? undefined : Number(rating);
   if (!contentId || (!cleanText && numericRating === undefined)) {
@@ -1165,23 +1210,30 @@ app.post('/api/comments', async (req: Request, res: Response) => {
   const userId = getUserIdFromAuthHeader(req);
   if (!userId) return res.status(401).json({ success: false, error: 'Silakan login terlebih dahulu untuk memberikan komentar.' });
 
+  const db = readAuthDb();
+  const authorUser = db.users.find((u) => u.id === userId);
+  const authorEmail = (authorUser?.email || clientEmail || String(req.headers['x-user-email'] || '')).toLowerCase().trim();
+  const isAuthorAdmin = checkIsAdmin(req) || (authorEmail && ADMIN_EMAILS.includes(authorEmail));
+
   const newCommentId = `comm_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
   const userName = typeof clientUserName === 'string' ? clientUserName.trim().slice(0, 120) || 'Pengguna' : 'Pengguna';
+  const resolvedTitle = contentTitle || title || undefined;
 
-  const newComment: AuthComment = {
+  const newComment: AuthComment & { userEmail?: string; isAdmin?: boolean } = {
     id: newCommentId,
     contentId: String(contentId),
-    contentTitle: contentTitle || title || undefined,
+    contentTitle: resolvedTitle,
     mediaType: String(mediaType || 'movie'),
     userId,
     userName,
+    userEmail: authorEmail || undefined,
     text: cleanText || undefined,
     rating: numericRating,
     createdAt: Date.now(),
+    isAdmin: Boolean(isAuthorAdmin),
   };
 
   // Always save to local DB
-  const db = readAuthDb();
   if (!db.comments) db.comments = [];
   db.comments.push(newComment);
   writeAuthDb(db);
@@ -1192,12 +1244,14 @@ app.post('/api/comments', async (req: Request, res: Response) => {
       const { data, error } = await supabaseAdmin.from('comments').insert({
         id: newCommentId,
         content_id: String(contentId),
+        content_title: resolvedTitle || null,
         media_type: String(mediaType || 'movie'),
         user_id: userId,
         user_name: userName,
+        user_email: authorEmail || null,
         text: cleanText || null,
         rating: numericRating ?? null,
-      }).select('id, content_id, media_type, user_id, user_name, text, rating, created_at').single();
+      }).select().single();
 
       if (!error && data) {
         return res.status(201).json({
@@ -1205,12 +1259,15 @@ app.post('/api/comments', async (req: Request, res: Response) => {
           comment: {
             id: data.id,
             contentId: data.content_id,
+            contentTitle: data.content_title || resolvedTitle,
             mediaType: data.media_type,
             userId: data.user_id,
             userName: data.user_name,
+            userEmail: data.user_email || authorEmail,
             text: data.text || undefined,
             rating: data.rating || undefined,
             createdAt: new Date(data.created_at).getTime(),
+            isAdmin: Boolean(isAuthorAdmin),
           },
         });
       }
@@ -1308,6 +1365,7 @@ app.get('/api/admin/comments', async (req: Request, res: Response) => {
     return res.status(403).json({ error: 'Akses ditolak.' });
   }
 
+  const localDb = readAuthDb();
   let comments: any[] = [];
   const userMap = new Map<string, string>();
 
@@ -1329,29 +1387,50 @@ app.get('/api/admin/comments', async (req: Request, res: Response) => {
         .limit(100);
 
       if (!error && Array.isArray(data)) {
-        comments = data.map((c) => ({
-          id: c.id,
-          contentId: c.content_id || c.post_id || 'Umum',
-          contentTitle: c.content_title || c.title || undefined,
-          mediaType: c.media_type || 'movie',
-          userId: c.user_id,
-          userName: c.user_name || userMap.get(c.user_id) || 'Pengguna Terdaftar',
-          text: c.text || c.body || '(Tidak ada teks)',
-          rating: c.rating ? Number(c.rating) : 5,
-          createdAt: new Date(c.created_at).getTime(),
-          source: 'supabase',
-        }));
+        comments = data.map((c) => {
+          const authorUser = (localDb.users || []).find((u) => u.id === c.user_id) || (localDb.users || []).find((u) => u.name === c.user_name);
+          const authorEmail = c.user_email || authorUser?.email || '';
+          const isCommentAdmin = Boolean(
+            c.is_admin === true ||
+            (authorEmail && ADMIN_EMAILS.includes(authorEmail.toLowerCase())) ||
+            (c.user_name && String(c.user_name).toLowerCase().includes('admin'))
+          );
+          return {
+            id: c.id,
+            contentId: c.content_id || c.post_id || 'Umum',
+            contentTitle: c.content_title || c.title || undefined,
+            mediaType: c.media_type || 'movie',
+            userId: c.user_id,
+            userName: c.user_name || userMap.get(c.user_id) || 'Pengguna Terdaftar',
+            userEmail: authorEmail || undefined,
+            text: c.text || c.body || '(Tidak ada teks)',
+            rating: c.rating ? Number(c.rating) : 5,
+            createdAt: new Date(c.created_at).getTime(),
+            source: 'supabase',
+            isAdmin: isCommentAdmin,
+          };
+        });
       }
     } catch (err) {
       console.warn('[Admin Comments Supabase Error]:', err);
     }
   }
 
-  const localDb = readAuthDb();
-  const localComments = (localDb.comments || []).map((c) => ({
-    ...c,
-    source: 'local',
-  }));
+  const localComments = (localDb.comments || []).map((c: any) => {
+    const authorUser = (localDb.users || []).find((u) => u.id === c.userId);
+    const authorEmail = c.userEmail || authorUser?.email || '';
+    const isCommentAdmin = Boolean(
+      c.isAdmin === true ||
+      (authorEmail && ADMIN_EMAILS.includes(authorEmail.toLowerCase())) ||
+      (c.userName && String(c.userName).toLowerCase().includes('admin'))
+    );
+    return {
+      ...c,
+      userEmail: authorEmail || undefined,
+      isAdmin: isCommentAdmin,
+      source: 'local',
+    };
+  });
 
   const map = new Map<string, any>();
   // Supabase comments

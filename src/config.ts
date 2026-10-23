@@ -120,6 +120,7 @@ export const ADMIN_EMAILS = [
   'zhafxadmin@gmail.com',
   'zhafranfaisal1@gmail.com',
   'zhafranfaisalbusiness@gmail.com',
+  'zhafxteam@gmail.com',
 ];
 
 export function checkIsAdminEmail(email?: string | null): boolean {

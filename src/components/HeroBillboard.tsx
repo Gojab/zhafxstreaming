@@ -41,7 +41,7 @@ export const HeroBillboard: React.FC<HeroBillboardProps> = ({ items }) => {
   // Convert validItems into CoverflowSlide objects
   const slides = useMemo<CoverflowSlide[]>(() => {
     return validItems.map((item) => ({
-      src: optimizeTmdbImage(item.poster || item.backdrop, 'w500'),
+      src: optimizeTmdbImage(item.poster || item.backdrop, 'w342'),
       alt: item.title,
       title: item.title,
       subtitle: item.genres?.slice(0, 2).join(' • '),

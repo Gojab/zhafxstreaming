@@ -29,9 +29,29 @@ export default defineConfig(() => {
               if (
                 id.includes('react-markdown') ||
                 id.includes('micromark') ||
-                id.includes('remark')
+                id.includes('remark') ||
+                id.includes('unified') ||
+                id.includes('unist') ||
+                id.includes('vfile')
               ) {
                 return 'vendor-markdown';
+              }
+              if (id.includes('framer-motion') || id.includes('motion')) {
+                return 'vendor-motion';
+              }
+              if (id.includes('react-icons') || id.includes('lucide-react')) {
+                return 'vendor-icons';
+              }
+              if (id.includes('@supabase')) {
+                return 'vendor-supabase';
+              }
+              if (
+                id.includes('react') ||
+                id.includes('react-dom') ||
+                id.includes('react-router') ||
+                id.includes('scheduler')
+              ) {
+                return 'vendor-react';
               }
             }
           },

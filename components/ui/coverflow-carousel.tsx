@@ -3,6 +3,7 @@
 import * as React from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getTmdbPosterSrcSet } from "@/src/lib/image";
 
 const useIsoLayoutEffect =
   typeof window !== "undefined" ? React.useLayoutEffect : React.useEffect;
@@ -351,7 +352,11 @@ export function CoverflowCarousel({
                 >
                   <img
                     src={slide.src}
+                    srcSet={getTmdbPosterSrcSet(slide.src)}
+                    sizes="(max-width: 640px) 180px, (max-width: 1024px) 260px, 342px"
                     alt={slide.alt || slide.title || "Movie cover"}
+                    width={342}
+                    height={513}
                     className="w-full h-full object-cover pointer-events-none select-none transition-transform duration-500 group-hover:scale-105"
                     loading={index === 0 ? "eager" : "lazy"}
                     decoding="async"

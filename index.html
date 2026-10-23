@@ -79,8 +79,38 @@
     <link rel="shortcut icon" href="/favicon.ico" />
     <link rel="manifest" href="/site.webmanifest" />
 
-    <!-- Google AdSense verification -->
-    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7149657257008470" crossorigin="anonymous"></script>
+    <!-- Google AdSense Deferred Lazy-Loading (Eliminates main-thread blocking on initial mobile paint) -->
+    <script>
+      (function() {
+        var adsLoaded = false;
+        function loadAdSense() {
+          if (adsLoaded) return;
+          adsLoaded = true;
+          ['scroll', 'pointerdown', 'touchstart', 'keydown'].forEach(function(evt) {
+            window.removeEventListener(evt, loadAdSense, { passive: true });
+          });
+          var script = document.createElement('script');
+          script.async = true;
+          script.src = 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7149657257008470';
+          script.crossOrigin = 'anonymous';
+          document.head.appendChild(script);
+        }
+
+        // Trigger loading on first user interaction
+        ['scroll', 'pointerdown', 'touchstart', 'keydown'].forEach(function(evt) {
+          window.addEventListener(evt, loadAdSense, { passive: true, once: true });
+        });
+
+        // Fallback: Idle delay after initial paint
+        if ('requestIdleCallback' in window) {
+          window.requestIdleCallback(function() {
+            setTimeout(loadAdSense, 5000);
+          }, { timeout: 8000 });
+        } else {
+          setTimeout(loadAdSense, 6000);
+        }
+      })();
+    </script>
 
     <!-- Google Search Console Site Verification -->
     <meta name="google-site-verification" content="google4f8019285e68db73" />

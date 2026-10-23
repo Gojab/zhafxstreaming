@@ -136,12 +136,12 @@ export const MediaCard: React.FC<MediaCardProps> = React.memo(({ item, className
         >
           {!imageError && currentPoster ? (
             <img
-              src={optimizeTmdbImage(currentPoster, 'w342')}
+              src={optimizeTmdbImage(currentPoster, 'w185')}
               srcSet={getTmdbPosterSrcSet(currentPoster)}
               sizes="(max-width: 640px) 140px, (max-width: 1024px) 180px, 220px"
               alt={item.title}
-              width={342}
-              height={513}
+              width={185}
+              height={278}
               loading="lazy"
               decoding="async"
               onError={() => {

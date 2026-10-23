@@ -21,6 +21,7 @@ import {
   IoChatbubbleEllipsesOutline as MessageCircle,
   IoSendOutline as Send,
   IoTrashOutline as TrashIcon,
+  IoShieldCheckmarkOutline as ShieldCheck,
 } from 'react-icons/io5';
 import { api } from '../services/api';
 import { Title, Episode, MediaType, CastMember, VideoTrailer } from '../types';
@@ -64,7 +65,7 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext, onO
 
   // Share feedback toast
   const [showShareToast, setShowShareToast] = useState(false);
-  const [comments, setComments] = useState<Array<{ id: string; userName: string; text?: string; rating?: number; createdAt: number; userId?: string; contentId?: string }>>([]);
+  const [comments, setComments] = useState<Array<{ id: string; userName: string; userEmail?: string; text?: string; rating?: number; createdAt: number; userId?: string; contentId?: string; isAdmin?: boolean }>>([]);
   const [commentText, setCommentText] = useState('');
   const [selectedRating, setSelectedRating] = useState(0);
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
@@ -187,6 +188,7 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext, onO
           'Content-Type': 'application/json',
           Accept: 'application/json',
           Authorization: `Bearer ${storage.getToken() || ''}`,
+          'x-user-email': user.email || '',
         },
         body: JSON.stringify({
           contentId: id,
@@ -196,6 +198,7 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext, onO
           rating: selectedRating || undefined,
           userId: user.id,
           userName: fallbackUserName,
+          userEmail: user.email || '',
         }),
       });
 
@@ -940,10 +943,24 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext, onO
                     (currentUser.id === comment.userId ||
                       checkIsAdminEmail(currentUser.email))
                   );
+                  const isCommentAdmin = Boolean(
+                    comment.isAdmin ||
+                    checkIsAdminEmail(comment.userEmail) ||
+                    (comment.userName && String(comment.userName).toLowerCase().includes('admin'))
+                  );
+
                   return (
                     <article key={comment.id} className="border-t border-white/10 pt-3 group">
                       <div className="flex items-center justify-between gap-3">
-                        <span className="text-sm font-semibold text-white">{comment.userName}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-semibold text-white">{comment.userName}</span>
+                          {isCommentAdmin && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[10px] font-bold shadow-xs">
+                              <ShieldCheck className="w-3 h-3 text-amber-400" />
+                              <span>Admin</span>
+                            </span>
+                          )}
+                        </div>
                         <div className="flex items-center gap-2">
                           {comment.rating && (
                             <span className="inline-flex items-center gap-1 text-xs text-amber-300">

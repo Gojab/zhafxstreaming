@@ -14,10 +14,10 @@ import {
 } from 'react-icons/io5';
 import { Logo } from './Logo';
 import { PillBase, NavItem } from '@/components/ui/3d-adaptive-navigation-bar';
-import { ProfileModal } from './ProfileModal';
 import { BotMessageSquareIcon } from './icons/BotMessageSquareIcon';
+
+const ProfileModal = React.lazy(() => import('./ProfileModal').then(m => ({ default: m.ProfileModal })));
 import { storage } from '../lib/storage';
-import { supabase } from '../lib/supabase';
 import { User } from '../types';
 import { checkIsAdminEmail } from '../config';
 
@@ -130,6 +130,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAI, onOpenFeatures, onOpen
       // silent
     }
     try {
+      const { supabase } = await import('../lib/supabase');
       await supabase.auth.signOut();
     } catch {
       // silent
@@ -385,14 +386,16 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAI, onOpenFeatures, onOpen
         </div>
       </div>
 
-      {/* Profile Management Modal */}
+      {/* Profile Management Modal (Lazy loaded on demand) */}
       {isProfileModalOpen && (
-        <ProfileModal
-          isOpen={isProfileModalOpen}
-          onClose={() => setIsProfileModalOpen(false)}
-          onLogout={handleLogout}
-        />
+        <React.Suspense fallback={null}>
+          <ProfileModal
+            isOpen={isProfileModalOpen}
+            onClose={() => setIsProfileModalOpen(false)}
+            onLogout={handleLogout}
+          />
+        </React.Suspense>
       )}
-      </header>
+    </header>
   );
 };

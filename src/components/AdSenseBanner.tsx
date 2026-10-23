@@ -1,35 +1,40 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 
 const ADSENSE_CLIENT = 'ca-pub-7149657257008470';
 const ADSENSE_SLOT = '6349929034';
 
 export const AdSenseBanner: React.FC = () => {
-  useEffect(() => {
-    const existingScript = document.querySelector<HTMLScriptElement>(
-      'script[src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"]',
-    );
+  const adPushedRef = useRef(false);
 
-    if (!existingScript) {
-      const script = document.createElement('script');
-      script.async = true;
-      script.src = `https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${ADSENSE_CLIENT}`;
-      script.crossOrigin = 'anonymous';
-      document.head.appendChild(script);
-    }
+  useEffect(() => {
+    // Only initialize banner on desktop screens where it's visible
+    if (typeof window === 'undefined' || window.innerWidth < 768) return;
 
     const pushAd = () => {
+      if (adPushedRef.current) return;
       try {
-        (window.adsbygoogle = window.adsbygoogle || []).push({});
+        if (window.adsbygoogle) {
+          (window.adsbygoogle = window.adsbygoogle || []).push({});
+          adPushedRef.current = true;
+        }
       } catch {
-        // AdSense may be unavailable when an ad blocker is enabled.
+        // AdSense blocked by ad blocker
       }
     };
 
-    if (window.adsbygoogle) {
-      pushAd();
-    } else {
-      window.setTimeout(pushAd, 250);
-    }
+    // Poll gracefully until deferred AdSense script is ready
+    let attempts = 0;
+    const interval = setInterval(() => {
+      attempts++;
+      if (window.adsbygoogle) {
+        pushAd();
+        clearInterval(interval);
+      } else if (attempts > 30) {
+        clearInterval(interval);
+      }
+    }, 500);
+
+    return () => clearInterval(interval);
   }, []);
 
   return (

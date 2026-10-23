@@ -125,12 +125,17 @@ export const DashboardPage: React.FC = () => {
 
   const loadAdminData = async (token?: string | null) => {
     const activeToken = token || storage.getToken() || '';
+    const u = storage.getUser();
     setAdminLoading(true);
     try {
+      const headers: Record<string, string> = {
+        Authorization: `Bearer ${activeToken}`,
+        'x-user-email': u?.email || '',
+      };
       const [statsRes, commentsRes, usersRes, notesRes] = await Promise.all([
-        fetch('/api/admin/stats', { headers: { Authorization: `Bearer ${activeToken}` } }),
-        fetch('/api/admin/comments', { headers: { Authorization: `Bearer ${activeToken}` } }),
-        fetch('/api/admin/users', { headers: { Authorization: `Bearer ${activeToken}` } }),
+        fetch('/api/admin/stats', { headers }),
+        fetch('/api/admin/comments', { headers }),
+        fetch('/api/admin/users', { headers }),
         fetch('/api/notes'),
       ]);
       if (statsRes.ok) setAdminStats(await statsRes.json());
@@ -933,6 +938,11 @@ export const DashboardPage: React.FC = () => {
                                 <span className="font-bold text-white truncate">
                                   {comm.userName || 'Pengguna'}
                                 </span>
+                                {comm.isAdmin && (
+                                  <span className="px-1.5 py-0.5 rounded-md bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[10px] font-bold">
+                                    Admin
+                                  </span>
+                                )}
                                 {comm.source === 'supabase' ? (
                                   <span className="px-1.5 py-0.5 rounded-md bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-[10px] font-medium">
                                     Supabase DB

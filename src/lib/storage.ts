@@ -1,6 +1,6 @@
 import { HistoryItem, MyListItem, User, WatchProgress } from '../types';
 
-const SCHEMA_VERSION = 'v1';
+const SCHEMA_VERSION = 'v2';
 const KEYS = {
   HISTORY: `zhafx_history_${SCHEMA_VERSION}`,
   MY_LIST: `zhafx_mylist_${SCHEMA_VERSION}`,
@@ -12,7 +12,7 @@ const KEYS = {
   PROGRESS: `zhafx_progress_${SCHEMA_VERSION}`,
 };
 
-// Helper: resolves user-isolated storage key
+// Helper: resolves user-isolated storage key strictly per account
 function getScopedKey(baseKey: string): string {
   try {
     const rawUser = localStorage.getItem(KEYS.USER);
@@ -28,30 +28,13 @@ function getScopedKey(baseKey: string): string {
   return `${baseKey}_guest`;
 }
 
-// Safe wrapper for localStorage
+// Safe wrapper for localStorage with strict multi-user isolation
 export const storage = {
-  // --- Watch History (User-Isolated) ---
+  // --- Watch History (Strictly User-Isolated, No Cross-Account Bleed) ---
   getHistory(): HistoryItem[] {
     try {
       const scopedKey = getScopedKey(KEYS.HISTORY);
-      let data = localStorage.getItem(scopedKey);
-
-      // If scoped key is empty and user is logged in, check legacy unscoped key and migrate
-      if (!data && scopedKey !== `${KEYS.HISTORY}_guest`) {
-        const legacy = localStorage.getItem(KEYS.HISTORY) || localStorage.getItem(`${KEYS.HISTORY}_guest`);
-        if (legacy) {
-          try {
-            const parsedLegacy = JSON.parse(legacy);
-            if (Array.isArray(parsedLegacy) && parsedLegacy.length > 0) {
-              localStorage.setItem(scopedKey, legacy);
-              data = legacy;
-            }
-          } catch {
-            // ignore
-          }
-        }
-      }
-
+      const data = localStorage.getItem(scopedKey);
       if (!data) return [];
       const parsed = JSON.parse(data);
       return Array.isArray(parsed) ? parsed : [];
@@ -63,18 +46,22 @@ export const storage = {
 
   saveHistory(item: Omit<HistoryItem, 'updatedAt'>): void {
     try {
-      const current = storage.getHistory();
-      const filtered = current.filter(
-        h => !(h.id === item.id && h.season === item.season && h.episode === item.episode)
-      );
+      const scopedKey = getScopedKey(KEYS.HISTORY);
+      const data = localStorage.getItem(scopedKey);
+      const current: HistoryItem[] = data ? JSON.parse(data) : [];
+      const filtered = Array.isArray(current)
+        ? current.filter(
+            (h) => !(h.id === item.id && (item.season === undefined || h.season === item.season) && (item.episode === undefined || h.episode === item.episode))
+          )
+        : [];
       const updated: HistoryItem = {
         ...item,
         updatedAt: Date.now(),
       };
-      const next = [updated, ...filtered].slice(0, 50);
-      const scopedKey = getScopedKey(KEYS.HISTORY);
+      const next = [updated, ...filtered].slice(0, 60);
       localStorage.setItem(scopedKey, JSON.stringify(next));
       window.dispatchEvent(new Event('zhafx_storage_change'));
+      window.dispatchEvent(new Event('storage'));
     } catch (e) {
       console.warn('[Storage] Failed to save history item:', e);
     }
@@ -82,13 +69,18 @@ export const storage = {
 
   removeHistoryItem(id: string, season?: number, episode?: number): void {
     try {
-      const current = storage.getHistory();
-      const filtered = current.filter(
-        h => !(h.id === id && (season === undefined || h.season === season) && (episode === undefined || h.episode === episode))
-      );
       const scopedKey = getScopedKey(KEYS.HISTORY);
+      const data = localStorage.getItem(scopedKey);
+      if (!data) return;
+      const current: HistoryItem[] = JSON.parse(data);
+      const filtered = Array.isArray(current)
+        ? current.filter(
+            (h) => !(h.id === id && (season === undefined || h.season === season) && (episode === undefined || h.episode === episode))
+          )
+        : [];
       localStorage.setItem(scopedKey, JSON.stringify(filtered));
       window.dispatchEvent(new Event('zhafx_storage_change'));
+      window.dispatchEvent(new Event('storage'));
     } catch (e) {
       console.warn('[Storage] Failed to remove history item:', e);
     }
@@ -99,33 +91,17 @@ export const storage = {
       const scopedKey = getScopedKey(KEYS.HISTORY);
       localStorage.removeItem(scopedKey);
       window.dispatchEvent(new Event('zhafx_storage_change'));
+      window.dispatchEvent(new Event('storage'));
     } catch (e) {
       console.warn('[Storage] Failed to clear history:', e);
     }
   },
 
-  // --- My List / Favorites (User-Isolated) ---
+  // --- My List / Favorites (Strictly User-Isolated) ---
   getMyList(): MyListItem[] {
     try {
       const scopedKey = getScopedKey(KEYS.MY_LIST);
-      let data = localStorage.getItem(scopedKey);
-
-      // If scoped key is empty and user is logged in, check legacy unscoped key and migrate
-      if (!data && scopedKey !== `${KEYS.MY_LIST}_guest`) {
-        const legacy = localStorage.getItem(KEYS.MY_LIST) || localStorage.getItem(`${KEYS.MY_LIST}_guest`);
-        if (legacy) {
-          try {
-            const parsedLegacy = JSON.parse(legacy);
-            if (Array.isArray(parsedLegacy) && parsedLegacy.length > 0) {
-              localStorage.setItem(scopedKey, legacy);
-              data = legacy;
-            }
-          } catch {
-            // ignore
-          }
-        }
-      }
-
+      const data = localStorage.getItem(scopedKey);
       if (!data) return [];
       const parsed = JSON.parse(data);
       return Array.isArray(parsed) ? parsed : [];
@@ -138,7 +114,7 @@ export const storage = {
   isInMyList(id: string): boolean {
     try {
       const list = storage.getMyList();
-      return list.some(item => item.id === id);
+      return list.some((item) => item.id === id);
     } catch {
       return false;
     }
@@ -146,22 +122,24 @@ export const storage = {
 
   toggleMyList(item: Omit<MyListItem, 'addedAt'>): boolean {
     try {
-      const current = storage.getMyList();
-      const exists = current.some(i => i.id === item.id);
+      const scopedKey = getScopedKey(KEYS.MY_LIST);
+      const data = localStorage.getItem(scopedKey);
+      const current: MyListItem[] = data ? JSON.parse(data) : [];
+      const exists = Array.isArray(current) && current.some((i) => i.id === item.id);
       let next: MyListItem[];
       let isAdded: boolean;
 
       if (exists) {
-        next = current.filter(i => i.id !== item.id);
+        next = current.filter((i) => i.id !== item.id);
         isAdded = false;
       } else {
         const added: MyListItem = { ...item, addedAt: Date.now() };
-        next = [added, ...current];
+        next = [added, ...(Array.isArray(current) ? current : [])];
         isAdded = true;
       }
-      const scopedKey = getScopedKey(KEYS.MY_LIST);
       localStorage.setItem(scopedKey, JSON.stringify(next));
       window.dispatchEvent(new Event('zhafx_storage_change'));
+      window.dispatchEvent(new Event('storage'));
       return isAdded;
     } catch (e) {
       console.warn('[Storage] Failed to toggle my list:', e);
@@ -171,11 +149,14 @@ export const storage = {
 
   removeMyListItem(id: string): void {
     try {
-      const current = storage.getMyList();
-      const filtered = current.filter(i => i.id !== id);
       const scopedKey = getScopedKey(KEYS.MY_LIST);
+      const data = localStorage.getItem(scopedKey);
+      if (!data) return;
+      const current: MyListItem[] = JSON.parse(data);
+      const filtered = Array.isArray(current) ? current.filter((i) => i.id !== id) : [];
       localStorage.setItem(scopedKey, JSON.stringify(filtered));
       window.dispatchEvent(new Event('zhafx_storage_change'));
+      window.dispatchEvent(new Event('storage'));
     } catch (e) {
       console.warn('[Storage] Failed to remove item from my list:', e);
     }
@@ -186,15 +167,17 @@ export const storage = {
       const scopedKey = getScopedKey(KEYS.MY_LIST);
       localStorage.removeItem(scopedKey);
       window.dispatchEvent(new Event('zhafx_storage_change'));
+      window.dispatchEvent(new Event('storage'));
     } catch (e) {
       console.warn('[Storage] Failed to clear my list:', e);
     }
   },
 
-  // --- Search History (Max 8) ---
+  // --- Search History (Isolated per User) ---
   getSearchHistory(): string[] {
     try {
-      const data = localStorage.getItem(KEYS.SEARCH_HISTORY);
+      const scopedKey = getScopedKey(KEYS.SEARCH_HISTORY);
+      const data = localStorage.getItem(scopedKey);
       if (!data) return [];
       const parsed = JSON.parse(data);
       return Array.isArray(parsed) ? parsed : [];
@@ -207,9 +190,10 @@ export const storage = {
     const trimmed = query.trim();
     if (!trimmed) return;
     try {
-      const current = storage.getSearchHistory().filter(q => q.toLowerCase() !== trimmed.toLowerCase());
+      const scopedKey = getScopedKey(KEYS.SEARCH_HISTORY);
+      const current = storage.getSearchHistory().filter((q) => q.toLowerCase() !== trimmed.toLowerCase());
       const next = [trimmed, ...current].slice(0, 8);
-      localStorage.setItem(KEYS.SEARCH_HISTORY, JSON.stringify(next));
+      localStorage.setItem(scopedKey, JSON.stringify(next));
     } catch (e) {
       console.warn('[Storage] Failed to save search history:', e);
     }
@@ -217,8 +201,9 @@ export const storage = {
 
   removeSearchHistory(query: string): void {
     try {
-      const current = storage.getSearchHistory().filter(q => q.toLowerCase() !== query.toLowerCase());
-      localStorage.setItem(KEYS.SEARCH_HISTORY, JSON.stringify(current));
+      const scopedKey = getScopedKey(KEYS.SEARCH_HISTORY);
+      const current = storage.getSearchHistory().filter((q) => q.toLowerCase() !== query.toLowerCase());
+      localStorage.setItem(scopedKey, JSON.stringify(current));
     } catch (e) {
       console.warn('[Storage] Failed to remove search history:', e);
     }
@@ -226,7 +211,8 @@ export const storage = {
 
   clearSearchHistory(): void {
     try {
-      localStorage.removeItem(KEYS.SEARCH_HISTORY);
+      const scopedKey = getScopedKey(KEYS.SEARCH_HISTORY);
+      localStorage.removeItem(scopedKey);
     } catch {
       // ignore
     }
@@ -296,36 +282,32 @@ export const storage = {
 
   saveUser(user: User): void {
     try {
+      // Clean up previous guest states so they never spill into the new user account
+      localStorage.removeItem(`${KEYS.HISTORY}_guest`);
+      localStorage.removeItem(`${KEYS.MY_LIST}_guest`);
+      localStorage.removeItem(`${KEYS.PROGRESS}_guest`);
+
       localStorage.setItem(KEYS.USER, JSON.stringify(user));
-
-      // Auto-migrate guest history & myList into user-scoped keys
-      const guestHistory = localStorage.getItem(`${KEYS.HISTORY}_guest`) || localStorage.getItem(KEYS.HISTORY);
-      const userHistoryKey = `${KEYS.HISTORY}_usr_${user.id}`;
-      if (guestHistory && !localStorage.getItem(userHistoryKey)) {
-        localStorage.setItem(userHistoryKey, guestHistory);
-      }
-
-      const guestMyList = localStorage.getItem(`${KEYS.MY_LIST}_guest`) || localStorage.getItem(KEYS.MY_LIST);
-      const userMyListKey = `${KEYS.MY_LIST}_usr_${user.id}`;
-      if (guestMyList && !localStorage.getItem(userMyListKey)) {
-        localStorage.setItem(userMyListKey, guestMyList);
-      }
 
       window.dispatchEvent(new Event('zhafx_auth_change'));
       window.dispatchEvent(new Event('zhafx_storage_change'));
       window.dispatchEvent(new Event('storage'));
 
-      // Asynchronously sync continue watching progress from server
+      // Asynchronously sync continue watching progress from server for THIS specific user
       const token = storage.getToken();
       if (token) {
         fetch('/api/progress?all=true', {
-          headers: { Authorization: `Bearer ${token}` },
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'x-user-email': user.email || '',
+          },
         })
           .then((res) => (res.ok ? res.json() : null))
           .then((data) => {
             if (data && data.success && Array.isArray(data.progress)) {
               localStorage.setItem(`${KEYS.PROGRESS}_usr_${user.id}`, JSON.stringify(data.progress));
               window.dispatchEvent(new Event('zhafx_storage_change'));
+              window.dispatchEvent(new Event('storage'));
             }
           })
           .catch(() => {});
@@ -341,6 +323,12 @@ export const storage = {
       localStorage.removeItem(KEYS.TOKEN);
       sessionStorage.removeItem(KEYS.USER);
       sessionStorage.removeItem(KEYS.TOKEN);
+
+      // Clean guest states on logout
+      localStorage.removeItem(`${KEYS.HISTORY}_guest`);
+      localStorage.removeItem(`${KEYS.MY_LIST}_guest`);
+      localStorage.removeItem(`${KEYS.PROGRESS}_guest`);
+
       if (typeof window !== 'undefined') {
         try {
           Object.keys(localStorage).forEach((key) => {
@@ -376,38 +364,18 @@ export const storage = {
   },
 
   removeToken(): void {
-    try {
-      localStorage.removeItem(KEYS.TOKEN);
-      localStorage.removeItem(KEYS.USER);
-      sessionStorage.removeItem(KEYS.TOKEN);
-      sessionStorage.removeItem(KEYS.USER);
-      if (typeof window !== 'undefined') {
-        try {
-          Object.keys(localStorage).forEach((key) => {
-            if (key.startsWith('sb-') && key.endsWith('-auth-token')) {
-              localStorage.removeItem(key);
-            }
-          });
-        } catch {}
-      }
-      window.dispatchEvent(new Event('zhafx_auth_change'));
-      window.dispatchEvent(new Event('zhafx_storage_change'));
-      window.dispatchEvent(new Event('storage'));
-    } catch (e) {
-      console.warn('[Storage] Failed to remove token:', e);
-    }
+    this.removeUser();
   },
 
   clearAuth(): void {
     this.removeUser();
-    this.removeToken();
   },
 
-  // --- Watch Progress & Continue Watching (User-Scoped) ---
+  // --- Watch Progress & Continue Watching (Strictly User-Scoped) ---
   getProgress(contentId: string, season?: number, episode?: number): WatchProgress | null {
     try {
       const scopedKey = getScopedKey(KEYS.PROGRESS);
-      const data = localStorage.getItem(scopedKey) || localStorage.getItem('zhafx_progress_v1');
+      const data = localStorage.getItem(scopedKey);
       if (!data) return null;
       const parsed = JSON.parse(data);
       if (!Array.isArray(parsed)) return null;
@@ -427,7 +395,7 @@ export const storage = {
   getAllProgress(): WatchProgress[] {
     try {
       const scopedKey = getScopedKey(KEYS.PROGRESS);
-      const data = localStorage.getItem(scopedKey) || localStorage.getItem('zhafx_progress_v1');
+      const data = localStorage.getItem(scopedKey);
       if (!data) return [];
       const parsed = JSON.parse(data);
       if (!Array.isArray(parsed)) return [];
@@ -467,7 +435,7 @@ export const storage = {
       const completed = item.completed ?? (progressPercentage >= 95);
 
       const scopedKey = getScopedKey(KEYS.PROGRESS);
-      const data = localStorage.getItem(scopedKey) || localStorage.getItem('zhafx_progress_v1');
+      const data = localStorage.getItem(scopedKey);
       const current: WatchProgress[] = data ? JSON.parse(data) : [];
 
       const filtered = Array.isArray(current)
@@ -502,16 +470,8 @@ export const storage = {
       const next = [updatedProgress, ...filtered].slice(0, 100);
       localStorage.setItem(scopedKey, JSON.stringify(next));
 
-      // Synchronize with watch history item so history card also has live timestamp
+      // Synchronize with user's own watch history
       try {
-        const historyList = storage.getHistory();
-        const existingHistory = historyList.find(
-          (h) =>
-            h.id === item.contentId &&
-            (item.season === undefined || h.season === item.season) &&
-            (item.episode === undefined || h.episode === item.episode)
-        );
-
         storage.saveHistory({
           id: item.contentId,
           type: item.mediaType,
@@ -521,7 +481,7 @@ export const storage = {
           year: item.year,
           season: item.season,
           episode: item.episode,
-          episodeName: item.episodeName || existingHistory?.episodeName,
+          episodeName: item.episodeName,
           currentTime,
           duration,
           progressPercentage,
@@ -533,12 +493,14 @@ export const storage = {
 
       // Asynchronously send to server if user is logged in
       const token = storage.getToken();
+      const currentUser = storage.getUser();
       if (token) {
         fetch('/api/progress', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${token}`,
+            'x-user-email': currentUser?.email || '',
           },
           body: JSON.stringify(updatedProgress),
         }).catch(() => {});
@@ -551,7 +513,7 @@ export const storage = {
   removeProgress(contentId: string, season?: number, episode?: number): void {
     try {
       const scopedKey = getScopedKey(KEYS.PROGRESS);
-      const data = localStorage.getItem(scopedKey) || localStorage.getItem('zhafx_progress_v1');
+      const data = localStorage.getItem(scopedKey);
       if (!data) return;
       const current: WatchProgress[] = JSON.parse(data);
       if (!Array.isArray(current)) return;
