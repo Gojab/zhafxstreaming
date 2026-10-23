@@ -155,13 +155,14 @@ export const HeroBillboard: React.FC<HeroBillboardProps> = ({ items }) => {
         className="absolute inset-0 z-0 animate-in fade-in duration-700 ease-out will-change-[opacity]"
       >
         <img
-          src={optimizeTmdbImage(current.backdrop || current.poster, 'w1280')}
+          src={optimizeTmdbImage(current.backdrop || current.poster, 'w780')}
           srcSet={getTmdbBackdropSrcSet(current.backdrop || current.poster)}
-          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 100vw, 1920px"
+          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 100vw, 1280px"
           alt={current.title}
           width={1280}
           height={720}
           loading={currentIndex === 0 ? 'eager' : 'lazy'}
+          decoding={currentIndex === 0 ? 'sync' : 'async'}
           // @ts-ignore
           fetchPriority={currentIndex === 0 ? 'high' : 'auto'}
           className="w-full h-full object-cover object-center relative z-0 select-none opacity-40 sm:opacity-50 scale-105 blur-[2px] sm:blur-[3px] transition-opacity duration-700 ease-out transform-gpu"

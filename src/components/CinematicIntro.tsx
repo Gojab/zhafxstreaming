@@ -168,7 +168,7 @@ const safeSetSessionStorage = (key: string, value: string): void => {
 
     // Absolute failsafe to ensure screen is NEVER blocked longer than 1.8 seconds under any circumstance
     const failsafe = setTimeout(() => {
-      setIsVisible(false);
+      finishIntro();
     }, 1800);
 
     return () => {

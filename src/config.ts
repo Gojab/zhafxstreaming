@@ -115,3 +115,15 @@ export const CONFIG = {
   DISCLAIMER: 'All content, design, and materials on this website are protected by applicable copyright laws. Unauthorized copying, reproduction, distribution, or commercial use without prior permission is strictly prohibited.',
   TAGLINE_COPYRIGHT: '© 2026 ZHAFX. Built for Entertainment, Designed for You. All Rights Reserved.',
 };
+
+export const ADMIN_EMAILS = [
+  'zhafxadmin@gmail.com',
+  'zhafranfaisal1@gmail.com',
+  'zhafranfaisalbusiness@gmail.com',
+];
+
+export function checkIsAdminEmail(email?: string | null): boolean {
+  if (!email) return false;
+  return ADMIN_EMAILS.includes(email.trim().toLowerCase());
+}
+

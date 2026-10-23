@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
 import {
@@ -24,10 +24,14 @@ import {
   IoChatbubbleEllipsesOutline as CommentIcon,
   IoPeopleOutline as PeopleIcon,
   IoStar as StarIcon,
+  IoSearchOutline as SearchIcon,
+  IoOpenOutline as OpenIcon,
+  IoFilterOutline as FilterIcon,
 } from 'react-icons/io5';
 import { storage } from '../lib/storage';
 import { supabase } from '../lib/supabase';
 import { User } from '../types';
+import { checkIsAdminEmail } from '../config';
 
 import type { Variants } from 'motion/react';
 
@@ -91,14 +95,33 @@ export const DashboardPage: React.FC = () => {
 
   // Administrator state & management
   const [isAdmin, setIsAdmin] = useState(false);
+  const [adminLoading, setAdminLoading] = useState(false);
   const [adminStats, setAdminStats] = useState<any>(null);
   const [adminComments, setAdminComments] = useState<any[]>([]);
   const [adminUsers, setAdminUsers] = useState<any[]>([]);
   const [adminNotes, setAdminNotes] = useState<any[]>([]);
   const [newNoteTitle, setNewNoteTitle] = useState('');
   const [notesTableCreated, setNotesTableCreated] = useState(false);
-  const [adminLoading, setAdminLoading] = useState(false);
   const [activeAdminTab, setActiveAdminTab] = useState<'comments' | 'notes' | 'users' | 'database'>('comments');
+  const [commentSearch, setCommentSearch] = useState('');
+  const [commentRatingFilter, setCommentRatingFilter] = useState<'all' | '5' | '4' | '3' | '2' | '1'>('all');
+
+  const filteredComments = useMemo(() => {
+    return adminComments.filter((comm) => {
+      if (commentRatingFilter !== 'all' && comm.rating && String(comm.rating) !== commentRatingFilter) {
+        return false;
+      }
+      if (commentSearch.trim()) {
+        const q = commentSearch.toLowerCase();
+        const matchName = (comm.userName || '').toLowerCase().includes(q);
+        const matchText = (comm.text || '').toLowerCase().includes(q);
+        const matchTitle = (comm.contentTitle || '').toLowerCase().includes(q);
+        const matchId = String(comm.contentId || '').toLowerCase().includes(q);
+        return matchName || matchText || matchTitle || matchId;
+      }
+      return true;
+    });
+  }, [adminComments, commentSearch, commentRatingFilter]);
 
   const loadAdminData = async (token?: string | null) => {
     const activeToken = token || storage.getToken() || '';
@@ -189,7 +212,7 @@ export const DashboardPage: React.FC = () => {
     const checkAdmin = async () => {
       const token = storage.getToken();
       const u = storage.getUser();
-      const isOwner = u?.email?.toLowerCase() === 'zhafranfaisal1@gmail.com';
+      const isOwner = checkIsAdminEmail(u?.email);
 
       if (isOwner) {
         setIsAdmin(true);
@@ -799,52 +822,200 @@ export const DashboardPage: React.FC = () => {
 
           {/* Tab 1: Moderasi Komentar */}
           {activeAdminTab === 'comments' && (
-            <div className="space-y-3">
+            <div className="space-y-4">
+              {/* Search & Filter Toolbar */}
+              <div className="flex flex-col sm:flex-row gap-2.5 items-stretch sm:items-center justify-between p-3 rounded-2xl bg-white/[0.02] border border-white/5">
+                <div className="relative flex-1">
+                  <SearchIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={commentSearch}
+                    onChange={(e) => setCommentSearch(e.target.value)}
+                    placeholder="Cari nama, judul film/anime, atau isi komentar..."
+                    className="w-full pl-9 pr-8 py-2 rounded-xl bg-white/[0.04] border border-white/10 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-white/30 transition-colors"
+                  />
+                  {commentSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setCommentSearch('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-white text-xs px-1"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 shrink-0 text-xs">
+                  <span className="text-[11px] text-zinc-500 flex items-center gap-1 mr-1">
+                    <FilterIcon className="w-3.5 h-3.5" />
+                    Rating:
+                  </span>
+                  {(['all', '5', '4', '3', '2', '1'] as const).map((r) => (
+                    <button
+                      key={r}
+                      type="button"
+                      onClick={() => setCommentRatingFilter(r)}
+                      className={`px-2.5 py-1 rounded-lg font-medium text-[11px] transition-colors cursor-pointer shrink-0 ${
+                        commentRatingFilter === r
+                          ? 'bg-amber-400/20 text-amber-300 border border-amber-400/40'
+                          : 'bg-white/[0.03] text-zinc-400 hover:text-white border border-white/5'
+                      }`}
+                    >
+                      {r === 'all' ? 'Semua' : `★ ${r}`}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Status Header */}
+              <div className="flex items-center justify-between text-xs px-1 text-zinc-400">
+                <span>
+                  Menampilkan <strong className="text-white">{filteredComments.length}</strong> dari{' '}
+                  <strong className="text-white">{adminComments.length}</strong> komentar
+                </span>
+                <button
+                  type="button"
+                  onClick={() => loadAdminData()}
+                  className="inline-flex items-center gap-1 text-[11px] text-zinc-400 hover:text-white transition-colors cursor-pointer"
+                >
+                  <RotateCw className="w-3 h-3" />
+                  Segarkan
+                </button>
+              </div>
+
+              {/* Comment Cards List */}
               {adminComments.length === 0 ? (
-                <div className="p-8 text-center text-xs text-zinc-400 rounded-2xl bg-white/[0.02] border border-white/5">
-                  Belum ada komentar dari pengguna.
+                <div className="p-8 text-center text-xs text-zinc-400 rounded-2xl bg-white/[0.02] border border-white/5 space-y-1">
+                  <CommentIcon className="w-8 h-8 text-zinc-600 mx-auto mb-2" />
+                  <p className="font-semibold text-zinc-300">Belum Ada Komentar</p>
+                  <p className="text-[11px] text-zinc-500">
+                    Komentar dari penonton di film, series, atau anime akan muncul di sini.
+                  </p>
+                </div>
+              ) : filteredComments.length === 0 ? (
+                <div className="p-8 text-center text-xs text-zinc-400 rounded-2xl bg-white/[0.02] border border-white/5 space-y-2">
+                  <p>Tidak ada komentar yang cocok dengan pencarian atau filter rating.</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCommentSearch('');
+                      setCommentRatingFilter('all');
+                    }}
+                    className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold transition-colors cursor-pointer"
+                  >
+                    Reset Filter
+                  </button>
                 </div>
               ) : (
-                <div className="space-y-2.5 max-h-96 overflow-y-auto pr-1">
-                  {adminComments.map((comm) => (
-                    <div
-                      key={comm.id}
-                      className="p-3.5 rounded-2xl bg-white/[0.03] hover:bg-white/[0.06] border border-white/10 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
-                    >
-                      <div className="space-y-1 min-w-0 flex-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-bold text-white">{comm.userName || 'Pengguna'}</span>
-                          <span className="px-1.5 py-0.5 rounded-md bg-white/10 text-[10px] text-zinc-300 uppercase">
-                            {comm.mediaType || 'Media'} #{comm.contentId}
-                          </span>
-                          {comm.rating && (
-                            <span className="inline-flex items-center gap-1 text-[11px] text-amber-300">
-                              <StarIcon className="w-3 h-3 fill-current" />
-                              {comm.rating}/5
-                            </span>
-                          )}
-                          <span className="text-[10px] text-zinc-500">
-                            {new Date(comm.createdAt).toLocaleString('id-ID', {
-                              day: 'numeric',
-                              month: 'short',
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })}
-                          </span>
-                        </div>
-                        {comm.text && <p className="text-zinc-300 leading-relaxed break-words">{comm.text}</p>}
-                      </div>
+                <div className="space-y-3 max-h-[520px] overflow-y-auto pr-1">
+                  {filteredComments.map((comm) => {
+                    const mediaTypeLabel =
+                      comm.mediaType === 'anime'
+                        ? 'Anime'
+                        : comm.mediaType === 'tv'
+                        ? 'Series'
+                        : 'Film';
 
-                      <button
-                        type="button"
-                        onClick={() => handleAdminDeleteComment(comm.id)}
-                        className="px-3 py-1.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 font-semibold flex items-center gap-1.5 cursor-pointer transition-colors self-start sm:self-auto shrink-0"
+                    return (
+                      <div
+                        key={comm.id}
+                        className="p-4 rounded-2xl bg-white/[0.03] hover:bg-white/[0.05] border border-white/10 transition-all space-y-3 text-xs"
                       >
-                        <TrashIcon className="w-3.5 h-3.5" />
-                        <span>Hapus</span>
-                      </button>
-                    </div>
-                  ))}
+                        {/* Top info line */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/5 pb-2.5">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            {/* Avatar placeholder with initial */}
+                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center font-bold text-white text-xs shrink-0 shadow">
+                              {(comm.userName || 'P').charAt(0).toUpperCase()}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-bold text-white truncate">
+                                  {comm.userName || 'Pengguna'}
+                                </span>
+                                {comm.source === 'supabase' ? (
+                                  <span className="px-1.5 py-0.5 rounded-md bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-[10px] font-medium">
+                                    Supabase DB
+                                  </span>
+                                ) : (
+                                  <span className="px-1.5 py-0.5 rounded-md bg-sky-500/15 border border-sky-500/30 text-sky-300 text-[10px] font-medium">
+                                    Server Sync
+                                  </span>
+                                )}
+                              </div>
+                              {comm.userEmail && (
+                                <p className="text-[10px] text-zinc-500 truncate">{comm.userEmail}</p>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+                            {/* Rating Stars */}
+                            {comm.rating ? (
+                              <div className="flex items-center gap-0.5 px-2 py-0.5 rounded-md bg-amber-400/10 border border-amber-400/20 text-amber-300 text-[11px] font-semibold">
+                                <StarIcon className="w-3 h-3 fill-amber-400 text-amber-400" />
+                                <span>{comm.rating}/5</span>
+                              </div>
+                            ) : null}
+
+                            {/* Timestamp */}
+                            <span className="text-[10px] text-zinc-500">
+                              {new Date(comm.createdAt).toLocaleString('id-ID', {
+                                day: 'numeric',
+                                month: 'short',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Media Context Banner */}
+                        <div className="flex items-center justify-between gap-2 px-3 py-1.5 rounded-xl bg-white/[0.02] border border-white/5">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="px-1.5 py-0.5 rounded bg-white/10 text-[10px] font-semibold text-zinc-300 uppercase shrink-0">
+                              {mediaTypeLabel}
+                            </span>
+                            <span className="text-xs font-medium text-zinc-200 truncate" title={comm.contentTitle || `ID: ${comm.contentId}`}>
+                              {comm.contentTitle ? comm.contentTitle : `ID Konten: ${comm.contentId}`}
+                            </span>
+                          </div>
+
+                          {comm.contentId && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const targetType = comm.mediaType || 'movie';
+                                navigate(`/detail/${targetType}/${comm.contentId}`);
+                              }}
+                              className="inline-flex items-center gap-1 text-[11px] text-sky-400 hover:text-sky-300 font-semibold hover:underline shrink-0 cursor-pointer"
+                            >
+                              <span>Lihat Media</span>
+                              <OpenIcon className="w-3 h-3" />
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Comment Text Body */}
+                        <div className="p-3 rounded-xl bg-black/30 border border-white/5 text-zinc-200 text-xs leading-relaxed whitespace-pre-wrap break-words">
+                          {comm.text || '(Komentar tanpa teks)'}
+                        </div>
+
+                        {/* Action footer */}
+                        <div className="flex items-center justify-end pt-1">
+                          <button
+                            type="button"
+                            onClick={() => handleAdminDeleteComment(comm.id)}
+                            className="px-3 py-1.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 font-semibold flex items-center gap-1.5 cursor-pointer transition-colors text-xs"
+                          >
+                            <TrashIcon className="w-3.5 h-3.5" />
+                            <span>Hapus Komentar</span>
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>

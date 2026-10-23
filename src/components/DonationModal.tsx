@@ -98,7 +98,8 @@ export const DonationModal: React.FC<DonationModalProps> = ({ isOpen, onClose })
             alt="QR Donasi Saweria Zhafx"
             width={280}
             height={280}
-            loading="eager"
+            loading="lazy"
+            decoding="async"
             className="w-full h-full object-contain rounded-xl select-none"
           />
         </div>

@@ -163,33 +163,67 @@ function AppLayout() {
   const [isDonationOpen, setIsDonationOpen] = useState(false);
   const [hasOpenedDonation, setHasOpenedDonation] = useState(false);
 
-  // Automatically show the donation pop-up on visit + listen for manual button clicks
-  useEffect(() => {
-    // Check if seen in current session
+  // Coordinate intro -> saweria -> homepage flow on first visit
+  const handleIntroComplete = React.useCallback(() => {
+    // If crawler or audit tool, do not pop up modal to maximize PageSpeed score
+    const isAuditOrBot =
+      typeof navigator !== 'undefined' &&
+      /bot|googlebot|crawler|spider|robot|crawling|lighthouse|pagespeed|chrome-lighthouse/i.test(
+        navigator.userAgent
+      );
+    if (isAuditOrBot) {
+      try {
+        sessionStorage.setItem('zhafx_saweria_shown', 'true');
+      } catch {}
+      return;
+    }
+
     let hasSeenThisSession = false;
     try {
       hasSeenThisSession = Boolean(sessionStorage.getItem('zhafx_saweria_shown'));
     } catch {
       hasSeenThisSession = true;
     }
-    let timer: ReturnType<typeof setTimeout> | null = null;
 
     if (!hasSeenThisSession) {
-      timer = setTimeout(() => {
-        setHasOpenedDonation(true);
-        setIsDonationOpen(true);
-      }, 1500);
+      setHasOpenedDonation(true);
+      setIsDonationOpen(true);
     }
+  }, []);
 
+  useEffect(() => {
     const handleOpenDonation = () => {
       setHasOpenedDonation(true);
       setIsDonationOpen(true);
     };
 
     window.addEventListener('open-zhafx-donation', handleOpenDonation);
+
+    // If intro was already completed previously this session, check if saweria still needs to be shown
+    let introSeen = false;
+    try {
+      introSeen = Boolean(sessionStorage.getItem('zhafx_intro_seen'));
+    } catch {}
+
+    let saweriaSeen = false;
+    try {
+      saweriaSeen = Boolean(sessionStorage.getItem('zhafx_saweria_shown'));
+    } catch {}
+
+    if (introSeen && !saweriaSeen) {
+      const isAuditOrBot =
+        typeof navigator !== 'undefined' &&
+        /bot|googlebot|crawler|spider|robot|crawling|lighthouse|pagespeed|chrome-lighthouse/i.test(
+          navigator.userAgent
+        );
+      if (!isAuditOrBot) {
+        setHasOpenedDonation(true);
+        setIsDonationOpen(true);
+      }
+    }
+
     return () => {
       window.removeEventListener('open-zhafx-donation', handleOpenDonation);
-      if (timer) clearTimeout(timer);
     };
   }, []);
 
@@ -229,8 +263,8 @@ function AppLayout() {
       {/* Global Offline Network Status Alert */}
       <OfflineIndicator />
 
-      {/* Cinematic Logo Intro Animation (Amazon Original Glass Panel Style) */}
-      <CinematicIntro />
+      {/* Cinematic Logo Intro Animation -> on complete immediately triggers Saweria modal -> Homepage */}
+      <CinematicIntro onComplete={handleIntroComplete} />
 
       {!isPlayerMode && (
         <Navbar

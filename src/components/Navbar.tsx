@@ -19,6 +19,7 @@ import { BotMessageSquareIcon } from './icons/BotMessageSquareIcon';
 import { storage } from '../lib/storage';
 import { supabase } from '../lib/supabase';
 import { User } from '../types';
+import { checkIsAdminEmail } from '../config';
 
 interface NavbarProps {
   onOpenAI: () => void;
@@ -291,16 +292,16 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAI, onOpenFeatures, onOpen
                       navigate('/dashboard');
                     }}
                     className={`w-full px-3 py-2.5 rounded-xl text-left text-xs flex items-center gap-2.5 cursor-pointer transition-colors font-semibold ${
-                      user.email?.toLowerCase() === 'zhafranfaisal1@gmail.com'
+                      checkIsAdminEmail(user.email)
                         ? 'bg-amber-500/15 text-amber-300 hover:bg-amber-500/25 border border-amber-500/30'
                         : 'text-white hover:bg-white/15'
                     }`}
                   >
                     <IoShieldCheckmarkOutline className={`w-4 h-4 shrink-0 ${
-                      user.email?.toLowerCase() === 'zhafranfaisal1@gmail.com' ? 'text-amber-300' : 'text-white'
+                      checkIsAdminEmail(user.email) ? 'text-amber-300' : 'text-white'
                     }`} />
                     <span>
-                      {user.email?.toLowerCase() === 'zhafranfaisal1@gmail.com'
+                      {checkIsAdminEmail(user.email)
                         ? 'Dashboard & Panel Admin'
                         : 'Dashboard Akun'}
                     </span>

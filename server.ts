@@ -38,36 +38,57 @@ const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_KEY, {
 });
 
 const ADMIN_EMAILS = [
-  (process.env.ADMIN_EMAIL || 'zhafranfaisal1@gmail.com').toLowerCase(),
+  'zhafxadmin@gmail.com',
   'zhafranfaisal1@gmail.com',
-];
+  'zhafranfaisalbusiness@gmail.com',
+  (process.env.ADMIN_EMAIL || '').toLowerCase(),
+].filter(Boolean);
 
 function checkIsAdmin(req: Request): boolean {
-  const userId = getUserIdFromAuthHeader(req);
-  if (!userId) return false;
-
-  const db = readAuthDb();
-  const user = db.users.find((u) => u.id === userId);
-  if (user && user.email && ADMIN_EMAILS.includes(user.email.toLowerCase())) {
-    return true;
-  }
-
   const authHeader = req.headers.authorization;
   if (authHeader && authHeader.startsWith('Bearer ')) {
     const token = authHeader.substring(7).trim();
-    if (token.includes('.')) {
-      try {
-        const parts = token.split('.');
-        if (parts.length >= 2) {
-          const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf-8'));
-          if (payload) {
-            const email = (payload.email || '').toLowerCase();
-            if (ADMIN_EMAILS.includes(email) || payload.role === 'admin' || payload.app_metadata?.role === 'admin') {
-              return true;
+    if (token) {
+      // 1. Check local session
+      const db = readAuthDb();
+      const session = db.sessions.find((s) => s.token === token && s.expiresAt > Date.now());
+      if (session) {
+        const user = db.users.find((u) => u.id === session.userId);
+        if (user && user.email && ADMIN_EMAILS.includes(user.email.toLowerCase())) {
+          return true;
+        }
+      }
+
+      // 2. Check JWT payload (Supabase / Google)
+      if (token.includes('.')) {
+        try {
+          const parts = token.split('.');
+          if (parts.length >= 2) {
+            const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf-8'));
+            if (payload) {
+              const email = (payload.email || '').toLowerCase();
+              if (
+                ADMIN_EMAILS.includes(email) ||
+                payload.role === 'admin' ||
+                payload.app_metadata?.role === 'admin' ||
+                payload.user_metadata?.role === 'admin'
+              ) {
+                return true;
+              }
             }
           }
-        }
-      } catch {}
+        } catch {}
+      }
+    }
+  }
+
+  // 3. Check via userId if available
+  const userId = getUserIdFromAuthHeader(req);
+  if (userId) {
+    const db = readAuthDb();
+    const user = db.users.find((u) => u.id === userId);
+    if (user && user.email && ADMIN_EMAILS.includes(user.email.toLowerCase())) {
+      return true;
     }
   }
 
@@ -1131,7 +1152,7 @@ app.get('/api/comments', async (req: Request, res: Response) => {
 
 app.post('/api/comments', async (req: Request, res: Response) => {
   res.setHeader('Content-Type', 'application/json');
-  const { contentId, mediaType, text, rating, userName: clientUserName } = req.body || {};
+  const { contentId, mediaType, text, rating, userName: clientUserName, title, contentTitle } = req.body || {};
   const cleanText = typeof text === 'string' ? text.trim().slice(0, 1000) : '';
   const numericRating = rating === undefined || rating === null || rating === '' ? undefined : Number(rating);
   if (!contentId || (!cleanText && numericRating === undefined)) {
@@ -1150,6 +1171,7 @@ app.post('/api/comments', async (req: Request, res: Response) => {
   const newComment: AuthComment = {
     id: newCommentId,
     contentId: String(contentId),
+    contentTitle: contentTitle || title || undefined,
     mediaType: String(mediaType || 'movie'),
     userId,
     userName,
@@ -1287,41 +1309,62 @@ app.get('/api/admin/comments', async (req: Request, res: Response) => {
   }
 
   let comments: any[] = [];
+  const userMap = new Map<string, string>();
+
   if (supabaseAdmin) {
     try {
+      // 1. Resolve user names from Supabase users table
+      const { data: usersData } = await supabaseAdmin.from('users').select('id, name, email');
+      if (usersData && Array.isArray(usersData)) {
+        usersData.forEach((u) => {
+          userMap.set(u.id, u.name || (u.email ? u.email.split('@')[0] : 'Pengguna'));
+        });
+      }
+
+      // 2. Query comments from Supabase
       const { data, error } = await supabaseAdmin
         .from('comments')
         .select('*')
         .order('created_at', { ascending: false })
         .limit(100);
+
       if (!error && Array.isArray(data)) {
         comments = data.map((c) => ({
           id: c.id,
-          contentId: c.content_id,
-          mediaType: c.media_type,
+          contentId: c.content_id || c.post_id || 'Umum',
+          contentTitle: c.content_title || c.title || undefined,
+          mediaType: c.media_type || 'movie',
           userId: c.user_id,
-          userName: c.user_name,
-          text: c.text,
-          rating: c.rating,
+          userName: c.user_name || userMap.get(c.user_id) || 'Pengguna Terdaftar',
+          text: c.text || c.body || '(Tidak ada teks)',
+          rating: c.rating ? Number(c.rating) : 5,
           createdAt: new Date(c.created_at).getTime(),
           source: 'supabase',
         }));
       }
-    } catch {}
+    } catch (err) {
+      console.warn('[Admin Comments Supabase Error]:', err);
+    }
   }
 
   const localDb = readAuthDb();
-  const localComments = localDb.comments || [];
+  const localComments = (localDb.comments || []).map((c) => ({
+    ...c,
+    source: 'local',
+  }));
+
   const map = new Map<string, any>();
+  // Supabase comments
   comments.forEach((c) => map.set(c.id, c));
+  // Local comments
   localComments.forEach((c) => {
     if (!map.has(c.id)) {
-      map.set(c.id, { ...c, source: 'local' });
+      map.set(c.id, c);
     }
   });
 
   const merged = Array.from(map.values()).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-  return res.json({ success: true, comments: merged });
+  return res.json({ success: true, comments: merged, total: merged.length });
 });
 
 app.get('/api/admin/users', (req: Request, res: Response) => {
@@ -2853,8 +2896,19 @@ app.get(['/ai-catalog.json', '/.well-known/ai-catalog.json'], (_req: Request, re
 async function startServer() {
   const isProd = process.env.NODE_ENV === 'production';
 
-  // Serve static assets from public directly (favicons, logos, manifests, robots, sitemap)
-  app.use(express.static(path.resolve(__dirname, 'public')));
+  // Serve static assets from public directly with efficient caching headers
+  app.use(
+    express.static(path.resolve(__dirname, 'public'), {
+      maxAge: '30d',
+      setHeaders: (res, filePath) => {
+        if (filePath.endsWith('.html')) {
+          res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate');
+        } else if (filePath.match(/\.(png|jpg|jpeg|webp|svg|ico|gif|woff2?|ttf|eot)$/i)) {
+          res.setHeader('Cache-Control', 'public, max-age=2592000, immutable');
+        }
+      },
+    })
+  );
 
   if (!isProd) {
     const { createServer: createViteServer } = await import('vite');
@@ -2878,7 +2932,31 @@ async function startServer() {
       }
     });
   } else {
-    app.use(express.static(path.resolve(__dirname, 'dist')));
+    // 1. Serve hashed Vite production bundles with 1-year immutable caching
+    app.use(
+      '/assets',
+      express.static(path.resolve(__dirname, 'dist', 'assets'), {
+        maxAge: '31536000',
+        immutable: true,
+        setHeaders: (res) => {
+          res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        },
+      })
+    );
+
+    // 2. Serve root dist directory
+    app.use(
+      express.static(path.resolve(__dirname, 'dist'), {
+        maxAge: '7d',
+        setHeaders: (res, filePath) => {
+          if (filePath.endsWith('.html')) {
+            res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate');
+          } else if (filePath.match(/\.(png|jpg|jpeg|webp|svg|ico|gif|woff2?)$/i)) {
+            res.setHeader('Cache-Control', 'public, max-age=2592000, immutable');
+          }
+        },
+      })
+    );
 
     let cachedHtml: string | null = null;
     app.get('*', (req: Request, res: Response) => {

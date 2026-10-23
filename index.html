@@ -43,16 +43,30 @@
     <meta name="twitter:image" content="https://zhafxstreaming.web.id/logo.png" />
     <meta name="twitter:image:alt" content="ZHAFX Streaming Logo" />
 
-    <!-- Critical Resource Preconnects -->
-    <link rel="preconnect" href="https://api.framextv.cc" crossorigin />
-    <link rel="preconnect" href="https://framextv.cc" crossorigin />
-    <link rel="preconnect" href="https://image.tmdb.org" crossorigin />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <!-- Critical Resource Preconnects (Limit to 2 essential origins per Lighthouse recommendations) -->
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="preconnect" href="https://image.tmdb.org" crossorigin />
+    <link rel="dns-prefetch" href="https://fonts.googleapis.com" />
+    <link rel="dns-prefetch" href="https://api.framextv.cc" />
+
+    <!-- Non-render-blocking Web Font Loading with display=swap -->
+    <link
+      rel="preload"
+      as="style"
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
+    />
     <link
       rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
+      media="print"
+      onload="this.media='all'"
     />
+    <noscript>
+      <link
+        rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
+      />
+    </noscript>
     <link rel="ai-catalog" type="application/json" href="/.well-known/ai-catalog.json" />
 
     <!-- Google Search Favicon & App Icons (Standard 48px square Google Search format) -->

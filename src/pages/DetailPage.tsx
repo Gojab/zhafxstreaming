@@ -31,6 +31,7 @@ import { useMyList } from '../hooks/useMyList';
 import { useActiveMedia } from '../context/ActiveMediaContext';
 import { storage } from '../lib/storage';
 import { translateToIndonesian, isIndonesian } from '../lib/translator';
+import { checkIsAdminEmail } from '../config';
 
 interface DetailPageProps {
   onOpenAIWithContext: (title: Title) => void;
@@ -189,6 +190,7 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext, onO
         },
         body: JSON.stringify({
           contentId: id,
+          contentTitle: title?.title || undefined,
           mediaType,
           text: commentText.trim(),
           rating: selectedRating || undefined,
@@ -936,7 +938,7 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext, onO
                   const canDelete = Boolean(
                     currentUser &&
                     (currentUser.id === comment.userId ||
-                      currentUser.email?.toLowerCase() === 'zhafranfaisal1@gmail.com')
+                      checkIsAdminEmail(currentUser.email))
                   );
                   return (
                     <article key={comment.id} className="border-t border-white/10 pt-3 group">
