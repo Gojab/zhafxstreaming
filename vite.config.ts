@@ -10,6 +10,7 @@ const projectRootDir = typeof import.meta.dirname !== 'undefined'
 
 export default defineConfig(() => {
   return {
+    envPrefix: ['VITE_', 'NEXT_PUBLIC_'],
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
