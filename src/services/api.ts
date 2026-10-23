@@ -330,7 +330,8 @@ export const api = {
 
     // 1. Try local/Vercel serverless /api/home endpoint first (pre-translated & zero CORS issues)
     try {
-      data = await fetchWithRetry<any>('/api/home', { signal, useProxyFallback: false });
+      const homeUrl = `/api/home?refresh=${Date.now()}`;
+  data = await fetchWithRetry<any>(homeUrl, { signal, useProxyFallback: false, ttlMs: 0 });
     } catch {
       // 2. Fallback to direct FrameX upstream through proxy
       try {

@@ -304,10 +304,11 @@ function getManualSynopsis(text: string, title?: string): string {
 let serverCachedHomeData: any = null;
 let serverCacheExpiry = 0;
 
-app.get('/api/home', async (_req: Request, res: Response) => {
+app.get('/api/home', async (req: Request, res: Response) => {
   const now = Date.now();
-  if (serverCachedHomeData && serverCacheExpiry > now) {
-    res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
+  const forceRefresh = String(req.query.refresh || '') !== '';
+  if (serverCachedHomeData && serverCacheExpiry > now && !forceRefresh) {
+    res.setHeader('Cache-Control', 'no-store, max-age=0');
     return res.status(200).json(serverCachedHomeData);
   }
 
@@ -316,7 +317,7 @@ app.get('/api/home', async (_req: Request, res: Response) => {
 
   for (const backend of backends) {
     try {
-      const upstreamRes = await fetch(`${backend}/api/home`, {
+      const upstreamRes = await fetch(`${backend}/api/home?refresh=${Date.now()}`, {
         headers: {
           'User-Agent':
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
@@ -414,7 +415,7 @@ app.get('/api/home', async (_req: Request, res: Response) => {
     serverCachedHomeData = rawHomeData;
     serverCacheExpiry = now + 5 * 60 * 1000;
 
-    res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
+    res.setHeader('Cache-Control', 'no-store, max-age=0');
     return res.status(200).json(rawHomeData);
   } catch (err: any) {
     console.warn('[Home Endpoint Error]:', err?.message || err);
