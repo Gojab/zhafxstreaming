@@ -21,6 +21,7 @@ import type {
   StoredUser,
   StoredSession,
   AuthDb,
+  AuthComment,
 } from './server/authService.ts';
 import { executeMultiModelChat } from './server/aiPipeline.ts';
 
@@ -1037,7 +1038,13 @@ app.get('/api/comments', async (req: Request, res: Response) => {
   res.setHeader('Content-Type', 'application/json');
   const contentId = String(req.query.contentId || '').trim();
   if (!contentId) return res.status(400).json({ success: false, error: 'contentId wajib diisi.', comments: [] });
-  if (!supabaseAdmin) return res.status(503).json({ success: false, error: 'Database Supabase belum dikonfigurasi.', comments: [] });
+  if (!supabaseAdmin) {
+    const db = readAuthDb();
+    const comments = (db.comments || [])
+      .filter((c) => c.contentId === contentId)
+      .sort((a, b) => b.createdAt - a.createdAt);
+    return res.json({ success: true, comments });
+  }
 
   const { data, error } = await supabaseAdmin
     .from('comments')
@@ -1075,7 +1082,23 @@ app.post('/api/comments', async (req: Request, res: Response) => {
 
   const userId = getUserIdFromAuthHeader(req);
   if (!userId) return res.status(401).json({ success: false, error: 'Silakan login terlebih dahulu untuk memberikan komentar.' });
-  if (!supabaseAdmin) return res.status(503).json({ success: false, error: 'Database Supabase belum dikonfigurasi.' });
+  if (!supabaseAdmin) {
+    const db = readAuthDb();
+    if (!db.comments) db.comments = [];
+    const newComment: AuthComment = {
+      id: `comm_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      contentId: String(contentId),
+      mediaType: String(mediaType || 'movie'),
+      userId,
+      userName: typeof clientUserName === 'string' ? clientUserName.trim().slice(0, 120) || 'Pengguna' : 'Pengguna',
+      text: cleanText || undefined,
+      rating: numericRating,
+      createdAt: Date.now(),
+    };
+    db.comments.push(newComment);
+    writeAuthDb(db);
+    return res.status(201).json({ success: true, comment: newComment });
+  }
 
   const { data, error } = await supabaseAdmin.from('comments').insert({
     content_id: String(contentId),
@@ -2539,7 +2562,7 @@ async function startServer() {
   if (!isProd) {
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: { middlewareMode: true, hmr: false },
       appType: 'spa',
     });
     app.use(vite.middlewares);

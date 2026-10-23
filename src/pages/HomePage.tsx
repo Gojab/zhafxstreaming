@@ -250,23 +250,46 @@ const DEFAULT_HOME_DATA = {
   comedyMovies: [],
 };
 
-export const HomePage: React.FC = () => {
-  const [data, setData] = useState<{
-    hero: Title | null;
-    trending: Title[];
-    popularMovies: Title[];
-    popularTv: Title[];
-    popularAnime: Title[];
-    airingAnime: Title[];
-    newReleases: Title[];
-    actionMovies: Title[];
-    scifiMovies: Title[];
-    thrillerMovies: Title[];
-    comedyMovies: Title[];
-  } | null>(DEFAULT_HOME_DATA);
+const HOME_CACHE_KEY = 'zhafx_home_cache_v1';
 
-  const [isLoading, setIsLoading] = useState(false);
+export interface HomeCatalogData {
+  hero: Title | null;
+  trending: Title[];
+  popularMovies: Title[];
+  popularTv: Title[];
+  popularAnime: Title[];
+  airingAnime: Title[];
+  newReleases: Title[];
+  actionMovies: Title[];
+  scifiMovies: Title[];
+  thrillerMovies: Title[];
+  comedyMovies: Title[];
+}
+
+function getStoredHomeCache(): HomeCatalogData | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem(HOME_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed && (parsed.hero || (Array.isArray(parsed.trending) && parsed.trending.length > 0))) {
+      return parsed;
+    }
+  } catch {
+    // Ignore corrupt storage
+  }
+  return null;
+}
+
+export const HomePage: React.FC = () => {
+  // 1. Synchronously restore cached catalog if available (Zero CLS & Zero flicker on revisit)
+  const [cachedData] = useState<HomeCatalogData | null>(() => getStoredHomeCache());
+  const [data, setData] = useState<HomeCatalogData | null>(cachedData);
+  const [isLoading, setIsLoading] = useState<boolean>(() => !cachedData);
   const [error, setError] = useState<string | null>(null);
+
+  // Track if we mounted with a valid cached hero already showing on screen
+  const isFromCacheRef = React.useRef<boolean>(Boolean(cachedData?.hero));
 
   const { history } = useWatchHistory();
   const { myList } = useMyList();
@@ -302,25 +325,46 @@ export const HomePage: React.FC = () => {
         const popularAnime = filterDuplicates(homeData.popularAnime);
         const airingAnime = filterDuplicates(homeData.airingAnime || []);
 
-        setData({
+        const freshData: HomeCatalogData = {
           hero: homeData.hero,
-          trending: trending.length > 0 ? trending : DEFAULT_HOME_DATA.trending,
-          popularMovies: popularMovies.length > 0 ? popularMovies : DEFAULT_HOME_DATA.popularMovies,
-          popularTv: popularTv.length > 0 ? popularTv : DEFAULT_HOME_DATA.popularTv,
-          popularAnime: popularAnime.length > 0 ? popularAnime : DEFAULT_HOME_DATA.popularAnime,
+          trending: trending.length > 0 ? trending : (cachedData?.trending || DEFAULT_HOME_DATA.trending),
+          popularMovies: popularMovies.length > 0 ? popularMovies : (cachedData?.popularMovies || DEFAULT_HOME_DATA.popularMovies),
+          popularTv: popularTv.length > 0 ? popularTv : (cachedData?.popularTv || DEFAULT_HOME_DATA.popularTv),
+          popularAnime: popularAnime.length > 0 ? popularAnime : (cachedData?.popularAnime || DEFAULT_HOME_DATA.popularAnime),
           airingAnime,
           newReleases: filterDuplicates(homeData.newReleases || []),
           actionMovies: filterDuplicates(homeData.actionMovies || []),
           scifiMovies: filterDuplicates(homeData.scifiMovies || []),
           thrillerMovies: filterDuplicates(homeData.thrillerMovies || []),
           comedyMovies: filterDuplicates(homeData.comedyMovies || []),
-        });
-      } else {
+        };
+
+        // Silently update cache for the NEXT visit/reload
+        try {
+          localStorage.setItem(HOME_CACHE_KEY, JSON.stringify(freshData));
+        } catch {
+          // ignore localStorage quota errors
+        }
+
+        // If a hero was already visible from cache, do not jarringly swap it out mid-view!
+        // Keep the displayed hero slide stable while updating other rails.
+        if (isFromCacheRef.current && cachedData?.hero) {
+          setData((prev) => ({
+            ...freshData,
+            hero: prev?.hero || cachedData.hero,
+          }));
+        } else {
+          // First visit (no cache): render the freshly loaded final data
+          setData(freshData);
+        }
+      } else if (!data) {
         setData(DEFAULT_HOME_DATA);
       }
     } catch (err: any) {
       if (err.name !== 'AbortError') {
-        setData(DEFAULT_HOME_DATA);
+        if (!data) {
+          setData(DEFAULT_HOME_DATA);
+        }
       }
     } finally {
       setIsLoading(false);
@@ -377,8 +421,32 @@ export const HomePage: React.FC = () => {
     genres: [],
   }));
 
-  // 1. Loading State (Structured identical to success state to prevent CLS)
-  if (isLoading) {
+  // Requirement 4: Compute final hero items once after final data is ready (no premature or unstable reshuffling)
+  const heroItems = React.useMemo(() => {
+    if (!data) return [];
+    const list: Title[] = [];
+    if (data.hero) {
+      list.push(data.hero);
+    }
+    const heroId = data.hero?.id;
+    const heroType = data.hero?.type;
+    const heroTitle = (data.hero?.title || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
+    for (const t of data.trending) {
+      if (!t || !t.id) continue;
+      const isHero =
+        (heroId && t.id === heroId && t.type === heroType) ||
+        (heroTitle && (t.title || '').toLowerCase().replace(/[^a-z0-9]/g, '') === heroTitle);
+      if (!isHero) {
+        list.push(t);
+      }
+      if (list.length >= 6) break;
+    }
+    return list;
+  }, [data]);
+
+  // 1. Loading State (Do not render hero slide before final list is ready; render matching HeroSkeleton)
+  if (isLoading || !data || heroItems.length === 0) {
     return (
       <div className="pb-28 sm:pb-24 pt-[74px] sm:pt-24 md:pt-28">
         <SEOHead
@@ -432,14 +500,6 @@ export const HomePage: React.FC = () => {
     );
   }
 
-  // 4. Success State
-  const heroItems = [
-    ...(data.hero ? [data.hero] : []),
-    ...data.trending
-      .filter((t) => !data.hero || `${t.type}-${t.id}` !== `${data.hero.type}-${data.hero.id}`)
-      .slice(0, 5),
-  ];
-
   return (
     <div className="pb-28 sm:pb-24 pt-[74px] sm:pt-24 md:pt-28 relative shadow-[0_35px_80px_rgba(0,0,0,0.95)]">
       <SEOHead
@@ -447,8 +507,10 @@ export const HomePage: React.FC = () => {
         canonicalPath="/"
         description="ZHAFX Streaming adalah platform nonton anime, film, dan serial TV gratis tanpa iklan, dilengkapi AI cerdas untuk membantu menemukan tontonan favorit dengan mudah, cepat, dan personal."
       />
-      {/* Hero Billboard Carousel */}
-      <HeroBillboard items={heroItems} />
+      {/* Hero Billboard Carousel with smooth fade-in */}
+      <div className="animate-in fade-in duration-700 ease-out will-change-[opacity]">
+        <HeroBillboard items={heroItems} />
+      </div>
 
       {/* Katalog Tayangan (Trending sekarang & Kategori) */}
       <div className="relative z-20 mt-4 sm:mt-10 space-y-7 sm:space-y-9 shadow-[0_-30px_60px_-15px_rgba(0,0,0,0.95)]">
