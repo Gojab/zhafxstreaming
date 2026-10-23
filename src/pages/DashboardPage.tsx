@@ -27,6 +27,7 @@ import {
   IoSearchOutline as SearchIcon,
   IoOpenOutline as OpenIcon,
   IoFilterOutline as FilterIcon,
+  IoTrophyOutline as TrophyIcon,
 } from 'react-icons/io5';
 import { storage } from '../lib/storage';
 import { supabase } from '../lib/supabase';
@@ -92,6 +93,7 @@ export const DashboardPage: React.FC = () => {
     historyCount: 0,
     progressCount: 0,
   });
+  const [followingCount, setFollowingCount] = useState(() => storage.getFollowingIds().length);
 
   // Administrator state & management
   const [isAdmin, setIsAdmin] = useState(false);
@@ -250,12 +252,15 @@ export const DashboardPage: React.FC = () => {
         historyCount: storage.getHistory().length,
         progressCount: storage.getAllProgress().length,
       });
+      setFollowingCount(storage.getFollowingIds().length);
     };
     updateStats();
     window.addEventListener('zhafx_storage_change', updateStats);
+    window.addEventListener('zhafx_follow_change', updateStats);
     window.addEventListener('storage', updateStats);
     return () => {
       window.removeEventListener('zhafx_storage_change', updateStats);
+      window.removeEventListener('zhafx_follow_change', updateStats);
       window.removeEventListener('storage', updateStats);
     };
   }, []);
@@ -467,7 +472,21 @@ export const DashboardPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex items-center gap-2 self-start sm:self-auto">
+          <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+            <button
+              onClick={() => navigate('/ranking?tab=ranking')}
+              className="px-3.5 py-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-xs text-amber-300 font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+            >
+              <TrophyIcon className="w-3.5 h-3.5 text-amber-400" />
+              <span>Top Watch</span>
+            </button>
+            <button
+              onClick={() => navigate('/ranking?tab=community')}
+              className="px-3.5 py-2 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/30 text-xs text-cyan-300 font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+            >
+              <PeopleIcon className="w-3.5 h-3.5 text-cyan-400" />
+              <span>Teman ({followingCount})</span>
+            </button>
             <button
               onClick={() => navigate('/my-list')}
               className="px-3.5 py-2 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-xs text-white/90 font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
@@ -492,6 +511,30 @@ export const DashboardPage: React.FC = () => {
         >
           <motion.div
             variants={cardVariants}
+            onClick={() => navigate('/ranking?tab=ranking')}
+            className="p-4 rounded-2xl bg-amber-500/5 hover:bg-amber-500/10 border border-amber-500/20 transition-all cursor-pointer group"
+          >
+            <div className="flex items-center justify-between text-zinc-400 mb-1.5">
+              <span className="text-[11px] text-amber-300/90 font-semibold">Top Watch Ranking</span>
+              <TrophyIcon className="w-3.5 h-3.5 text-amber-400 group-hover:scale-110 transition-transform" />
+            </div>
+            <p className="text-lg font-bold text-white">Leaderboard</p>
+          </motion.div>
+
+          <motion.div
+            variants={cardVariants}
+            onClick={() => navigate('/ranking?tab=community')}
+            className="p-4 rounded-2xl bg-cyan-500/5 hover:bg-cyan-500/10 border border-cyan-500/20 transition-all cursor-pointer group"
+          >
+            <div className="flex items-center justify-between text-zinc-400 mb-1.5">
+              <span className="text-[11px] text-cyan-300/90 font-semibold">Teman Diikuti</span>
+              <PeopleIcon className="w-3.5 h-3.5 text-cyan-400 group-hover:scale-110 transition-transform" />
+            </div>
+            <p className="text-lg font-bold text-white">{followingCount} Teman</p>
+          </motion.div>
+
+          <motion.div
+            variants={cardVariants}
             onClick={() => navigate('/my-list')}
             className="p-4 rounded-2xl bg-white/[0.03] hover:bg-white/[0.07] border border-white/10 transition-all cursor-pointer group"
           >
@@ -513,28 +556,48 @@ export const DashboardPage: React.FC = () => {
             </div>
             <p className="text-lg font-bold text-white">{stats.historyCount} Ditonton</p>
           </motion.div>
+        </motion.div>
 
-          <motion.div
-            variants={cardVariants}
-            className="p-4 rounded-2xl bg-white/[0.03] border border-white/10"
-          >
-            <div className="flex items-center justify-between text-zinc-400 mb-1.5">
-              <span className="text-[11px]">Progres Aktif</span>
-              <PlayIcon className="w-3.5 h-3.5 text-emerald-400" />
+        {/* 4. Social & Leaderboard Highlight Card */}
+        <motion.div
+          variants={cardVariants}
+          className="p-4 sm:p-5 rounded-2xl bg-linear-to-r from-amber-500/10 via-cyan-500/10 to-indigo-500/10 border border-white/15 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
+        >
+          <div className="flex items-center gap-3.5">
+            <div className="w-11 h-11 rounded-2xl bg-amber-400/20 text-amber-400 flex items-center justify-center border border-amber-400/30 shrink-0">
+              <TrophyIcon className="w-6 h-6" />
             </div>
-            <p className="text-lg font-bold text-white">{stats.progressCount} Tayangan</p>
-          </motion.div>
+            <div>
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                Peringkat Top Watch & Teman Komunitas
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-400/20 text-amber-300 border border-amber-400/30">
+                  Fitur Aktif
+                </span>
+              </h3>
+              <p className="text-xs text-white/60 mt-0.5">
+                Pantau jam maraton tontonanmu, ikuti sesama penonton film/anime, dan lihat judul terpopuler secara real-time.
+              </p>
+            </div>
+          </div>
 
-          <motion.div
-            variants={cardVariants}
-            className="p-4 rounded-2xl bg-white/[0.03] border border-white/10"
-          >
-            <div className="flex items-center justify-between text-zinc-400 mb-1.5">
-              <span className="text-[11px]">Status Keamanan</span>
-              <SecurityShield className="w-3.5 h-3.5 text-emerald-400" />
-            </div>
-            <p className="text-lg font-bold text-emerald-400">Aktif & Aman</p>
-          </motion.div>
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <button
+              type="button"
+              onClick={() => navigate('/ranking?tab=ranking')}
+              className="flex-1 sm:flex-none px-4 py-2 rounded-xl bg-amber-400 text-black text-xs font-bold hover:bg-amber-300 transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+            >
+              <TrophyIcon className="w-3.5 h-3.5" />
+              <span>Buka Leaderboard</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate('/ranking?tab=community')}
+              className="flex-1 sm:flex-none px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/20 text-white text-xs font-semibold transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+            >
+              <PeopleIcon className="w-3.5 h-3.5 text-cyan-400" />
+              <span>Jelajahi Teman</span>
+            </button>
+          </div>
         </motion.div>
 
         {/* Status Alerts */}

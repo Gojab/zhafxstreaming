@@ -10,6 +10,7 @@ const KEYS = {
   USER: `zhafx_user_${SCHEMA_VERSION}`,
   TOKEN: `zhafx_token_${SCHEMA_VERSION}`,
   PROGRESS: `zhafx_progress_${SCHEMA_VERSION}`,
+  FOLLOWS: `zhafx_follows_${SCHEMA_VERSION}`,
 };
 
 // Helper: resolves user-isolated storage key strictly per account
@@ -543,5 +544,43 @@ export const storage = {
     } catch (e) {
       console.warn('[Storage] Failed to clear watch progress:', e);
     }
+  },
+
+  // --- Followed Friends (User-Isolated) ---
+  getFollowingIds(): string[] {
+    try {
+      const scopedKey = getScopedKey(KEYS.FOLLOWS);
+      const data = localStorage.getItem(scopedKey);
+      if (!data) return [];
+      const parsed = JSON.parse(data);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  },
+
+  setFollowing(targetUserId: string, isFollowed: boolean): string[] {
+    try {
+      const scopedKey = getScopedKey(KEYS.FOLLOWS);
+      const current = storage.getFollowingIds();
+      let updated: string[];
+      if (isFollowed) {
+        updated = Array.from(new Set([...current, targetUserId]));
+      } else {
+        updated = current.filter((id) => id !== targetUserId);
+      }
+      localStorage.setItem(scopedKey, JSON.stringify(updated));
+      window.dispatchEvent(new Event('zhafx_follow_change'));
+      window.dispatchEvent(new Event('storage'));
+      return updated;
+    } catch (e) {
+      console.warn('[Storage] Failed to set following:', e);
+      return storage.getFollowingIds();
+    }
+  },
+
+  isFollowing(targetUserId: string): boolean {
+    const list = storage.getFollowingIds();
+    return list.includes(targetUserId);
   },
 };

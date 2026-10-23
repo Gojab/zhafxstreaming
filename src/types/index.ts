@@ -194,3 +194,101 @@ export interface ChatMessage {
   isStreaming?: boolean;
   error?: string;
 }
+
+export interface CommunityFriend {
+  id: string;
+  name: string;
+  username: string;
+  email?: string;
+  avatar?: string;
+  bio?: string;
+  badge: string;
+  isFollowing: boolean;
+  isCurrentUser: boolean;
+  followersCount: number;
+  followingCount: number;
+  watchTimeHours: number;
+  completedCount: number;
+  streakDays: number;
+  rank: number;
+  currentWatching?: {
+    title: string;
+    type: MediaType;
+    poster: string;
+    season?: number;
+    episode?: number;
+    percentage?: number;
+  };
+}
+
+export interface FriendActivity {
+  id: string;
+  userId: string;
+  userName: string;
+  userAvatar?: string;
+  action: 'watching' | 'completed' | 'rated' | 'added_list';
+  mediaId: string;
+  mediaTitle: string;
+  mediaType: MediaType;
+  poster: string;
+  season?: number;
+  episode?: number;
+  rating?: number;
+  percentage?: number;
+  timestamp: number;
+}
+
+export interface TopWatchedRankingTitle {
+  id: string;
+  title: string;
+  type: MediaType;
+  poster: string;
+  backdrop?: string;
+  year: string;
+  rating: string;
+  genres: string[];
+  viewsCount: number;
+  liveWatchers: number;
+  rank: number;
+}
+
+export interface TopWatcherUser {
+  rank: number;
+  userId: string;
+  name: string;
+  username: string;
+  avatar?: string;
+  badge: string;
+  watchTimeHours: number;
+  completedCount: number;
+  streakDays: number;
+  isFollowing: boolean;
+  isCurrentUser: boolean;
+}
+
+export interface UserProfileDetail {
+  id: string;
+  name: string;
+  username: string;
+  avatar?: string;
+  bio?: string;
+  badge: string;
+  joinedAt: number;
+  isFollowing: boolean;
+  isCurrentUser: boolean;
+  followersCount: number;
+  followingCount: number;
+  watchTimeHours: number;
+  completedCount: number;
+  streakDays: number;
+  rank: number;
+  currentWatching?: {
+    title: string;
+    type: MediaType;
+    poster: string;
+    season?: number;
+    episode?: number;
+    percentage?: number;
+  };
+  recentActivities: FriendActivity[];
+}

@@ -16,12 +16,22 @@ import {
   getUserByToken,
   readAuthDb,
   writeAuthDb,
+  toggleFollowUser,
+  getCommunityFriends,
+  getUserPublicProfile,
+  getCommunityActivities,
+  addCommunityActivity,
+  getTopWatchersLeaderboard,
+  getTopWatchedTitlesCatalog,
+  recordWatchProgressForUser,
 } from './server/authService.ts';
 import type {
   StoredUser,
   StoredSession,
   AuthDb,
   AuthComment,
+  StoredFollow,
+  StoredActivity,
 } from './server/authService.ts';
 import { executeMultiModelChat } from './server/aiPipeline.ts';
 
@@ -224,6 +234,12 @@ function getUserIdFromAuthHeader(req: Request): string | null {
         } catch {}
       }
     }
+  }
+
+  // Fallback to x-user-id header
+  const headerUserId = String(req.headers['x-user-id'] || req.headers['x-client-user-id'] || '').trim();
+  if (headerUserId) {
+    return headerUserId;
   }
 
   // Fallback to x-user-email header if passed by active client session
@@ -2764,6 +2780,29 @@ app.post('/api/progress', (req: Request, res: Response) => {
 
     writeProgressDb(records);
 
+    // Sync into Community stats & activity feed
+    try {
+      const authHeader = req.headers.authorization;
+      const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7).trim() : '';
+      const u = token ? getUserByToken(token) : null;
+      recordWatchProgressForUser({
+        userId,
+        userName: u?.name || (req.body && req.body.userName),
+        userAvatar: u?.avatar,
+        contentId: String(contentId),
+        title: String(title || 'Tayangan'),
+        mediaType: (mediaType === 'tv' || mediaType === 'anime' ? mediaType : 'movie'),
+        durationSec: validDuration,
+        currentSec: validCurrentTime,
+        completed: isCompleted,
+        poster: poster ? String(poster) : undefined,
+        season: sNum,
+        episode: epNum,
+      });
+    } catch {
+      // non-blocking
+    }
+
     return res.status(200).json({
       success: true,
       record: newRecord,
@@ -2924,6 +2963,162 @@ app.get('/sitemap.xml', (_req: Request, res: Response) => {
     return res.sendFile(targetPath);
   }
   return res.status(404).send('Sitemap not found');
+});
+
+// ==========================================
+// Community, Friends Follow & Rankings API Endpoints
+// ==========================================
+
+// 1. Get Community Users / Friends List
+app.get('/api/community/friends', (req: Request, res: Response) => {
+  try {
+    const currentUserId = getUserIdFromAuthHeader(req) || undefined;
+    const search = req.query.q as string | undefined;
+    const friends = getCommunityFriends(currentUserId, search);
+    return res.status(200).json({
+      success: true,
+      friends,
+      total: friends.length,
+    });
+  } catch (err: any) {
+    console.error('[Community Friends Error]:', err);
+    return res.status(500).json({ success: false, error: 'Gagal memuat daftar teman & pengguna komunitas.' });
+  }
+});
+
+// 2. Follow / Unfollow Toggle
+app.post('/api/community/follow', (req: Request, res: Response) => {
+  try {
+    const followerId = getUserIdFromAuthHeader(req);
+    if (!followerId) {
+      return res.status(401).json({ success: false, error: 'Silakan masuk akun terlebih dahulu untuk mengikuti teman.' });
+    }
+
+    const { targetUserId } = req.body || {};
+    if (!targetUserId || typeof targetUserId !== 'string') {
+      return res.status(400).json({ success: false, error: 'Target user ID tidak valid.' });
+    }
+
+    const result = toggleFollowUser(followerId, targetUserId);
+    if (!result.success) {
+      return res.status(400).json(result);
+    }
+
+    // Add activity if followed
+    if (result.isFollowing) {
+      const u = getUserByToken(req.headers.authorization?.substring(7).trim() || '');
+      const target = getUserPublicProfile(targetUserId);
+      if (target) {
+        addCommunityActivity({
+          userId: followerId,
+          userName: u?.name || 'Pengguna Zhafx',
+          userAvatar: u?.avatar,
+          action: 'watching',
+          mediaId: target.id,
+          mediaTitle: `Mulai mengikuti ${target.name}`,
+          mediaType: 'movie',
+          poster: target.avatar,
+        });
+      }
+    }
+
+    return res.status(200).json(result);
+  } catch (err: any) {
+    console.error('[Community Follow Error]:', err);
+    return res.status(500).json({ success: false, error: 'Gagal memproses follow/unfollow.' });
+  }
+});
+
+// 3. Get Public Profile of any User / Friend
+app.get('/api/community/profile/:userId', (req: Request, res: Response) => {
+  try {
+    const currentUserId = getUserIdFromAuthHeader(req) || undefined;
+    const profile = getUserPublicProfile(req.params.userId, currentUserId);
+    if (!profile) {
+      return res.status(404).json({ success: false, error: 'Pengguna tidak ditemukan.' });
+    }
+    return res.status(200).json({ success: true, profile });
+  } catch (err: any) {
+    console.error('[Community Profile Error]:', err);
+    return res.status(500).json({ success: false, error: 'Gagal memuat profil pengguna.' });
+  }
+});
+
+// 4. Community Live Activities Feed
+app.get('/api/community/activities', (req: Request, res: Response) => {
+  try {
+    const currentUserId = getUserIdFromAuthHeader(req) || undefined;
+    const limit = Math.min(100, Math.max(10, parseInt(String(req.query.limit || '40'), 10)));
+    const activities = getCommunityActivities(currentUserId, limit);
+    return res.status(200).json({ success: true, activities });
+  } catch (err: any) {
+    console.error('[Community Activities Error]:', err);
+    return res.status(500).json({ success: false, error: 'Gagal memuat aktivitas komunitas.' });
+  }
+});
+
+// 5. Post Custom Community Activity (e.g. from client rating or watch milestone)
+app.post('/api/community/activity', (req: Request, res: Response) => {
+  try {
+    const userId = getUserIdFromAuthHeader(req);
+    if (!userId) {
+      return res.status(401).json({ success: false, error: 'Autentikasi diperlukan.' });
+    }
+
+    const { action, mediaId, mediaTitle, mediaType, poster, season, episode, rating, percentage } = req.body || {};
+    if (!mediaId || !mediaTitle) {
+      return res.status(400).json({ success: false, error: 'Data tayangan tidak lengkap.' });
+    }
+
+    const u = getUserByToken(req.headers.authorization?.substring(7).trim() || '');
+    const newAct = addCommunityActivity({
+      userId,
+      userName: u?.name || 'Pengguna',
+      userAvatar: u?.avatar,
+      action: action || 'watching',
+      mediaId: String(mediaId),
+      mediaTitle: String(mediaTitle),
+      mediaType: mediaType || 'movie',
+      poster: String(poster || ''),
+      season: season ? Number(season) : undefined,
+      episode: episode ? Number(episode) : undefined,
+      rating: rating ? Number(rating) : undefined,
+      percentage: percentage ? Number(percentage) : undefined,
+    });
+
+    return res.status(200).json({ success: true, activity: newAct });
+  } catch (err: any) {
+    console.error('[Community Post Activity Error]:', err);
+    return res.status(500).json({ success: false, error: 'Gagal mencatat aktivitas komunitas.' });
+  }
+});
+
+// 6. Top Watchers Leaderboard Ranking
+app.get('/api/rankings/top-watchers', (req: Request, res: Response) => {
+  try {
+    const currentUserId = getUserIdFromAuthHeader(req) || undefined;
+    const period = String(req.query.period || 'all_time');
+    const leaderboard = getTopWatchersLeaderboard(period, currentUserId);
+    res.setHeader('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=60');
+    return res.status(200).json({ success: true, ...leaderboard });
+  } catch (err: any) {
+    console.error('[Top Watchers Leaderboard Error]:', err);
+    return res.status(500).json({ success: false, error: 'Gagal memuat ranking penonton.' });
+  }
+});
+
+// 7. Top Watched Titles Catalog Ranking
+app.get('/api/rankings/top-watched', (req: Request, res: Response) => {
+  try {
+    const type = String(req.query.type || 'all');
+    const period = String(req.query.period || 'all_time');
+    const catalog = getTopWatchedTitlesCatalog(type, period);
+    res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=120');
+    return res.status(200).json({ success: true, ...catalog });
+  } catch (err: any) {
+    console.error('[Top Watched Catalog Error]:', err);
+    return res.status(500).json({ success: false, error: 'Gagal memuat ranking tayangan paling banyak ditonton.' });
+  }
 });
 
 // Serve Robots.txt

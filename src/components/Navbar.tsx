@@ -32,6 +32,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Film', id: '/explore/movie' },
   { label: 'Serial TV', id: '/explore/tv' },
   { label: 'Anime', id: '/explore/anime' },
+  { label: 'Ranking & Teman', id: '/ranking' },
   { label: 'Daftar Saya', id: '/my-list' },
   { label: 'Riwayat', id: '/history' },
 ];
@@ -58,7 +59,9 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAI, onOpenFeatures, onOpen
   // Active item resolution for the 3D Adaptive Pill
   const currentActiveId =
     NAV_ITEMS.find((item) => item.id === currentPath)?.id ||
-    (currentPath.startsWith('/explore/movie')
+    (currentPath.startsWith('/ranking') || currentPath.startsWith('/community') || currentPath.startsWith('/leaderboard')
+      ? '/ranking'
+      : currentPath.startsWith('/explore/movie')
       ? '/explore/movie'
       : currentPath.startsWith('/explore/tv')
       ? '/explore/tv'

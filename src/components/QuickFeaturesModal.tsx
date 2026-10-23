@@ -14,6 +14,8 @@ import {
   IoPersonOutline as UserIcon,
   IoLogOutOutline as LogOut,
   IoHeart as Heart,
+  IoTrophyOutline as TrophyIcon,
+  IoPeopleOutline as PeopleIcon,
 } from 'react-icons/io5';
 import { HomeSimpleIcon } from './icons/HomeSimpleIcon';
 import { BotMessageSquareIcon } from './icons/BotMessageSquareIcon';
@@ -261,6 +263,34 @@ export const QuickFeaturesModal: React.FC<QuickFeaturesModalProps> = ({
             <div>
               <span className="text-xs font-bold text-white block">Anime</span>
               <span className="text-[10px] text-white/50">Serial Jepang HD</span>
+            </div>
+          </button>
+
+          {/* 5. Ranking Top Watch */}
+          <button
+            onClick={() => handleAction('/ranking')}
+            className="p-3.5 rounded-[20px] liquid-glass hover:bg-white/[0.14] transition-all flex flex-col items-start gap-2 text-left group ios-spring cursor-pointer border border-amber-400/30"
+          >
+            <div className="w-8 h-8 rounded-full bg-amber-400/20 text-amber-300 flex items-center justify-center group-hover:bg-amber-400 group-hover:text-black transition-colors">
+              <TrophyIcon className="w-4 h-4" />
+            </div>
+            <div>
+              <span className="text-xs font-bold text-white block">Top Watch Ranking</span>
+              <span className="text-[10px] text-amber-300/80">Leaderboard maraton</span>
+            </div>
+          </button>
+
+          {/* 6. Teman & Komunitas */}
+          <button
+            onClick={() => handleAction('/community')}
+            className="p-3.5 rounded-[20px] liquid-glass hover:bg-white/[0.14] transition-all flex flex-col items-start gap-2 text-left group ios-spring cursor-pointer border border-purple-400/30"
+          >
+            <div className="w-8 h-8 rounded-full bg-purple-400/20 text-purple-300 flex items-center justify-center group-hover:bg-purple-400 group-hover:text-black transition-colors">
+              <PeopleIcon className="w-4 h-4" />
+            </div>
+            <div>
+              <span className="text-xs font-bold text-white block">Teman Komunitas</span>
+              <span className="text-[10px] text-purple-300/80">Follow & aktivitas teman</span>
             </div>
           </button>
 

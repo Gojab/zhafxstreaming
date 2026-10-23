@@ -22,12 +22,16 @@ import {
   IoSendOutline as Send,
   IoTrashOutline as TrashIcon,
   IoShieldCheckmarkOutline as ShieldCheck,
+  IoTrophyOutline as TrophyIcon,
+  IoPersonAddOutline as UserAddIcon,
+  IoCheckmarkOutline as CheckIcon,
 } from 'react-icons/io5';
 import { api } from '../services/api';
-import { Title, Episode, MediaType, CastMember, VideoTrailer } from '../types';
+import { Title, Episode, MediaType, CastMember, VideoTrailer, CommunityFriend } from '../types';
 import { DetailSkeleton } from '../components/Skeleton';
 import { MediaRow } from '../components/MediaRow';
 import { SEOHead } from '../components/SEOHead';
+import { UserProfileModal } from '../components/UserProfileModal';
 import { useMyList } from '../hooks/useMyList';
 import { useActiveMedia } from '../context/ActiveMediaContext';
 import { storage } from '../lib/storage';
@@ -71,6 +75,11 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext, onO
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
   const [commentError, setCommentError] = useState<string | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(() => Boolean(storage.getUser()));
+
+  // Social & Community states
+  const [selectedProfileUserId, setSelectedProfileUserId] = useState<string | null>(null);
+  const [communityFriends, setCommunityFriends] = useState<CommunityFriend[]>([]);
+  const [followingIds, setFollowingIds] = useState<string[]>(() => storage.getFollowingIds());
 
   const { isSaved, toggle } = useMyList();
   const { setActiveMedia } = useActiveMedia();
@@ -125,6 +134,56 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext, onO
       window.removeEventListener('storage', syncAuthState);
     };
   }, []);
+
+  useEffect(() => {
+    const handleFollowSync = () => setFollowingIds(storage.getFollowingIds());
+    window.addEventListener('zhafx_follow_change', handleFollowSync);
+    return () => window.removeEventListener('zhafx_follow_change', handleFollowSync);
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch('/api/community/friends', {
+      signal: controller.signal,
+      headers: {
+        'x-user-id': storage.getUser()?.id || '',
+      },
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data && Array.isArray(data.friends)) {
+          setCommunityFriends(data.friends.slice(0, 6));
+        }
+      })
+      .catch(() => {});
+    return () => controller.abort();
+  }, []);
+
+  const handleToggleFollow = async (targetUserId: string, e?: React.MouseEvent) => {
+    if (e) {
+      e.stopPropagation();
+    }
+    const currentList = storage.getFollowingIds();
+    const currentlyFollowing = currentList.includes(targetUserId);
+    const updated = storage.setFollowing(targetUserId, !currentlyFollowing);
+    setFollowingIds(updated);
+
+    try {
+      await fetch('/api/community/follow', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': storage.getUser()?.id || '',
+        },
+        body: JSON.stringify({
+          targetUserId,
+          follow: !currentlyFollowing,
+        }),
+      });
+    } catch (e) {
+      console.warn('Failed to sync follow state:', e);
+    }
+  };
 
   useEffect(() => {
     if (!id) return;
@@ -904,6 +963,95 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext, onO
         </div>
       )}
 
+      {/* Community Friends & Watchers Section */}
+      {communityFriends.length > 0 && (
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8 space-y-3 pt-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-full bg-cyan-500/20 text-cyan-400 flex items-center justify-center border border-cyan-500/30">
+                <Users className="w-4 h-4" />
+              </div>
+              <div>
+                <h2 className="text-base sm:text-lg font-bold text-white tracking-tight flex items-center gap-2">
+                  Teman & Komunitas Nonton
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-white/10 text-white/70">
+                    Live
+                  </span>
+                </h2>
+                <p className="text-xs text-white/50">
+                  Temukan teman yang juga sedang maraton tayangan seru
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={() => navigate('/ranking?tab=community')}
+              className="text-xs text-cyan-400 hover:text-cyan-300 font-semibold flex items-center gap-1 cursor-pointer"
+            >
+              <span>Semua Teman</span>
+              <span aria-hidden="true">&rarr;</span>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
+            {communityFriends.map((friend) => {
+              const isFollowingUser = followingIds.includes(friend.id) || friend.isFollowing;
+              return (
+                <div
+                  key={friend.id}
+                  onClick={() => setSelectedProfileUserId(friend.id)}
+                  className="group relative p-3 rounded-2xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 transition-all cursor-pointer flex flex-col items-center text-center space-y-2"
+                >
+                  <div className="relative">
+                    <img
+                      src={friend.avatar}
+                      alt={friend.name}
+                      className="w-12 h-12 rounded-full object-cover border border-white/20 group-hover:scale-105 transition-transform"
+                    />
+                    {friend.badge && (
+                      <span className="absolute -bottom-1 -right-1 px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-amber-500 text-black shadow-xs">
+                        {friend.badge}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="w-full">
+                    <p className="text-xs font-bold text-white truncate group-hover:text-cyan-300 transition-colors">
+                      {friend.name}
+                    </p>
+                    <p className="text-[10px] text-white/50 truncate">
+                      {friend.watchTimeHours}j ditonton
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={(e) => handleToggleFollow(friend.id, e)}
+                    className={`w-full py-1 rounded-xl text-[10px] font-bold transition-all cursor-pointer flex items-center justify-center gap-1 ${
+                      isFollowingUser
+                        ? 'bg-white/10 text-emerald-300 border border-emerald-500/30 hover:bg-rose-500/20 hover:text-rose-300 hover:border-rose-500/30'
+                        : 'bg-white text-black hover:bg-zinc-200'
+                    }`}
+                  >
+                    {isFollowingUser ? (
+                      <>
+                        <CheckIcon className="w-3 h-3" />
+                        <span>Teman</span>
+                      </>
+                    ) : (
+                      <>
+                        <UserAddIcon className="w-3 h-3" />
+                        <span>Ikuti</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
       {/* Comments & Ratings */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8 space-y-4 pt-2" aria-labelledby="comments-heading">
         <div className="flex items-center gap-2.5">
@@ -953,7 +1101,48 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext, onO
                     <article key={comment.id} className="border-t border-white/10 pt-3 group">
                       <div className="flex items-center justify-between gap-3">
                         <div className="flex items-center gap-2">
-                          <span className="text-sm font-semibold text-white">{comment.userName}</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (comment.userId) {
+                                setSelectedProfileUserId(comment.userId);
+                              }
+                            }}
+                            className="flex items-center gap-2 text-left group/author hover:opacity-85 transition-opacity cursor-pointer"
+                            title="Klik untuk melihat profil teman"
+                          >
+                            <div className="w-6 h-6 rounded-full bg-linear-to-tr from-cyan-500 to-indigo-500 text-[10px] font-bold text-white flex items-center justify-center border border-white/20">
+                              {(comment.userName || 'P').charAt(0).toUpperCase()}
+                            </div>
+                            <span className="text-sm font-semibold text-white group-hover/author:text-cyan-300 transition-colors">
+                              {comment.userName}
+                            </span>
+                          </button>
+
+                          {comment.userId && comment.userId !== storage.getUser()?.id && (
+                            <button
+                              type="button"
+                              onClick={(e) => handleToggleFollow(comment.userId!, e)}
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-semibold transition-all cursor-pointer flex items-center gap-1 ${
+                                followingIds.includes(comment.userId)
+                                  ? 'bg-white/10 text-emerald-300 border border-emerald-500/20'
+                                  : 'bg-white/5 hover:bg-white/15 text-white/70 hover:text-white border border-white/10'
+                              }`}
+                            >
+                              {followingIds.includes(comment.userId) ? (
+                                <>
+                                  <CheckIcon className="w-2.5 h-2.5" />
+                                  <span>Teman</span>
+                                </>
+                              ) : (
+                                <>
+                                  <UserAddIcon className="w-2.5 h-2.5" />
+                                  <span>Ikuti</span>
+                                </>
+                              )}
+                            </button>
+                          )}
+
                           {isCommentAdmin && (
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[10px] font-bold shadow-xs">
                               <ShieldCheck className="w-3 h-3 text-amber-400" />
@@ -1004,6 +1193,13 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext, onO
           />
         </div>
       )}
+
+      {/* User Profile Modal for viewing friend details and following */}
+      <UserProfileModal
+        userId={selectedProfileUserId}
+        isOpen={Boolean(selectedProfileUserId)}
+        onClose={() => setSelectedProfileUserId(null)}
+      />
     </div>
   );
 };
