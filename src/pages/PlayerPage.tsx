@@ -52,68 +52,70 @@ export interface ServerOption {
 // =========================================================================
 export const MOVIE_SERVERS: ServerOption[] = [
   {
-    id: 'server-movie-1',
-    name: 'Server 1',
-    tagline: 'Server Utama • Pemutaran Cepat & Stabil',
+    id: 'server-movie-auto',
+    name: 'Server 1 (Auto Fast CDN)',
+    tagline: 'Server Utama • Multi-CDN Anti-Buffering (Rekomendasi)',
     type: 'movie_embed',
-    provider: 'miner',
+    provider: 'auto',
     badge: 'Utama',
   },
   {
-    id: 'server-movie-2',
-    name: 'Server 2',
-    tagline: 'Server Cadangan • Multi-Subtitle',
+    id: 'server-movie-superbarbarian',
+    name: 'Server 2 (Super Barbarian)',
+    tagline: 'Direct Ultra HLS • Stabil & Super Cepat',
+    type: 'movie_embed',
+    provider: 'super_barbarian',
+    badge: 'Cepat',
+  },
+  {
+    id: 'server-movie-headhunter',
+    name: 'Server 3 (Headhunter)',
+    tagline: 'VidLink CDN • Multi-Subtitle Indonesia',
     type: 'movie_embed',
     provider: 'headhunter',
+    badge: 'Sub Indo',
   },
   {
-    id: 'server-movie-3',
-    name: 'Server 3',
-    tagline: 'Server Cadangan • Multi-Server',
-    type: 'movie_embed',
-    provider: 'valkyrie',
-  },
-  {
-    id: 'server-movie-4',
-    name: 'Server 4',
-    tagline: 'Server Cadangan • Direct Stream',
+    id: 'server-movie-titan',
+    name: 'Server 4 (Titan)',
+    tagline: 'Direct MP4 1080p • Buffer-Free Direct Stream',
     type: 'movie_embed',
     provider: 'titan',
   },
   {
-    id: 'server-movie-5',
-    name: 'Server 5',
-    tagline: 'Server Cadangan • Jalur Cepat',
-    type: 'movie_embed',
-    provider: 'hog_rider',
-  },
-  {
-    id: 'server-movie-6',
-    name: 'Server 6',
-    tagline: 'Server Cadangan • Multi-CDN',
-    type: 'movie_embed',
-    provider: 'lavahound',
-  },
-  {
-    id: 'server-movie-7',
-    name: 'Server 7',
-    tagline: 'Server Cadangan • Auto Stream',
-    type: 'movie_embed',
-    provider: 'super_barbarian',
-  },
-  {
-    id: 'server-movie-8',
-    name: 'Server 8',
-    tagline: 'Server Cadangan • Multi-Bahasa',
+    id: 'server-movie-bowler',
+    name: 'Server 5 (Bowler)',
+    tagline: 'PrimeVids Multi-CDN • Bebas Macet',
     type: 'movie_embed',
     provider: 'bowler',
   },
   {
-    id: 'server-movie-9',
-    name: 'Server 9',
-    tagline: 'Server Cadangan • Multi-Audio',
+    id: 'server-movie-giant',
+    name: 'Server 6 (Giant)',
+    tagline: 'Multi-Audio High Speed Server',
     type: 'movie_embed',
     provider: 'giant',
+  },
+  {
+    id: 'server-movie-valkyrie',
+    name: 'Server 7 (Valkyrie)',
+    tagline: '4K Ultra Multi-Server Cadangan',
+    type: 'movie_embed',
+    provider: 'valkyrie',
+  },
+  {
+    id: 'server-movie-pekka',
+    name: 'Server 8 (Pekka X)',
+    tagline: 'Nflx 1 Fast Direct Server',
+    type: 'movie_embed',
+    provider: 'pekka_x',
+  },
+  {
+    id: 'server-movie-miner',
+    name: 'Server 9 (Miner)',
+    tagline: 'Server Cadangan • Multi-City Server',
+    type: 'movie_embed',
+    provider: 'miner',
   },
 ];
 
@@ -122,117 +124,120 @@ export const MOVIE_SERVERS: ServerOption[] = [
 // =========================================================================
 export const TV_SERVERS: ServerOption[] = [
   {
-    id: 'server-tv-1',
-    name: 'Server 1',
-    tagline: 'Server Utama • Serial TV Lengkap',
+    id: 'server-tv-auto',
+    name: 'Server 1 (Auto Fast CDN)',
+    tagline: 'Server Utama • Multi-CDN Anti-Buffering (Rekomendasi)',
     type: 'tv_embed',
-    provider: 'miner',
+    provider: 'auto',
     badge: 'Utama',
   },
   {
-    id: 'server-tv-2',
-    name: 'Server 2',
-    tagline: 'Server Cadangan • Multi-Subtitle & Episode Lengkap',
-    type: 'tv_embed',
-    provider: 'headhunter',
-  },
-  {
-    id: 'server-tv-3',
-    name: 'Server 3',
-    tagline: 'Server Cadangan • Multi-Server Stabil',
-    type: 'tv_embed',
-    provider: 'valkyrie',
-  },
-  {
-    id: 'server-tv-4',
-    name: 'Server 4',
-    tagline: 'Server Cadangan • Direct Stream',
+    id: 'server-tv-titan',
+    name: 'Server 2 (Titan)',
+    tagline: 'Direct MP4 1080p • Full Episode Stabil & Cepat',
     type: 'tv_embed',
     provider: 'titan',
+    badge: 'Cepat',
   },
   {
-    id: 'server-tv-5',
-    name: 'Server 5',
-    tagline: 'Server Cadangan • Dedicated',
+    id: 'server-tv-bowler',
+    name: 'Server 3 (Bowler)',
+    tagline: 'PrimeVids Multi-CDN • Lancar & Bebas Lag',
     type: 'tv_embed',
-    provider: 'hog_rider',
+    provider: 'bowler',
+    badge: 'Stabil',
   },
   {
-    id: 'server-tv-6',
-    name: 'Server 6',
-    tagline: 'Server Cadangan • Multi-CDN',
-    type: 'tv_embed',
-    provider: 'lavahound',
-  },
-  {
-    id: 'server-tv-7',
-    name: 'Server 7',
-    tagline: 'Server Cadangan • Auto Stream',
+    id: 'server-tv-superbarbarian',
+    name: 'Server 4 (Super Barbarian)',
+    tagline: 'Direct Ultra HLS • Multi-Kualitas',
     type: 'tv_embed',
     provider: 'super_barbarian',
   },
   {
-    id: 'server-tv-8',
-    name: 'Server 8',
-    tagline: 'Server Cadangan • Multi-Bahasa',
+    id: 'server-tv-headhunter',
+    name: 'Server 5 (Headhunter)',
+    tagline: 'VidLink CDN • Multi-Subtitle Lengkap',
     type: 'tv_embed',
-    provider: 'bowler',
+    provider: 'headhunter',
   },
   {
-    id: 'server-tv-9',
-    name: 'Server 9',
-    tagline: 'Server Cadangan • Multi-Audio',
+    id: 'server-tv-giant',
+    name: 'Server 6 (Giant)',
+    tagline: 'Multi-Audio HD Cloud Server',
     type: 'tv_embed',
     provider: 'giant',
+  },
+  {
+    id: 'server-tv-valkyrie',
+    name: 'Server 7 (Valkyrie)',
+    tagline: '4K Multi-Server Cadangan',
+    type: 'tv_embed',
+    provider: 'valkyrie',
+  },
+  {
+    id: 'server-tv-miner',
+    name: 'Server 8 (Miner)',
+    tagline: 'Server Cadangan • Multi-City Server',
+    type: 'tv_embed',
+    provider: 'miner',
   },
 ];
 
 // =========================================================================
-// 3. Dedicated Servers Khusus ANIME — FrameX TV Engine (Grand Warden, Wizard, dll.)
+// 3. Dedicated Servers Khusus ANIME — FrameX TV Engine
 // =========================================================================
 export const ANIME_SERVERS: ServerOption[] = [
   {
-    id: 'server-anime-1',
-    name: 'Server 1 (Grand Warden)',
-    tagline: 'Server Utama • Multi-Source Cloud 1080p',
+    id: 'server-anime-auto',
+    name: 'Server 1 (Grand Warden Auto)',
+    tagline: 'Server Utama • Multi-Source Cloud 1080p Anti-Lag',
     type: 'anime_embed',
-    provider: 'grand_warden',
+    provider: 'auto',
     badge: 'Utama',
   },
   {
-    id: 'server-anime-2',
-    name: 'Server 2 (Wizard)',
-    tagline: 'Server Cadangan • Dual Audio & Softsub Cepat',
+    id: 'server-anime-goblin',
+    name: 'Server 2 (Goblin)',
+    tagline: 'Direct Fast Auto Stream • Cepat & Anti-Buffer',
+    type: 'anime_embed',
+    provider: 'goblin',
+    badge: 'Cepat',
+  },
+  {
+    id: 'server-anime-warden',
+    name: 'Server 3 (Grand Warden)',
+    tagline: 'Dedicated MegaPlay 1080p HD Multi-Source',
+    type: 'anime_embed',
+    provider: 'grand_warden',
+  },
+  {
+    id: 'server-anime-giant',
+    name: 'Server 4 (Giant)',
+    tagline: 'Ultra High Speed Cloud Server',
+    type: 'anime_embed',
+    provider: 'giant',
+  },
+  {
+    id: 'server-anime-wizard',
+    name: 'Server 5 (Wizard)',
+    tagline: 'Dual Audio & Softsub Cepat',
     type: 'anime_embed',
     provider: 'wizard',
   },
   {
-    id: 'server-anime-3',
-    name: 'Server 3 (Valkyrie)',
-    tagline: 'Server Cadangan • FlixCloud HD',
+    id: 'server-anime-valkyrie',
+    name: 'Server 6 (Valkyrie)',
+    tagline: 'FlixCloud HD Cadangan',
     type: 'anime_embed',
     provider: 'valkyrie',
   },
   {
-    id: 'server-anime-4',
-    name: 'Server 4 (Super PEKKA)',
-    tagline: 'Server Cadangan • Direct Fast CDN 1080p',
+    id: 'server-anime-superpekka',
+    name: 'Server 7 (Super PEKKA)',
+    tagline: '1080p Ultra High Bitrate Cadangan',
     type: 'anime_embed',
     provider: 'super_pekka',
-  },
-  {
-    id: 'server-anime-5',
-    name: 'Server 5 (Goblin)',
-    tagline: 'Server Cadangan • Direct Fast Auto Stream',
-    type: 'anime_embed',
-    provider: 'goblin',
-  },
-  {
-    id: 'server-anime-6',
-    name: 'Server 6 (Giant)',
-    tagline: 'Server Cadangan • Ultra High Speed Server',
-    type: 'anime_embed',
-    provider: 'giant',
   },
 ];
 
@@ -651,8 +656,8 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
   const handleNextServer = () => {
     const nextIdx = (safeServerIndex + 1) % activeServerList.length;
     setCurrentServerIndex(nextIdx);
-    setFailoverNotice(`Beralih ke ${activeServerList[nextIdx].name}...`);
-    setTimeout(() => setFailoverNotice(null), 3000);
+    setFailoverNotice(`Beralih ke ${activeServerList[nextIdx].name} (Jalur Anti-Buffer)...`);
+    setTimeout(() => setFailoverNotice(null), 3500);
     setIsIframeLoading(true);
     setIframeKey((k) => k + 1);
   };
@@ -664,20 +669,22 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
     const cleanId = String(id).trim();
     const validEp = Math.max(1, episodeNum);
     const validSeason = Math.max(1, seasonNum);
-    let targetProvider = activeServer.provider || 'grand_warden';
+    const targetProvider = activeServer.provider || 'auto';
     const resumeTimeSec =
       resumePrompt?.time && resumePrompt.time > 5 ? Math.floor(resumePrompt.time) : 0;
 
     if (mediaType === 'anime') {
       // Official FrameX Anime Embed (https://framextv.cc/)
-      let targetProv = activeServer.provider || 'grand_warden';
-      if (animeAudio === 'dub' && !targetProv.endsWith('_dub')) {
-        const dubCandidate = `${targetProv}_dub`;
-        if (['grand_warden_dub', 'wizard_dub', 'valkyrie_dub', 'goblin_dub'].includes(dubCandidate)) {
-          targetProv = dubCandidate;
+      let targetProv = activeServer.provider || 'auto';
+      if (targetProv !== 'auto') {
+        if (animeAudio === 'dub' && !targetProv.endsWith('_dub')) {
+          const dubCandidate = `${targetProv}_dub`;
+          if (['grand_warden_dub', 'wizard_dub', 'valkyrie_dub', 'goblin_dub'].includes(dubCandidate)) {
+            targetProv = dubCandidate;
+          }
+        } else if (animeAudio === 'sub' && targetProv.endsWith('_dub')) {
+          targetProv = targetProv.replace('_dub', '');
         }
-      } else if (animeAudio === 'sub' && targetProv.endsWith('_dub')) {
-        targetProv = targetProv.replace('_dub', '');
       }
 
       const baseUrl = `https://framextv.cc/embed/anime`;
@@ -689,7 +696,9 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
       url.searchParams.set('type', 'anime');
       url.searchParams.set('sub_type', animeAudio);
       url.searchParams.set('audio', animeAudio);
-      url.searchParams.set('provider', targetProv);
+      if (targetProv && targetProv !== 'auto') {
+        url.searchParams.set('provider', targetProv);
+      }
       url.searchParams.set('autoplay', '1');
       url.searchParams.set('muted', '0');
       url.searchParams.set('no_ads', '1');
@@ -717,7 +726,9 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
       url.searchParams.set('season', String(validSeason));
       url.searchParams.set('episode', String(validEp));
       url.searchParams.set('type', 'tv');
-      url.searchParams.set('provider', targetProvider);
+      if (targetProvider && targetProvider !== 'auto') {
+        url.searchParams.set('provider', targetProvider);
+      }
       url.searchParams.set('autoplay', '1');
       url.searchParams.set('muted', '0');
       url.searchParams.set('no_ads', '1'); // Disables popup ads on TV series
@@ -740,7 +751,9 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
     const url = new URL(baseUrl);
     url.searchParams.set('id', cleanId);
     url.searchParams.set('type', 'movie');
-    url.searchParams.set('provider', targetProvider);
+    if (targetProvider && targetProvider !== 'auto') {
+      url.searchParams.set('provider', targetProvider);
+    }
     url.searchParams.set('autoplay', '1');
     url.searchParams.set('muted', '0');
     url.searchParams.set('no_ads', '1'); // Disables popup ads on Movies
@@ -1147,16 +1160,6 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
               frameBorder="0"
               scrolling="no"
               allowFullScreen={true}
-              // @ts-ignore
-              webkitallowfullscreen="true"
-              // @ts-ignore
-              mozallowfullscreen="true"
-              // @ts-ignore
-              playsInline={true}
-              // @ts-ignore
-              playsinline="true"
-              // @ts-ignore
-              webkit-playsinline="true"
               allow="autoplay *; fullscreen *; picture-in-picture *; encrypted-media *; accelerometer *; gyroscope *; clipboard-write *; web-share *"
               referrerPolicy="origin"
               loading="eager"
@@ -1232,9 +1235,9 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
           ========================================================================= */}
       {!isFullscreen && (
         <div className="w-full max-w-5xl mx-auto px-3 sm:px-6 pt-4 space-y-4">
-        {/* 1. Server Tip Banner (FrameX Style) */}
+        {/* 1. Server Tip Banner (FrameX Anti-Buffering Style) */}
         {!isTipDismissed && (
-          <aside className="px-3.5 py-2.5 rounded-xl bg-zinc-900/90 border border-amber-500/25 backdrop-blur-md shadow-lg flex items-center justify-between gap-2.5 text-xs text-zinc-300 animate-in fade-in">
+          <aside className="px-3.5 py-2.5 rounded-xl bg-zinc-900/90 border border-amber-500/25 backdrop-blur-md shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs text-zinc-300 animate-in fade-in">
             <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
               <div className="relative flex items-center justify-center shrink-0">
                 <span className="animate-ping absolute inline-flex h-2 w-2 rounded-full bg-amber-400 opacity-60" />
@@ -1242,18 +1245,28 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
               </div>
               <p className="leading-snug">
                 <span className="font-semibold text-white">Buffering atau lambat memuat?</span>{' '}
-                <span className="text-zinc-400 hidden sm:inline">Ganti server streaming melalui tombol server di bawah ini.</span>
-                <span className="text-zinc-400 sm:hidden">Ganti server di bawah ini.</span>
+                <span className="text-zinc-400">Tekan tombol Jalur Cepat untuk beralih ke CDN cadangan anti-lag.</span>
               </p>
             </div>
-            <button
-              onClick={() => setIsTipDismissed(true)}
-              className="p-1 text-zinc-400 hover:text-white rounded-lg transition-colors shrink-0 cursor-pointer"
-              title="Tutup tips"
-              aria-label="Tutup tips"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
+            <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+              <button
+                type="button"
+                onClick={handleNextServer}
+                className="px-3 py-1.5 rounded-lg bg-[#FFB224] hover:bg-[#FFA500] text-black font-bold text-xs flex items-center gap-1.5 shadow-md transition-all active:scale-95 cursor-pointer"
+                title="Beralih langsung ke server cadangan tercepat"
+              >
+                <Zap className="w-3.5 h-3.5 fill-current" />
+                <span>Ganti Jalur Cepat</span>
+              </button>
+              <button
+                onClick={() => setIsTipDismissed(true)}
+                className="p-1 text-zinc-400 hover:text-white rounded-lg transition-colors shrink-0 cursor-pointer"
+                title="Tutup tips"
+                aria-label="Tutup tips"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </aside>
         )}
 
@@ -1379,6 +1392,15 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
               >
                 <Share2 className="w-3.5 h-3.5" />
                 <span>Bagikan</span>
+              </button>
+
+              <button
+                onClick={handleNextServer}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-full bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/35 text-amber-300 text-xs font-bold cursor-pointer transition-all active:scale-95"
+                title="Klik untuk berpindah ke jalur server bebas buffering"
+              >
+                <Zap className="w-3.5 h-3.5 fill-current" />
+                <span>Anti-Buffer</span>
               </button>
 
               <button

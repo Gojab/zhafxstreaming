@@ -18,12 +18,13 @@ export default async function handler(req: any, res: any) {
   const isPost = req.method === 'POST';
   const isFrameX = targetUrl.includes('framextv.cc') || targetUrl.includes('framextv.tech') || targetUrl.includes('framextv.xyz');
 
-  // Candidate URLs with auto-failover to .cc
+  // Candidate URLs with auto-failover prioritizing .cc
   const candidateUrls = [targetUrl];
   if (targetUrl.includes('framextv.tech')) {
-    candidateUrls.push(targetUrl.replace('framextv.tech', 'framextv.cc'));
+    candidateUrls.unshift(targetUrl.replace('framextv.tech', 'framextv.cc'));
+    candidateUrls.push(targetUrl.replace('framextv.tech', 'framextv.xyz'));
   } else if (targetUrl.includes('framextv.xyz')) {
-    candidateUrls.push(targetUrl.replace('framextv.xyz', 'framextv.cc'));
+    candidateUrls.unshift(targetUrl.replace('framextv.xyz', 'framextv.cc'));
   }
 
   for (const candidate of candidateUrls) {
