@@ -1341,6 +1341,85 @@ app.get('/api/admin/users', (req: Request, res: Response) => {
 });
 
 // ==========================================
+// Supabase Notes API (Quickstart & Admin Notes)
+// ==========================================
+const DEFAULT_SAMPLE_NOTES = [
+  { id: 1, title: 'Today I created a Supabase project.' },
+  { id: 2, title: 'I added some data and queried it from Next.js.' },
+  { id: 3, title: 'It was awesome!' },
+];
+
+let inMemoryNotes = [...DEFAULT_SAMPLE_NOTES];
+
+app.get('/api/notes', async (_req: Request, res: Response) => {
+  res.setHeader('Content-Type', 'application/json');
+  if (supabaseAdmin) {
+    try {
+      const { data, error } = await supabaseAdmin.from('notes').select('*').order('id', { ascending: true });
+      if (!error && Array.isArray(data)) {
+        return res.json({
+          success: true,
+          notes: data.length > 0 ? data : inMemoryNotes,
+          source: 'supabase',
+          tableCreated: true,
+        });
+      }
+    } catch {}
+  }
+
+  return res.json({
+    success: true,
+    notes: inMemoryNotes,
+    source: 'local_fallback',
+    tableCreated: false,
+    message: 'Tabel public.notes belum dibuat di Supabase SQL Editor.',
+  });
+});
+
+app.post('/api/notes', async (req: Request, res: Response) => {
+  res.setHeader('Content-Type', 'application/json');
+  const { title } = req.body || {};
+  if (!title || typeof title !== 'string' || !title.trim()) {
+    return res.status(400).json({ success: false, error: 'Judul catatan tidak boleh kosong.' });
+  }
+
+  const cleanTitle = title.trim();
+  let createdNote: any = null;
+
+  if (supabaseAdmin) {
+    try {
+      const { data, error } = await supabaseAdmin.from('notes').insert({ title: cleanTitle }).select('*').single();
+      if (!error && data) {
+        createdNote = data;
+        return res.status(201).json({ success: true, note: createdNote, source: 'supabase' });
+      }
+    } catch {}
+  }
+
+  createdNote = {
+    id: inMemoryNotes.length > 0 ? Math.max(...inMemoryNotes.map((n) => Number(n.id) || 0)) + 1 : 1,
+    title: cleanTitle,
+  };
+  inMemoryNotes.push(createdNote);
+
+  return res.status(201).json({ success: true, note: createdNote, source: 'local' });
+});
+
+app.delete('/api/notes/:id', async (req: Request, res: Response) => {
+  res.setHeader('Content-Type', 'application/json');
+  const id = req.params.id;
+
+  if (supabaseAdmin) {
+    try {
+      await supabaseAdmin.from('notes').delete().eq('id', id);
+    } catch {}
+  }
+
+  inMemoryNotes = inMemoryNotes.filter((n) => String(n.id) !== String(id));
+  return res.json({ success: true, message: 'Catatan berhasil dihapus.' });
+});
+
+// ==========================================
 // Native Anime Stream & Proxy (FrameX API Engine)
 // ==========================================
 

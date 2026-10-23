@@ -94,17 +94,21 @@ export const DashboardPage: React.FC = () => {
   const [adminStats, setAdminStats] = useState<any>(null);
   const [adminComments, setAdminComments] = useState<any[]>([]);
   const [adminUsers, setAdminUsers] = useState<any[]>([]);
+  const [adminNotes, setAdminNotes] = useState<any[]>([]);
+  const [newNoteTitle, setNewNoteTitle] = useState('');
+  const [notesTableCreated, setNotesTableCreated] = useState(false);
   const [adminLoading, setAdminLoading] = useState(false);
-  const [activeAdminTab, setActiveAdminTab] = useState<'comments' | 'users' | 'database'>('comments');
+  const [activeAdminTab, setActiveAdminTab] = useState<'comments' | 'notes' | 'users' | 'database'>('comments');
 
   const loadAdminData = async (token?: string | null) => {
     const activeToken = token || storage.getToken() || '';
     setAdminLoading(true);
     try {
-      const [statsRes, commentsRes, usersRes] = await Promise.all([
+      const [statsRes, commentsRes, usersRes, notesRes] = await Promise.all([
         fetch('/api/admin/stats', { headers: { Authorization: `Bearer ${activeToken}` } }),
         fetch('/api/admin/comments', { headers: { Authorization: `Bearer ${activeToken}` } }),
         fetch('/api/admin/users', { headers: { Authorization: `Bearer ${activeToken}` } }),
+        fetch('/api/notes'),
       ]);
       if (statsRes.ok) setAdminStats(await statsRes.json());
       if (commentsRes.ok) {
@@ -115,10 +119,47 @@ export const DashboardPage: React.FC = () => {
         const uData = await usersRes.json();
         setAdminUsers(uData.users || []);
       }
+      if (notesRes.ok) {
+        const nData = await notesRes.json();
+        setAdminNotes(nData.notes || []);
+        setNotesTableCreated(Boolean(nData.tableCreated));
+      }
     } catch (err) {
       console.warn('[Admin Panel load error]:', err);
     } finally {
       setAdminLoading(false);
+    }
+  };
+
+  const handleAddNote = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newNoteTitle.trim()) return;
+    try {
+      const res = await fetch('/api/notes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: newNoteTitle.trim() }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.note) {
+          setAdminNotes((prev) => [...prev, data.note]);
+          setNewNoteTitle('');
+        }
+      }
+    } catch (err) {
+      console.error('Gagal menambah catatan:', err);
+    }
+  };
+
+  const handleDeleteNote = async (id: number | string) => {
+    try {
+      const res = await fetch(`/api/notes/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setAdminNotes((prev) => prev.filter((n) => String(n.id) !== String(id)));
+      }
+    } catch (err) {
+      console.error('Gagal menghapus catatan:', err);
     }
   };
 
@@ -723,6 +764,17 @@ export const DashboardPage: React.FC = () => {
             </button>
             <button
               type="button"
+              onClick={() => setActiveAdminTab('notes')}
+              className={`px-3 py-1.5 rounded-xl font-semibold transition-colors cursor-pointer shrink-0 ${
+                activeAdminTab === 'notes'
+                  ? 'bg-white text-black shadow-md'
+                  : 'text-zinc-400 hover:text-white hover:bg-white/[0.05]'
+              }`}
+            >
+              Supabase Notes ({adminNotes.length})
+            </button>
+            <button
+              type="button"
               onClick={() => setActiveAdminTab('users')}
               className={`px-3 py-1.5 rounded-xl font-semibold transition-colors cursor-pointer shrink-0 ${
                 activeAdminTab === 'users'
@@ -795,6 +847,100 @@ export const DashboardPage: React.FC = () => {
                   ))}
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Tab: Supabase Notes */}
+          {activeAdminTab === 'notes' && (
+            <div className="space-y-4">
+              {/* Status Header */}
+              <div className="flex items-center justify-between p-3.5 rounded-2xl bg-white/[0.03] border border-white/10 text-xs">
+                <div className="flex items-center gap-2">
+                  <span className={`w-2 h-2 rounded-full ${notesTableCreated ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
+                  <span className="text-white font-semibold">
+                    {notesTableCreated ? 'Tabel public.notes Terhubung di Supabase' : 'Tabel public.notes Mode Sinkronisasi / Fallback'}
+                  </span>
+                </div>
+                <span className="text-[10px] text-zinc-400 font-mono">
+                  {adminNotes.length} Catatan
+                </span>
+              </div>
+
+              {/* Add Note Form */}
+              <form onSubmit={handleAddNote} className="flex gap-2">
+                <input
+                  type="text"
+                  value={newNoteTitle}
+                  onChange={(e) => setNewNoteTitle(e.target.value)}
+                  placeholder="Tambah catatan baru ke Supabase..."
+                  className="flex-1 h-11 px-4 rounded-xl bg-white/[0.06] border border-white/15 text-xs text-white focus:outline-none focus:border-white transition-colors placeholder:text-zinc-500"
+                />
+                <button
+                  type="submit"
+                  disabled={!newNoteTitle.trim()}
+                  className="px-4 h-11 rounded-xl bg-white hover:bg-zinc-200 text-black font-bold text-xs cursor-pointer transition-colors disabled:opacity-50 shrink-0 shadow-md"
+                >
+                  Tambah Catatan
+                </button>
+              </form>
+
+              {/* Notes List */}
+              <div className="space-y-2">
+                {adminNotes.map((note) => (
+                  <div
+                    key={note.id}
+                    className="p-3.5 rounded-2xl bg-white/[0.03] hover:bg-white/[0.06] border border-white/10 transition-colors flex items-center justify-between gap-3 text-xs"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <span className="w-6 h-6 rounded-lg bg-white/10 text-[10px] font-mono text-zinc-300 flex items-center justify-center shrink-0">
+                        #{note.id}
+                      </span>
+                      <span className="text-white font-medium break-all">{note.title}</span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteNote(note.id)}
+                      className="p-1.5 rounded-lg text-zinc-500 hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer shrink-0"
+                      title="Hapus Catatan"
+                    >
+                      <TrashIcon className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              {/* Raw JSON Pre Output (as requested in Supabase quickstart) */}
+              <div className="space-y-1.5 pt-2">
+                <span className="text-[11px] font-semibold text-zinc-400 block">
+                  Hasil Query Langsung Supabase &lt;pre&gt;:
+                </span>
+                <pre className="p-3.5 rounded-2xl bg-black/40 border border-white/10 text-[11px] text-emerald-400 font-mono overflow-x-auto max-h-48 scrollbar-thin">
+                  {JSON.stringify(adminNotes, null, 2)}
+                </pre>
+              </div>
+
+              {/* SQL Setup Helper */}
+              <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-200/90 space-y-2">
+                <div className="flex items-center gap-1.5 font-bold text-emerald-300">
+                  <CheckCircle2 className="w-4 h-4 shrink-0" />
+                  <span>Script SQL Tabel Supabase (Jalankan di Supabase SQL Editor jika belum):</span>
+                </div>
+                <pre className="p-3 rounded-xl bg-black/50 border border-emerald-500/30 text-[10px] font-mono text-emerald-300 overflow-x-auto select-all">
+{`create table notes (
+  id bigint primary key generated always as identity,
+  title text not null
+);
+
+insert into notes (title) values
+  ('Today I created a Supabase project.'),
+  ('I added some data and queried it from Next.js.'),
+  ('It was awesome!');
+
+alter table notes enable row level security;
+create policy "public can read notes" on public.notes for select to anon using (true);`}
+                </pre>
+              </div>
             </div>
           )}
 
