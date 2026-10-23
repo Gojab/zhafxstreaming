@@ -1,8 +1,7 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-const fallbackUrl = 'https://bmnanpiftycofegguifp.supabase.co';
-const fallbackKey =
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJtbmFucGlmdHljb2ZlZ2d1aWZwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI1OTMzNjEsImV4cCI6MjEwODE2OTM2MX0.jvRueDaw8ZSfm8RJckk-VV65lUwbJ1FEX1cFGlfZJtc';
+const fallbackUrl = 'https://xjyzfunqiazlayivjsxj.supabase.co';
+const fallbackKey = 'sb_publishable_l3QQ3rkxCcKEcXfhDgEweA_Ar5lEZ6K';
 
 const rawUrl =
   import.meta.env.VITE_SUPABASE_URL ||

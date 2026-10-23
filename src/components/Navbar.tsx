@@ -10,6 +10,7 @@ import {
   IoChevronDownOutline,
   IoVideocamOutline,
   IoLogInOutline,
+  IoShieldCheckmarkOutline,
 } from 'react-icons/io5';
 import { Logo } from './Logo';
 import { PillBase, NavItem } from '@/components/ui/3d-adaptive-navigation-bar';
@@ -282,6 +283,28 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAI, onOpenFeatures, onOpen
                       <p className="text-[11px] text-white/90 truncate">{user.email}</p>
                     </div>
                   </div>
+
+                  {/* 0. Dashboard & Panel Admin */}
+                  <button
+                    onClick={() => {
+                      setIsProfileMenuOpen(false);
+                      navigate('/dashboard');
+                    }}
+                    className={`w-full px-3 py-2.5 rounded-xl text-left text-xs flex items-center gap-2.5 cursor-pointer transition-colors font-semibold ${
+                      user.email?.toLowerCase() === 'zhafranfaisal1@gmail.com'
+                        ? 'bg-amber-500/15 text-amber-300 hover:bg-amber-500/25 border border-amber-500/30'
+                        : 'text-white hover:bg-white/15'
+                    }`}
+                  >
+                    <IoShieldCheckmarkOutline className={`w-4 h-4 shrink-0 ${
+                      user.email?.toLowerCase() === 'zhafranfaisal1@gmail.com' ? 'text-amber-300' : 'text-white'
+                    }`} />
+                    <span>
+                      {user.email?.toLowerCase() === 'zhafranfaisal1@gmail.com'
+                        ? 'Dashboard & Panel Admin'
+                        : 'Dashboard Akun'}
+                    </span>
+                  </button>
 
                   {/* 1. Atur Profil Button */}
                   <button

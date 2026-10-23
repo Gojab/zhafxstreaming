@@ -13,8 +13,9 @@
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
+    "@supabase/server": "^1.9.2",
     "@supabase/ssr": "^0.12.7",
-    "@supabase/supabase-js": "2.75.0",
+    "@supabase/supabase-js": "^2.118.0",
     "@tailwindcss/vite": "^4.3.3",
     "@vitejs/plugin-react": "^6.1.1",
     "cheerio": "^1.2.0",

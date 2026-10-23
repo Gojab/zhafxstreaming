@@ -20,6 +20,7 @@ import {
   IoCloseOutline as X,
   IoChatbubbleEllipsesOutline as MessageCircle,
   IoSendOutline as Send,
+  IoTrashOutline as TrashIcon,
 } from 'react-icons/io5';
 import { api } from '../services/api';
 import { Title, Episode, MediaType, CastMember, VideoTrailer } from '../types';
@@ -62,7 +63,7 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext, onO
 
   // Share feedback toast
   const [showShareToast, setShowShareToast] = useState(false);
-  const [comments, setComments] = useState<Array<{ id: string; userName: string; text?: string; rating?: number; createdAt: number }>>([]);
+  const [comments, setComments] = useState<Array<{ id: string; userName: string; text?: string; rating?: number; createdAt: number; userId?: string; contentId?: string }>>([]);
   const [commentText, setCommentText] = useState('');
   const [selectedRating, setSelectedRating] = useState(0);
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
@@ -215,6 +216,22 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext, onO
       setCommentError('Tidak dapat terhubung ke server. Coba lagi.');
     } finally {
       setIsSubmittingComment(false);
+    }
+  };
+
+  const handleDeleteComment = async (commentId: string) => {
+    try {
+      const response = await fetch(`/api/comments/${commentId}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${storage.getToken() || ''}`,
+        },
+      });
+      if (response.ok) {
+        setComments((prev) => prev.filter((c) => c.id !== commentId));
+      }
+    } catch (err) {
+      console.error('Gagal menghapus komentar:', err);
     }
   };
 
@@ -911,15 +928,44 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext, onO
             </div>
             {commentError && <p className="text-xs text-rose-300 mt-2">{commentError}</p>}
             <div className="space-y-3 mt-4">
-              {comments.length === 0 ? <p className="text-sm text-white/45">Belum ada komentar. Jadilah yang pertama.</p> : comments.map((comment) => (
-                <article key={comment.id} className="border-t border-white/10 pt-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-sm font-semibold text-white">{comment.userName}</span>
-                    {comment.rating && <span className="inline-flex items-center gap-1 text-xs text-amber-300"><Star className="w-3.5 h-3.5 fill-current" />{comment.rating}/5</span>}
-                  </div>
-                  {comment.text && <p className="text-sm text-white/75 mt-1 leading-relaxed">{comment.text}</p>}
-                </article>
-              ))}
+              {comments.length === 0 ? (
+                <p className="text-sm text-white/45">Belum ada komentar. Jadilah yang pertama.</p>
+              ) : (
+                comments.map((comment) => {
+                  const currentUser = storage.getUser();
+                  const canDelete = Boolean(
+                    currentUser &&
+                    (currentUser.id === comment.userId ||
+                      currentUser.email?.toLowerCase() === 'zhafranfaisal1@gmail.com')
+                  );
+                  return (
+                    <article key={comment.id} className="border-t border-white/10 pt-3 group">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-sm font-semibold text-white">{comment.userName}</span>
+                        <div className="flex items-center gap-2">
+                          {comment.rating && (
+                            <span className="inline-flex items-center gap-1 text-xs text-amber-300">
+                              <Star className="w-3.5 h-3.5 fill-current" />
+                              {comment.rating}/5
+                            </span>
+                          )}
+                          {canDelete && (
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteComment(comment.id)}
+                              className="p-1 rounded-lg text-zinc-500 hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
+                              title="Hapus komentar"
+                            >
+                              <TrashIcon className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      {comment.text && <p className="text-sm text-white/75 mt-1 leading-relaxed">{comment.text}</p>}
+                    </article>
+                  );
+                })
+              )}
             </div>
           </div>
           {!isLoggedIn && (

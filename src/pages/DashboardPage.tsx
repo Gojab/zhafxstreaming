@@ -19,6 +19,11 @@ import {
   IoArrowBackOutline as ArrowBack,
   IoPlayOutline as PlayIcon,
   IoShieldOutline as SecurityShield,
+  IoTrashOutline as TrashIcon,
+  IoServerOutline as ServerIcon,
+  IoChatbubbleEllipsesOutline as CommentIcon,
+  IoPeopleOutline as PeopleIcon,
+  IoStar as StarIcon,
 } from 'react-icons/io5';
 import { storage } from '../lib/storage';
 import { supabase } from '../lib/supabase';
@@ -83,6 +88,91 @@ export const DashboardPage: React.FC = () => {
     historyCount: 0,
     progressCount: 0,
   });
+
+  // Administrator state & management
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [adminStats, setAdminStats] = useState<any>(null);
+  const [adminComments, setAdminComments] = useState<any[]>([]);
+  const [adminUsers, setAdminUsers] = useState<any[]>([]);
+  const [adminLoading, setAdminLoading] = useState(false);
+  const [activeAdminTab, setActiveAdminTab] = useState<'comments' | 'users' | 'database'>('comments');
+
+  const loadAdminData = async (token?: string | null) => {
+    const activeToken = token || storage.getToken() || '';
+    setAdminLoading(true);
+    try {
+      const [statsRes, commentsRes, usersRes] = await Promise.all([
+        fetch('/api/admin/stats', { headers: { Authorization: `Bearer ${activeToken}` } }),
+        fetch('/api/admin/comments', { headers: { Authorization: `Bearer ${activeToken}` } }),
+        fetch('/api/admin/users', { headers: { Authorization: `Bearer ${activeToken}` } }),
+      ]);
+      if (statsRes.ok) setAdminStats(await statsRes.json());
+      if (commentsRes.ok) {
+        const cData = await commentsRes.json();
+        setAdminComments(cData.comments || []);
+      }
+      if (usersRes.ok) {
+        const uData = await usersRes.json();
+        setAdminUsers(uData.users || []);
+      }
+    } catch (err) {
+      console.warn('[Admin Panel load error]:', err);
+    } finally {
+      setAdminLoading(false);
+    }
+  };
+
+  const handleAdminDeleteComment = async (commentId: string) => {
+    if (!confirm('Hapus komentar ini secara permanen dari Supabase & server?')) return;
+    const token = storage.getToken() || '';
+    try {
+      const res = await fetch(`/api/admin/comments/${commentId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        setAdminComments((prev) => prev.filter((c) => c.id !== commentId));
+        if (adminStats) {
+          setAdminStats((prev: any) => ({
+            ...prev,
+            totalComments: Math.max(0, (prev?.totalComments || 1) - 1),
+          }));
+        }
+      }
+    } catch (err) {
+      console.error('Gagal menghapus komentar:', err);
+    }
+  };
+
+  useEffect(() => {
+    const checkAdmin = async () => {
+      const token = storage.getToken();
+      const u = storage.getUser();
+      const isOwner = u?.email?.toLowerCase() === 'zhafranfaisal1@gmail.com';
+
+      if (isOwner) {
+        setIsAdmin(true);
+        loadAdminData(token);
+        return;
+      }
+
+      if (token) {
+        try {
+          const res = await fetch('/api/admin/check', {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (data.isAdmin) {
+              setIsAdmin(true);
+              loadAdminData(token);
+            }
+          }
+        } catch {}
+      }
+    };
+    checkAdmin();
+  }, [currentUser]);
 
   useEffect(() => {
     const updateStats = () => {
@@ -539,6 +629,240 @@ export const DashboardPage: React.FC = () => {
           </motion.div>
         </form>
       </motion.div>
+
+      {/* 9. Dedicated Administrator Panel (Supabase & Moderasi) */}
+      {isAdmin && (
+        <motion.div
+          variants={cardVariants}
+          className="rounded-[32px] sm:rounded-[36px] liquid-glass-dense border border-amber-500/30 shadow-2xl p-6 sm:p-8 space-y-6 relative overflow-hidden"
+        >
+          {/* Subtle amber ambient glow for admin */}
+          <div className="absolute top-0 right-0 w-72 h-72 bg-amber-500/10 blur-[90px] pointer-events-none rounded-full" />
+
+          {/* Admin Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-white/10">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-300">
+                <SecurityShield className="w-6 h-6" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-xl font-bold text-white tracking-tight">Panel Administrator</h2>
+                  <span className="px-2 py-0.5 rounded-full bg-amber-500/25 border border-amber-500/40 text-amber-300 text-[10px] font-bold uppercase tracking-wider">
+                    Super Admin
+                  </span>
+                </div>
+                <p className="text-xs text-zinc-400 mt-0.5">
+                  Koneksi Database Supabase &bull; Moderasi Komentar & Pengguna
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => loadAdminData()}
+              disabled={adminLoading}
+              className="px-3.5 py-1.5 rounded-xl bg-white/[0.08] hover:bg-white/[0.15] border border-white/15 text-xs text-white font-medium flex items-center gap-1.5 cursor-pointer transition-colors self-start sm:self-auto"
+            >
+              <RotateCw className={`w-3.5 h-3.5 ${adminLoading ? 'animate-spin' : ''}`} />
+              <span>Muat Ulang Data</span>
+            </button>
+          </div>
+
+          {/* Admin Stat Overview Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+            <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/10 space-y-1">
+              <div className="flex items-center justify-between text-zinc-400">
+                <span className="text-[11px]">Database Supabase</span>
+                <ServerIcon className="w-4 h-4 text-emerald-400" />
+              </div>
+              <p className="text-sm font-semibold text-emerald-400 flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                Terhubung (@supabase/server)
+              </p>
+              <p className="text-[10px] text-zinc-500 truncate" title="xjyzfunqiazlayivjsxj.supabase.co">
+                xjyzfunqiazlayivjsxj.supabase.co
+              </p>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/10 space-y-1">
+              <div className="flex items-center justify-between text-zinc-400">
+                <span className="text-[11px]">Total Komentar</span>
+                <CommentIcon className="w-4 h-4 text-amber-400" />
+              </div>
+              <p className="text-lg font-bold text-white">
+                {adminStats?.totalComments ?? adminComments.length} Komentar
+              </p>
+              <p className="text-[10px] text-zinc-400">Tersinkronisasi ke Supabase & DB lokal</p>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/10 space-y-1">
+              <div className="flex items-center justify-between text-zinc-400">
+                <span className="text-[11px]">Pengguna Terdaftar</span>
+                <PeopleIcon className="w-4 h-4 text-sky-400" />
+              </div>
+              <p className="text-lg font-bold text-white">
+                {adminStats?.totalUsers ?? adminUsers.length} Akun
+              </p>
+              <p className="text-[10px] text-zinc-400">Akun terverifikasi di server</p>
+            </div>
+          </div>
+
+          {/* Tab Navigation */}
+          <div className="flex items-center gap-2 border-b border-white/10 pb-2 text-xs overflow-x-auto">
+            <button
+              type="button"
+              onClick={() => setActiveAdminTab('comments')}
+              className={`px-3 py-1.5 rounded-xl font-semibold transition-colors cursor-pointer shrink-0 ${
+                activeAdminTab === 'comments'
+                  ? 'bg-white text-black shadow-md'
+                  : 'text-zinc-400 hover:text-white hover:bg-white/[0.05]'
+              }`}
+            >
+              Moderasi Komentar ({adminComments.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveAdminTab('users')}
+              className={`px-3 py-1.5 rounded-xl font-semibold transition-colors cursor-pointer shrink-0 ${
+                activeAdminTab === 'users'
+                  ? 'bg-white text-black shadow-md'
+                  : 'text-zinc-400 hover:text-white hover:bg-white/[0.05]'
+              }`}
+            >
+              Daftar Pengguna ({adminUsers.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveAdminTab('database')}
+              className={`px-3 py-1.5 rounded-xl font-semibold transition-colors cursor-pointer shrink-0 ${
+                activeAdminTab === 'database'
+                  ? 'bg-white text-black shadow-md'
+                  : 'text-zinc-400 hover:text-white hover:bg-white/[0.05]'
+              }`}
+            >
+              Info Supabase
+            </button>
+          </div>
+
+          {/* Tab 1: Moderasi Komentar */}
+          {activeAdminTab === 'comments' && (
+            <div className="space-y-3">
+              {adminComments.length === 0 ? (
+                <div className="p-8 text-center text-xs text-zinc-400 rounded-2xl bg-white/[0.02] border border-white/5">
+                  Belum ada komentar dari pengguna.
+                </div>
+              ) : (
+                <div className="space-y-2.5 max-h-96 overflow-y-auto pr-1">
+                  {adminComments.map((comm) => (
+                    <div
+                      key={comm.id}
+                      className="p-3.5 rounded-2xl bg-white/[0.03] hover:bg-white/[0.06] border border-white/10 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+                    >
+                      <div className="space-y-1 min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-bold text-white">{comm.userName || 'Pengguna'}</span>
+                          <span className="px-1.5 py-0.5 rounded-md bg-white/10 text-[10px] text-zinc-300 uppercase">
+                            {comm.mediaType || 'Media'} #{comm.contentId}
+                          </span>
+                          {comm.rating && (
+                            <span className="inline-flex items-center gap-1 text-[11px] text-amber-300">
+                              <StarIcon className="w-3 h-3 fill-current" />
+                              {comm.rating}/5
+                            </span>
+                          )}
+                          <span className="text-[10px] text-zinc-500">
+                            {new Date(comm.createdAt).toLocaleString('id-ID', {
+                              day: 'numeric',
+                              month: 'short',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </span>
+                        </div>
+                        {comm.text && <p className="text-zinc-300 leading-relaxed break-words">{comm.text}</p>}
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleAdminDeleteComment(comm.id)}
+                        className="px-3 py-1.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 font-semibold flex items-center gap-1.5 cursor-pointer transition-colors self-start sm:self-auto shrink-0"
+                      >
+                        <TrashIcon className="w-3.5 h-3.5" />
+                        <span>Hapus</span>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Tab 2: Users */}
+          {activeAdminTab === 'users' && (
+            <div className="space-y-3">
+              {adminUsers.length === 0 ? (
+                <div className="p-8 text-center text-xs text-zinc-400 rounded-2xl bg-white/[0.02] border border-white/5">
+                  Tidak ada pengguna lain terdaftar.
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
+                  {adminUsers.map((u) => (
+                    <div
+                      key={u.id}
+                      className="p-3.5 rounded-2xl bg-white/[0.03] border border-white/10 flex items-center justify-between text-xs gap-3"
+                    >
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-white truncate">{u.name}</span>
+                          {u.isAdmin && (
+                            <span className="px-1.5 py-0.5 rounded-md bg-amber-500/20 text-amber-300 text-[10px] font-bold">
+                              Admin
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-zinc-400 text-[11px] truncate">{u.email}</p>
+                      </div>
+                      <div className="text-right text-[10px] text-zinc-500 shrink-0">
+                        <span>
+                          {new Date(u.joinedAt).toLocaleDateString('id-ID', {
+                            day: 'numeric',
+                            month: 'short',
+                            year: 'numeric',
+                          })}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Tab 3: Database & Supabase Details */}
+          {activeAdminTab === 'database' && (
+            <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/10 space-y-3 text-xs leading-relaxed">
+              <div className="flex items-center gap-2 text-emerald-400 font-bold">
+                <CheckCircle2 className="w-4 h-4" />
+                <span>Supabase Backend & Database Terkonfigurasi</span>
+              </div>
+              <p className="text-zinc-300">
+                Backend terhubung ke project Supabase: <span className="font-mono text-white">xjyzfunqiazlayivjsxj</span> menggunakan paket <span className="font-mono text-emerald-300">@supabase/server</span> dan <span className="font-mono text-emerald-300">@supabase/supabase-js</span>.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 text-[11px]">
+                <div className="p-2.5 rounded-xl bg-black/30 border border-white/5 space-y-1">
+                  <span className="text-zinc-400 block font-semibold">Project Endpoint:</span>
+                  <span className="font-mono text-zinc-300 break-all">https://xjyzfunqiazlayivjsxj.supabase.co</span>
+                </div>
+                <div className="p-2.5 rounded-xl bg-black/30 border border-white/5 space-y-1">
+                  <span className="text-zinc-400 block font-semibold">Tabel Terkelola:</span>
+                  <span className="font-mono text-zinc-300">comments, users, watch_progress</span>
+                </div>
+              </div>
+            </div>
+          )}
+        </motion.div>
+      )}
     </motion.div>
   );
 };

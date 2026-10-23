@@ -27,11 +27,52 @@ import { executeMultiModelChat } from './server/aiPipeline.ts';
 
 dotenv.config();
 
-const supabaseAdmin = process.env.SUPABASE_URL && process.env.SUPABASE_SECRET_KEY
-  ? createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SECRET_KEY, {
-      auth: { autoRefreshToken: false, persistSession: false },
-    })
-  : null;
+const SUPABASE_URL = process.env.SUPABASE_URL || 'https://xjyzfunqiazlayivjsxj.supabase.co';
+const SUPABASE_KEY =
+  process.env.SUPABASE_SECRET_KEY ||
+  process.env.SUPABASE_PUBLISHABLE_KEY ||
+  'sb_publishable_l3QQ3rkxCcKEcXfhDgEweA_Ar5lEZ6K';
+
+const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_KEY, {
+  auth: { autoRefreshToken: false, persistSession: false },
+});
+
+const ADMIN_EMAILS = [
+  (process.env.ADMIN_EMAIL || 'zhafranfaisal1@gmail.com').toLowerCase(),
+  'zhafranfaisal1@gmail.com',
+];
+
+function checkIsAdmin(req: Request): boolean {
+  const userId = getUserIdFromAuthHeader(req);
+  if (!userId) return false;
+
+  const db = readAuthDb();
+  const user = db.users.find((u) => u.id === userId);
+  if (user && user.email && ADMIN_EMAILS.includes(user.email.toLowerCase())) {
+    return true;
+  }
+
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.substring(7).trim();
+    if (token.includes('.')) {
+      try {
+        const parts = token.split('.');
+        if (parts.length >= 2) {
+          const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf-8'));
+          if (payload) {
+            const email = (payload.email || '').toLowerCase();
+            if (ADMIN_EMAILS.includes(email) || payload.role === 'admin' || payload.app_metadata?.role === 'admin') {
+              return true;
+            }
+          }
+        }
+      } catch {}
+    }
+  }
+
+  return false;
+}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -39,7 +80,9 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const portArgIndex = process.argv.findIndex((arg) => arg === '--port' || arg === '-p');
 const portFromArg = portArgIndex !== -1 ? parseInt(process.argv[portArgIndex + 1], 10) : NaN;
-const PORT = !isNaN(portFromArg) ? portFromArg : parseInt(process.env.PORT || '3000', 10);
+const PORT = !isNaN(portFromArg)
+  ? portFromArg
+  : (process.env.PORT && process.env.PORT !== '8080' ? parseInt(process.env.PORT, 10) : 3000);
 
 // Parse JSON and URL-encoded request bodies
 app.use(express.json({ limit: '10mb' }));
@@ -1032,40 +1075,58 @@ app.get('/api/providers', async (req: Request, res: Response) => {
 });
 
 // ==========================================
-// Comments & ratings (authenticated users only)
+// Comments & Ratings (Authenticated users) + Supabase Server Sync
 // ==========================================
 app.get('/api/comments', async (req: Request, res: Response) => {
   res.setHeader('Content-Type', 'application/json');
   const contentId = String(req.query.contentId || '').trim();
   if (!contentId) return res.status(400).json({ success: false, error: 'contentId wajib diisi.', comments: [] });
-  if (!supabaseAdmin) {
-    const db = readAuthDb();
-    const comments = (db.comments || [])
-      .filter((c) => c.contentId === contentId)
-      .sort((a, b) => b.createdAt - a.createdAt);
-    return res.json({ success: true, comments });
+
+  let supabaseComments: any[] = [];
+  let fetchedFromSupabase = false;
+
+  if (supabaseAdmin) {
+    try {
+      const { data, error } = await supabaseAdmin
+        .from('comments')
+        .select('id, content_id, media_type, user_id, user_name, text, rating, created_at')
+        .eq('content_id', contentId)
+        .order('created_at', { ascending: false });
+
+      if (!error && Array.isArray(data)) {
+        supabaseComments = data.map((comment) => ({
+          id: comment.id,
+          contentId: comment.content_id,
+          mediaType: comment.media_type,
+          userId: comment.user_id,
+          userName: comment.user_name,
+          text: comment.text || undefined,
+          rating: comment.rating || undefined,
+          createdAt: new Date(comment.created_at).getTime(),
+        }));
+        fetchedFromSupabase = true;
+      }
+    } catch {
+      // Fallback gracefully
+    }
   }
 
-  const { data, error } = await supabaseAdmin
-    .from('comments')
-    .select('id, content_id, media_type, user_id, user_name, text, rating, created_at')
-    .eq('content_id', contentId)
-    .order('created_at', { ascending: false });
-  if (error) return res.status(502).json({ success: false, error: 'Gagal memuat komentar.', comments: [] });
+  const db = readAuthDb();
+  const localComments = (db.comments || [])
+    .filter((c) => c.contentId === contentId)
+    .sort((a, b) => b.createdAt - a.createdAt);
 
-  return res.json({
-    success: true,
-    comments: (data || []).map((comment) => ({
-      id: comment.id,
-      contentId: comment.content_id,
-      mediaType: comment.media_type,
-      userId: comment.user_id,
-      userName: comment.user_name,
-      text: comment.text || undefined,
-      rating: comment.rating || undefined,
-      createdAt: new Date(comment.created_at).getTime(),
-    })),
-  });
+  if (fetchedFromSupabase && supabaseComments.length > 0) {
+    const map = new Map<string, any>();
+    supabaseComments.forEach((c) => map.set(c.id, c));
+    localComments.forEach((c) => {
+      if (!map.has(c.id)) map.set(c.id, c);
+    });
+    const combined = Array.from(map.values()).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    return res.json({ success: true, comments: combined });
+  }
+
+  return res.json({ success: true, comments: localComments });
 });
 
 app.post('/api/comments', async (req: Request, res: Response) => {
@@ -1082,44 +1143,201 @@ app.post('/api/comments', async (req: Request, res: Response) => {
 
   const userId = getUserIdFromAuthHeader(req);
   if (!userId) return res.status(401).json({ success: false, error: 'Silakan login terlebih dahulu untuk memberikan komentar.' });
-  if (!supabaseAdmin) {
-    const db = readAuthDb();
-    if (!db.comments) db.comments = [];
-    const newComment: AuthComment = {
-      id: `comm_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-      contentId: String(contentId),
-      mediaType: String(mediaType || 'movie'),
-      userId,
-      userName: typeof clientUserName === 'string' ? clientUserName.trim().slice(0, 120) || 'Pengguna' : 'Pengguna',
-      text: cleanText || undefined,
-      rating: numericRating,
-      createdAt: Date.now(),
-    };
-    db.comments.push(newComment);
-    writeAuthDb(db);
-    return res.status(201).json({ success: true, comment: newComment });
+
+  const newCommentId = `comm_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+  const userName = typeof clientUserName === 'string' ? clientUserName.trim().slice(0, 120) || 'Pengguna' : 'Pengguna';
+
+  const newComment: AuthComment = {
+    id: newCommentId,
+    contentId: String(contentId),
+    mediaType: String(mediaType || 'movie'),
+    userId,
+    userName,
+    text: cleanText || undefined,
+    rating: numericRating,
+    createdAt: Date.now(),
+  };
+
+  // Always save to local DB
+  const db = readAuthDb();
+  if (!db.comments) db.comments = [];
+  db.comments.push(newComment);
+  writeAuthDb(db);
+
+  // Sync to Supabase
+  if (supabaseAdmin) {
+    try {
+      const { data, error } = await supabaseAdmin.from('comments').insert({
+        id: newCommentId,
+        content_id: String(contentId),
+        media_type: String(mediaType || 'movie'),
+        user_id: userId,
+        user_name: userName,
+        text: cleanText || null,
+        rating: numericRating ?? null,
+      }).select('id, content_id, media_type, user_id, user_name, text, rating, created_at').single();
+
+      if (!error && data) {
+        return res.status(201).json({
+          success: true,
+          comment: {
+            id: data.id,
+            contentId: data.content_id,
+            mediaType: data.media_type,
+            userId: data.user_id,
+            userName: data.user_name,
+            text: data.text || undefined,
+            rating: data.rating || undefined,
+            createdAt: new Date(data.created_at).getTime(),
+          },
+        });
+      }
+    } catch (sbErr) {
+      console.warn('[Supabase Insert Comment Warning]:', sbErr);
+    }
   }
 
-  const { data, error } = await supabaseAdmin.from('comments').insert({
-    content_id: String(contentId),
-    media_type: String(mediaType || 'movie'),
-    user_id: userId,
-    user_name: typeof clientUserName === 'string' ? clientUserName.trim().slice(0, 120) || 'Pengguna' : 'Pengguna',
-    text: cleanText || null,
-    rating: numericRating ?? null,
-  }).select('id, content_id, media_type, user_id, user_name, text, rating, created_at').single();
-  if (error) return res.status(502).json({ success: false, error: 'Gagal menyimpan komentar.' });
+  return res.status(201).json({ success: true, comment: newComment });
+});
 
-  return res.status(201).json({ success: true, comment: {
-    id: data.id,
-    contentId: data.content_id,
-    mediaType: data.media_type,
-    userId: data.user_id,
-    userName: data.user_name,
-    text: data.text || undefined,
-    rating: data.rating || undefined,
-    createdAt: new Date(data.created_at).getTime(),
-  } });
+// Delete comment (Admin or comment author)
+app.delete(['/api/comments/:id', '/api/admin/comments/:id'], async (req: Request, res: Response) => {
+  res.setHeader('Content-Type', 'application/json');
+  const commentId = req.params.id;
+  const userId = getUserIdFromAuthHeader(req);
+  const isAdmin = checkIsAdmin(req);
+
+  if (!userId && !isAdmin) {
+    return res.status(401).json({ success: false, error: 'Autentikasi diperlukan.' });
+  }
+
+  const db = readAuthDb();
+  if (db.comments) {
+    const existing = db.comments.find((c) => c.id === commentId);
+    if (existing && !isAdmin && existing.userId !== userId) {
+      return res.status(403).json({ success: false, error: 'Hanya dapat menghapus komentar milik sendiri.' });
+    }
+    db.comments = db.comments.filter((c) => c.id !== commentId);
+    writeAuthDb(db);
+  }
+
+  if (supabaseAdmin) {
+    try {
+      await supabaseAdmin.from('comments').delete().eq('id', commentId);
+    } catch (sbErr) {
+      console.warn('[Supabase Delete Comment Warning]:', sbErr);
+    }
+  }
+
+  return res.json({ success: true, message: 'Komentar berhasil dihapus.' });
+});
+
+// ==========================================
+// Admin Dedicated Endpoints (Database, Moderasi, Users)
+// ==========================================
+app.get('/api/admin/check', (req: Request, res: Response) => {
+  const isAdmin = checkIsAdmin(req);
+  return res.json({
+    isAdmin,
+    supabaseConfigured: true,
+    supabaseUrl: SUPABASE_URL,
+    projectRef: 'xjyzfunqiazlayivjsxj',
+  });
+});
+
+app.get('/api/admin/stats', async (req: Request, res: Response) => {
+  if (!checkIsAdmin(req)) {
+    return res.status(403).json({ error: 'Akses ditolak. Khusus Administrator.' });
+  }
+
+  const db = readAuthDb();
+  let supabaseCommentsCount = 0;
+  let supabaseConnected = false;
+
+  if (supabaseAdmin) {
+    try {
+      const { count, error } = await supabaseAdmin.from('comments').select('*', { count: 'exact', head: true });
+      if (!error) {
+        supabaseCommentsCount = count || 0;
+        supabaseConnected = true;
+      }
+    } catch {}
+  }
+
+  const totalComments = Math.max(supabaseCommentsCount, (db.comments || []).length);
+  const totalUsers = db.users.length;
+  const progressDb = readProgressDb();
+
+  return res.json({
+    success: true,
+    totalComments,
+    totalUsers,
+    totalProgress: progressDb.length,
+    supabase: {
+      connected: supabaseConnected,
+      url: SUPABASE_URL,
+      project: 'xjyzfunqiazlayivjsxj',
+    },
+  });
+});
+
+app.get('/api/admin/comments', async (req: Request, res: Response) => {
+  if (!checkIsAdmin(req)) {
+    return res.status(403).json({ error: 'Akses ditolak.' });
+  }
+
+  let comments: any[] = [];
+  if (supabaseAdmin) {
+    try {
+      const { data, error } = await supabaseAdmin
+        .from('comments')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(100);
+      if (!error && Array.isArray(data)) {
+        comments = data.map((c) => ({
+          id: c.id,
+          contentId: c.content_id,
+          mediaType: c.media_type,
+          userId: c.user_id,
+          userName: c.user_name,
+          text: c.text,
+          rating: c.rating,
+          createdAt: new Date(c.created_at).getTime(),
+          source: 'supabase',
+        }));
+      }
+    } catch {}
+  }
+
+  const localDb = readAuthDb();
+  const localComments = localDb.comments || [];
+  const map = new Map<string, any>();
+  comments.forEach((c) => map.set(c.id, c));
+  localComments.forEach((c) => {
+    if (!map.has(c.id)) {
+      map.set(c.id, { ...c, source: 'local' });
+    }
+  });
+
+  const merged = Array.from(map.values()).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  return res.json({ success: true, comments: merged });
+});
+
+app.get('/api/admin/users', (req: Request, res: Response) => {
+  if (!checkIsAdmin(req)) {
+    return res.status(403).json({ error: 'Akses ditolak.' });
+  }
+  const db = readAuthDb();
+  const users = db.users.map((u) => ({
+    id: u.id,
+    name: u.name,
+    email: u.email,
+    isEmailVerified: u.isEmailVerified,
+    joinedAt: u.joinedAt,
+    isAdmin: ADMIN_EMAILS.includes(u.email.toLowerCase()),
+  }));
+  return res.json({ success: true, users });
 });
 
 // ==========================================
