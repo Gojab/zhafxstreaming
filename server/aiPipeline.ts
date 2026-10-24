@@ -237,14 +237,17 @@ export async function executeMultiModelChat(
           const controller = new AbortController();
           const timeout = setTimeout(() => controller.abort(), 9000);
 
-          const responseStream = await ai.models.generateContentStream({
-            model: gModel,
-            contents,
-            config: {
-              systemInstruction: SYSTEM_INSTRUCTION,
-              temperature: 0.7,
-            },
-          });
+          const responseStream = await Promise.race([
+            ai.models.generateContentStream({
+              model: gModel,
+              contents,
+              config: {
+                systemInstruction: SYSTEM_INSTRUCTION,
+                temperature: 0.65,
+              },
+            }),
+            new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Gemini timeout')), 8500)),
+          ]);
           clearTimeout(timeout);
 
           let hasOutput = false;
@@ -276,7 +279,54 @@ export async function executeMultiModelChat(
     }
   }
 
-  // 2. Stream OpenAI GPT if key is configured
+  // 2. Stream DeepSeek when a server-side key is configured. Never expose this key to the browser.
+  const deepSeekKey = process.env.DEEPSEEK_API_KEY;
+  if (deepSeekKey) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8500);
+      const response = await fetch('https://api.deepseek.com/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${deepSeekKey}` },
+        body: JSON.stringify({ model: 'deepseek-chat', messages: chatMessages, temperature: 0.65, stream: true, max_tokens: 700 }),
+        signal: controller.signal,
+      });
+      if (response.ok && response.body) {
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let fullText = '';
+        for (;;) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const events = buffer.split('\\n');
+          buffer = events.pop() || '';
+          for (const event of events) {
+            if (!event.startsWith('data: ') || event.includes('[DONE]')) continue;
+            try {
+              const chunk = JSON.parse(event.slice(6)).choices?.[0]?.delta?.content;
+              if (chunk) { fullText += chunk; onChunk(chunk); }
+            } catch { /* wait for the next complete SSE frame */ }
+          }
+        }
+        clearTimeout(timeoutId);
+        if (fullText.trim().length > 10) {
+          if (!fullText.includes('<picks>')) {
+            const picks = extractFallbackPicks(fullText, contextTitle);
+            if (picks.length > 0) onChunk(`\\n\\n<picks>${JSON.stringify(picks)}</picks>`);
+          }
+          return { success: true, modelUsed: 'DeepSeek Chat' };
+        }
+      } else {
+        clearTimeout(timeoutId);
+      }
+    } catch (err: any) {
+      console.warn('[AI Engine] DeepSeek failed:', err?.message || err);
+    }
+  }
+
+  // 3. Stream OpenAI GPT if key is configured
   const openAiKey = process.env.OPENAI_API_KEY;
   if (openAiKey) {
     const openAiModels = ['gpt-4o-mini', 'gpt-4o'];

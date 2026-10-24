@@ -81,7 +81,7 @@ async function streamDirectCloudAIFallback(
   callbacks: StreamCallbacks,
   abortSignal?: AbortSignal
 ): Promise<boolean> {
-  const models = ['openai', 'deepseek', 'mistral', 'llama', 'qwen'];
+  const models = ['deepseek', 'openai', 'llama'];
   const systemPrompt = `Anda adalah asisten cerdas untuk "Zhafx", platform streaming film, serial TV, dan anime. Berikan ulasan dan rekomendasi dalam Bahasa Indonesia yang santun, ramah, dan komunikatif tanpa spoiler. Di akhir respon selalu sertakan rekomendasi terstruktur persis dalam format: <picks>[{"title":"Judul","type":"movie|tv|anime","year":"2024"}]</picks>`;
 
   let userPrompt = message;
