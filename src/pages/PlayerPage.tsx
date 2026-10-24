@@ -588,12 +588,12 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
     };
   }, [saveProgressNow]);
 
-  // FrameX is the only supported playback source for every media type.
+  // Primary supported playback source for every media type branded as ZHAFX.
   const activeServerList: ServerOption[] = [
     {
-      id: `framex-${mediaType}`,
-      name: 'FrameX TV',
-      tagline: 'Pemutaran resmi FrameX TV',
+      id: `zhafx-${mediaType}`,
+      name: 'ZHAFX',
+      tagline: 'Pemutaran resmi ZHAFX',
       type: mediaType === 'anime' ? 'anime_embed' : mediaType === 'tv' ? 'tv_embed' : 'movie_embed',
       provider: 'framex',
       badge: 'Utama',
