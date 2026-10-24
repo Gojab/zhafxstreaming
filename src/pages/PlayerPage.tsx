@@ -588,13 +588,17 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
     };
   }, [saveProgressNow]);
 
-  // Resolve dedicated server list based on mediaType (Film / Serial TV / Anime)
-  const activeServerList: ServerOption[] =
-    mediaType === 'anime'
-      ? ANIME_SERVERS
-      : mediaType === 'tv'
-      ? TV_SERVERS
-      : MOVIE_SERVERS;
+  // FrameX is the only supported playback source for every media type.
+  const activeServerList: ServerOption[] = [
+    {
+      id: `framex-${mediaType}`,
+      name: 'FrameX TV',
+      tagline: 'Pemutaran resmi FrameX TV',
+      type: mediaType === 'anime' ? 'anime_embed' : mediaType === 'tv' ? 'tv_embed' : 'movie_embed',
+      provider: 'framex',
+      badge: 'Utama',
+    },
+  ];
 
   const safeServerIndex = currentServerIndex < activeServerList.length ? currentServerIndex : 0;
   const activeServer = activeServerList[safeServerIndex] || activeServerList[0];
