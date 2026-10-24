@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { IoCheckmarkCircleOutline as CheckCircle2, IoAlertCircleOutline as AlertCircle, IoSyncOutline as RotateCw, IoArrowBackOutline as ArrowBack } from 'react-icons/io5';
 import { storage } from '../lib/storage';
-import { CONFIG } from '../config';
 import { supabase } from '../lib/supabase';
 
 export const GoogleCallbackPage: React.FC = () => {
@@ -95,65 +94,39 @@ export const GoogleCallbackPage: React.FC = () => {
       return;
     }
 
-    // Exchange authorization code for token via serverless / express backend
-    const exchangeCode = async () => {
+    const completeSupabaseSession = async () => {
       try {
-        const dynamicRedirectUri = window.location.origin.includes('localhost') || window.location.origin.includes('run.app')
-          ? `${window.location.origin}/auth/google/callback`
-          : (CONFIG.GOOGLE_REDIRECT_URI || `${window.location.origin}/auth/google/callback`);
-
-        const res = await fetch('/api/auth/google-login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            code,
-            redirectUri: dynamicRedirectUri,
-          }),
-        });
-
-        let data: any = {};
-        try {
-          data = await res.json();
-        } catch {
-          data = {};
+        if (code) {
+          const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+          if (exchangeError) throw exchangeError;
         }
 
-        if (!res.ok || !data.success || !data.token) {
-          throw new Error(data.error || 'Gagal menukarkan kode otorisasi dengan akun Google.');
-        }
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        if (sessionError) throw sessionError;
+        if (!session?.user) throw new Error('Sesi Google tidak ditemukan. Pastikan Google sudah diaktifkan di Supabase.');
 
-        storage.saveToken(data.token);
-        if (data.user) {
-          storage.saveUser(data.user);
-          setUserName(data.user.name || data.user.email);
-        }
+        const authUser = session.user;
+        const user = {
+          id: authUser.id,
+          email: authUser.email || '',
+          name: String(authUser.user_metadata?.name || authUser.user_metadata?.full_name || authUser.email?.split('@')[0]),
+          avatar: authUser.user_metadata?.avatar_url,
+          joinedAt: new Date(authUser.created_at).getTime(),
+        };
+        storage.saveToken(session.access_token);
+        storage.saveUser(user);
+        setUserName(user.name);
         window.dispatchEvent(new Event('zhafx_auth_change'));
         setStatus('success');
-
-        if (window.opener) {
-          window.opener.postMessage(
-            {
-              type: 'GOOGLE_AUTH_SUCCESS',
-              token: data.token,
-              user: data.user,
-            },
-            '*'
-          );
-          setTimeout(() => window.close(), 700);
-        } else {
-          setTimeout(() => navigate('/', { replace: true }), 1200);
-        }
+        setTimeout(() => navigate('/', { replace: true }), 1200);
       } catch (err: any) {
         console.error('[GoogleCallbackPage Error]:', err);
         setStatus('error');
         setErrorMessage(err?.message || 'Terjadi gangguan saat memverifikasi akun Google Anda.');
-        if (window.opener) {
-          window.opener.postMessage({ type: 'GOOGLE_AUTH_ERROR', error: err?.message }, '*');
-        }
       }
     };
 
-    exchangeCode();
+    completeSupabaseSession();
   }, [searchParams, navigate]);
 
   return (

@@ -16,7 +16,6 @@ import {
 import { storage } from '../lib/storage';
 import { User } from '../types';
 import { supabase } from '../lib/supabase';
-import { CONFIG } from '../config';
 
 interface AuthPageProps {
   initialMode?: 'login' | 'register' | 'forgot';
@@ -70,27 +69,6 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'login' }) => 
     setIsGoogleLoading(true);
     setError(null);
     setSuccessMessage(null);
-
-    const clientId = CONFIG.GOOGLE_CLIENT_ID;
-
-    if (clientId && clientId.trim() !== '') {
-      const redirectUri = window.location.origin.includes('localhost') || window.location.origin.includes('run.app')
-        ? `${window.location.origin}/auth/google/callback`
-        : (CONFIG.GOOGLE_REDIRECT_URI || `${window.location.origin}/auth/google/callback`);
-      const state = Math.random().toString(36).substring(2);
-
-      const googleUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
-      googleUrl.searchParams.set('client_id', clientId);
-      googleUrl.searchParams.set('redirect_uri', redirectUri);
-      googleUrl.searchParams.set('response_type', 'code');
-      googleUrl.searchParams.set('scope', 'openid email profile');
-      googleUrl.searchParams.set('access_type', 'offline');
-      googleUrl.searchParams.set('prompt', 'select_account');
-      googleUrl.searchParams.set('state', state);
-
-      window.location.href = googleUrl.toString();
-      return;
-    }
 
     try {
       await supabase.auth.signOut().catch(() => {});
