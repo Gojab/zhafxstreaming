@@ -11,6 +11,7 @@ export const LiquidBackground: React.FC = () => {
     typeof document !== 'undefined' ? !document.hidden : true
   );
   const [isScrolling, setIsScrolling] = useState<boolean>(false);
+  const isScrollingRef = useRef(false);
   const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Pause heavy background animations when browser tab is inactive
@@ -25,9 +26,13 @@ export const LiquidBackground: React.FC = () => {
   // Pause continuous background blob animations during active scrolling for locked 60/120 FPS
   useEffect(() => {
     const handleScroll = () => {
-      if (!isScrolling) setIsScrolling(true);
+      if (!isScrollingRef.current) {
+        isScrollingRef.current = true;
+        setIsScrolling(true);
+      }
       if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
       scrollTimeoutRef.current = setTimeout(() => {
+        isScrollingRef.current = false;
         setIsScrolling(false);
       }, 150);
     };
@@ -36,7 +41,7 @@ export const LiquidBackground: React.FC = () => {
       window.removeEventListener('scroll', handleScroll);
       if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
     };
-  }, [isScrolling]);
+  }, []);
 
   useEffect(() => {
     if (activePoster && activePoster !== currentPoster) {
