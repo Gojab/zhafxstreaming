@@ -15,16 +15,16 @@ export default async function handler(req: any, res: any) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 12000);
 
-  const isPost = req.method === 'POST';
-  const isFrameX = targetUrl.includes('framextv.cc') || targetUrl.includes('framextv.tech') || targetUrl.includes('framextv.xyz');
-
-  // Candidate URLs with auto-failover to .cc
-  const candidateUrls = [targetUrl];
-  if (targetUrl.includes('framextv.tech')) {
-    candidateUrls.push(targetUrl.replace('framextv.tech', 'framextv.cc'));
-  } else if (targetUrl.includes('framextv.xyz')) {
-    candidateUrls.push(targetUrl.replace('framextv.xyz', 'framextv.cc'));
+  let normalizedUrl = targetUrl;
+  if (normalizedUrl.includes('framextv.tech')) {
+    normalizedUrl = normalizedUrl.replace(/framextv\.tech/g, 'framextv.cc');
+  } else if (normalizedUrl.includes('framextv.xyz')) {
+    normalizedUrl = normalizedUrl.replace(/framextv\.xyz/g, 'framextv.cc');
   }
+
+  const isPost = req.method === 'POST';
+  const isFrameX = normalizedUrl.includes('framextv.cc');
+  const candidateUrls = [normalizedUrl];
 
   for (const candidate of candidateUrls) {
     try {

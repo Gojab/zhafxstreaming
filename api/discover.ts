@@ -13,7 +13,7 @@ export default async function handler(req: any, res: any) {
     req.url?.includes('/trending')
   );
 
-  const backends = ['https://api.framextv.cc', 'https://api.framextv.tech', 'https://api.framextv.xyz'];
+  const backends = ['https://api.framextv.cc'];
 
   // Handle Trending Requests
   if (isTrending) {

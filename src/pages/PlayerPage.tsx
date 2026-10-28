@@ -766,6 +766,33 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
 
   // Fullscreen tracking & cross-browser synchronization
   useEffect(() => {
+    if (isFullscreen) {
+      document.body.classList.add('player-fullscreen');
+      document.documentElement.classList.add('player-fullscreen');
+      document.body.style.overflow = 'hidden';
+      document.body.style.touchAction = 'none';
+      window.scrollTo(0, 0);
+    } else {
+      document.body.classList.remove('player-fullscreen');
+      document.documentElement.classList.remove('player-fullscreen');
+      document.body.style.overflow = '';
+      document.body.style.position = '';
+      document.body.style.width = '';
+      document.body.style.height = '';
+      document.body.style.touchAction = '';
+    }
+    return () => {
+      document.body.classList.remove('player-fullscreen');
+      document.documentElement.classList.remove('player-fullscreen');
+      document.body.style.overflow = '';
+      document.body.style.position = '';
+      document.body.style.width = '';
+      document.body.style.height = '';
+      document.body.style.touchAction = '';
+    };
+  }, [isFullscreen]);
+
+  useEffect(() => {
     const handleFsChange = () => {
       const isNativeFs = !!(
         document.fullscreenElement ||
@@ -773,15 +800,30 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
         (document as any).mozFullScreenElement ||
         (document as any).msFullscreenElement
       );
-      if (isNativeFs) {
-        isNativeFsActive.current = true;
-        setIsFullscreen(true);
-      } else if (isNativeFsActive.current) {
-        // Native fullscreen was exited via browser UI or Esc
-        isNativeFsActive.current = false;
-        setIsFullscreen(false);
-        document.body.style.overflow = '';
-      }
+      isNativeFsActive.current = isNativeFs;
+      setIsFullscreen(isNativeFs);
+    };
+
+    const handleWindowMessage = (event: MessageEvent) => {
+      try {
+        const data = event.data;
+        if (!data) return;
+        if (typeof data === 'string') {
+          if (data.includes('enterFullscreen') || data === 'fullscreen:enter' || data === 'fullscreen:true') {
+            setIsFullscreen(true);
+          } else if (data.includes('exitFullscreen') || data === 'fullscreen:exit' || data === 'fullscreen:false') {
+            setIsFullscreen(false);
+          }
+        } else if (typeof data === 'object') {
+          if (data.type === 'fullscreen' || data.event === 'fullscreen') {
+            setIsFullscreen(Boolean(data.value ?? true));
+          } else if (data.action === 'enterFullscreen') {
+            setIsFullscreen(true);
+          } else if (data.action === 'exitFullscreen') {
+            setIsFullscreen(false);
+          }
+        }
+      } catch {}
     };
 
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -794,7 +836,6 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
         }
         isNativeFsActive.current = false;
         setIsFullscreen(false);
-        document.body.style.overflow = '';
       } else if (
         (e.key === 'f' || e.key === 'F') &&
         document.activeElement?.tagName !== 'INPUT' &&
@@ -808,14 +849,15 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
     document.addEventListener('webkitfullscreenchange', handleFsChange);
     document.addEventListener('mozfullscreenchange', handleFsChange);
     document.addEventListener('MSFullscreenChange', handleFsChange);
+    window.addEventListener('message', handleWindowMessage);
     window.addEventListener('keydown', handleKeyDown);
 
     return () => {
-      document.body.style.overflow = '';
       document.removeEventListener('fullscreenchange', handleFsChange);
       document.removeEventListener('webkitfullscreenchange', handleFsChange);
       document.removeEventListener('mozfullscreenchange', handleFsChange);
       document.removeEventListener('MSFullscreenChange', handleFsChange);
+      window.removeEventListener('message', handleWindowMessage);
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, [isFullscreen]);
@@ -824,55 +866,56 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
     const el = playerContainerRef.current as any;
     if (!el) return;
 
-    // 1. If HTML5 video is available on iOS (iPhone / iPad), invoke native Apple QuickTime Fullscreen!
-    const targetVideo = el?.querySelector?.('video');
-    if (targetVideo && typeof targetVideo.webkitEnterFullscreen === 'function') {
-      try {
-        targetVideo.webkitEnterFullscreen();
-        setIsFullscreen(true);
-        document.body.classList.add('player-fullscreen');
-        document.documentElement.classList.add('player-fullscreen');
-        return;
-      } catch (err) {
-        console.warn('[iOS webkitEnterFullscreen]:', err);
-      }
-    }
-
-    // 2. Standard HTML5 or responsive CSS fullscreen
     if (!isFullscreen) {
       setIsFullscreen(true);
-      document.body.classList.add('player-fullscreen');
-      document.documentElement.classList.add('player-fullscreen');
-      document.body.style.overflow = 'hidden';
-      document.body.style.position = 'fixed';
-      document.body.style.width = '100%';
-      document.body.style.height = '100%';
-      document.body.style.touchAction = 'none';
 
-      // On iOS Safari, immediately scroll to (0,0) to retract URL/toolbar
-      window.scrollTo(0, 0);
+      // 1. If HTML5 video is available on iOS (iPhone / iPad), invoke native Apple QuickTime Fullscreen
+      const targetVideo = el?.querySelector?.('video');
+      if (targetVideo && typeof targetVideo.webkitEnterFullscreen === 'function') {
+        try {
+          targetVideo.webkitEnterFullscreen();
+          return;
+        } catch (err) {
+          console.warn('[iOS webkitEnterFullscreen]:', err);
+        }
+      }
 
-      // Attempt screen orientation lock to landscape on mobile devices
+      // 2. Attempt native HTML5 element requestFullscreen (iPad, desktop, Android)
+      try {
+        if (el.requestFullscreen) {
+          await el.requestFullscreen();
+          isNativeFsActive.current = true;
+        } else if (el.webkitRequestFullscreen) {
+          await el.webkitRequestFullscreen();
+          isNativeFsActive.current = true;
+        } else if (el.mozRequestFullScreen) {
+          await el.mozRequestFullScreen();
+          isNativeFsActive.current = true;
+        } else if (el.msRequestFullscreen) {
+          await el.msRequestFullscreen();
+          isNativeFsActive.current = true;
+        } else {
+          const iframe = el.querySelector?.('iframe');
+          if (iframe?.requestFullscreen) {
+            await iframe.requestFullscreen();
+            isNativeFsActive.current = true;
+          } else if (iframe?.webkitRequestFullscreen) {
+            await iframe.webkitRequestFullscreen();
+            isNativeFsActive.current = true;
+          }
+        }
+      } catch (err) {
+        console.warn('[Fullscreen fallback to viewport CSS]:', err);
+      }
+
+      // 3. Attempt screen orientation lock to landscape on mobile devices
       try {
         if (screen.orientation && typeof (screen.orientation as any).lock === 'function') {
           (screen.orientation as any).lock('landscape').catch(() => {});
         }
       } catch {}
 
-      // Attempt native HTML5 element requestFullscreen (iPad, desktop, Android)
-      try {
-        if (el?.requestFullscreen) {
-          await el.requestFullscreen();
-          isNativeFsActive.current = true;
-        } else if (el?.webkitRequestFullscreen) {
-          await el.webkitRequestFullscreen();
-          isNativeFsActive.current = true;
-        }
-      } catch (err) {
-        console.warn('[Fullscreen fallback]:', err);
-      }
-
-      // Signal iframe embedded player if present
+      // 4. Signal iframe embedded player if present
       try {
         const iframe = el?.querySelector?.('iframe');
         if (iframe?.contentWindow) {
@@ -883,13 +926,6 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
     } else {
       isNativeFsActive.current = false;
       setIsFullscreen(false);
-      document.body.classList.remove('player-fullscreen');
-      document.documentElement.classList.remove('player-fullscreen');
-      document.body.style.overflow = '';
-      document.body.style.position = '';
-      document.body.style.width = '';
-      document.body.style.height = '';
-      document.body.style.touchAction = '';
 
       try {
         if (screen.orientation && typeof (screen.orientation as any).unlock === 'function') {
@@ -898,16 +934,27 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
       } catch {}
 
       try {
-        if (document.fullscreenElement || (document as any).webkitFullscreenElement) {
+        if (document.fullscreenElement || (document as any).webkitFullscreenElement || (document as any).mozFullScreenElement || (document as any).msFullscreenElement) {
           if (document.exitFullscreen) {
             await document.exitFullscreen();
           } else if ((document as any).webkitExitFullscreen) {
             await (document as any).webkitExitFullscreen();
+          } else if ((document as any).mozCancelFullScreen) {
+            await (document as any).mozCancelFullScreen();
+          } else if ((document as any).msExitFullscreen) {
+            await (document as any).msExitFullscreen();
           }
         }
       } catch (err) {
         console.warn('[Exit fullscreen fallback]:', err);
       }
+
+      try {
+        const iframe = el?.querySelector?.('iframe');
+        if (iframe?.contentWindow) {
+          iframe.contentWindow.postMessage({ type: 'fullscreen', action: 'fullscreen', value: false }, '*');
+        }
+      } catch {}
     }
   };
 
@@ -1161,7 +1208,7 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
               playsinline="true"
               // @ts-ignore
               webkit-playsinline="true"
-              allow="autoplay *; fullscreen *; picture-in-picture *; encrypted-media *; accelerometer *; gyroscope *; clipboard-write *; web-share *"
+              allow="autoplay; fullscreen; picture-in-picture; encrypted-media; gyroscope; accelerometer; clipboard-write; web-share; autoplay *; fullscreen *; picture-in-picture *; encrypted-media *"
               referrerPolicy="origin"
               loading="eager"
               title={title?.title || 'Zhafx Stream Player'}

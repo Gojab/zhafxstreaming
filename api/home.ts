@@ -39,7 +39,7 @@ function getManualSynopsis(text: string, title?: string): string {
 }
 
 async function fetchAnimeFallback(): Promise<{ popular: any[]; airing: any[] }> {
-  const animeBackends = ['https://api.framextv.cc', 'https://api.framextv.tech', 'https://api.framextv.xyz'];
+  const animeBackends = ['https://api.framextv.cc'];
   for (const backend of animeBackends) {
     try {
       const [res1, res2] = await Promise.all([
@@ -147,7 +147,7 @@ export default async function handler(req: any, res: any) {
     return res.status(200).json(cachedHomeData);
   }
 
-  const backends = ['https://api.framextv.cc', 'https://api.framextv.tech', 'https://api.framextv.xyz'];
+  const backends = ['https://api.framextv.cc'];
   let rawHomeData: any = null;
 
   for (const backend of backends) {

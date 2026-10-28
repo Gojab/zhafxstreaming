@@ -45,7 +45,10 @@
       'framextv.tech'
     ];
     var url;
-    try { url = new URL(raw); } catch (e) { return; }
+    try { 
+      var cleanRaw = raw.replace(/framextv\.tech/g, 'framextv.cc').replace(/framextv\.xyz/g, 'framextv.cc');
+      url = new URL(cleanRaw); 
+    } catch (e) { return; }
     var hostOk = ALLOWED_HOSTS.some(function(h) {
       return url.hostname === h || url.hostname.endsWith('.' + h);
     });
@@ -53,7 +56,7 @@
 
     var f = document.createElement('iframe');
     f.src = url.href;
-    f.allow = 'autoplay *; fullscreen *; picture-in-picture *; encrypted-media *; gyroscope *; accelerometer *; clipboard-write *; web-share *';
+    f.allow = 'autoplay *; fullscreen *; picture-in-picture *; encrypted-media *; gyroscope *; accelerometer *; clipboard-write *; web-share *; autoplay; fullscreen; picture-in-picture; encrypted-media';
     f.allowFullscreen = true;
     f.setAttribute('allowfullscreen', 'true');
     f.setAttribute('webkitallowfullscreen', 'true');
