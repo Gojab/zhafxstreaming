@@ -452,7 +452,7 @@ export const HomePage: React.FC = () => {
         <SEOHead
           title=""
           canonicalPath="/"
-          description="ZHAFX Streaming adalah platform nonton anime, film, dan serial TV gratis tanpa iklan, dilengkapi AI cerdas untuk membantu menemukan tontonan favorit dengan mudah, cepat, dan personal."
+          description="ZHAFX Streaming adalah platform nonton anime, film, dan serial TV gratis tanpa iklan dengan katalog lengkap, cepat, dan nyaman."
         />
         <HeroSkeleton />
         <div className="mt-4 sm:mt-10 space-y-7 sm:space-y-9">
@@ -505,7 +505,7 @@ export const HomePage: React.FC = () => {
       <SEOHead
         title=""
         canonicalPath="/"
-        description="ZHAFX Streaming adalah platform nonton anime, film, dan serial TV gratis tanpa iklan, dilengkapi AI cerdas untuk membantu menemukan tontonan favorit dengan mudah, cepat, dan personal."
+        description="ZHAFX Streaming adalah platform nonton anime, film, dan serial TV gratis tanpa iklan dengan katalog lengkap, cepat, dan nyaman."
       />
       {/* Hero Billboard Carousel with smooth fade-in */}
       <div className="animate-in fade-in duration-700 ease-out will-change-[opacity]">

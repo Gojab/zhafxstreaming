@@ -10,7 +10,6 @@ import { LiquidBackground } from './components/LiquidBackground';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { ActiveMediaProvider } from './context/ActiveMediaContext';
 import { storage } from './lib/storage';
-import { Title } from './types';
 
 // HomePage is imported directly for instant FCP and LCP
 import { HomePage } from './pages/HomePage';
@@ -29,8 +28,7 @@ const AuthPage = lazy(() => import('./pages/AuthPage').then((m) => ({ default: m
 const GoogleCallbackPage = lazy(() => import('./pages/GoogleCallbackPage').then((m) => ({ default: m.GoogleCallbackPage })));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage').then((m) => ({ default: m.NotFoundPage })));
 
-// Lazy-load heavier drawers & modals only when triggered by user
-const AIChatDrawer = lazy(() => import('./components/AIChatDrawer').then((m) => ({ default: m.AIChatDrawer })));
+// Lazy-load heavier modals only when triggered by user
 const QuickFeaturesModal = lazy(() => import('./components/QuickFeaturesModal').then((m) => ({ default: m.QuickFeaturesModal })));
 const AuthModal = lazy(() => import('./components/AuthModal').then((m) => ({ default: m.AuthModal })));
 const DonationModal = lazy(() => import('./components/DonationModal').then((m) => ({ default: m.DonationModal })));
@@ -39,10 +37,8 @@ const DonationModal = lazy(() => import('./components/DonationModal').then((m) =
 const Analytics = () => null;
 
 function AppLayout() {
-  const [isAIOpen, setIsAIOpen] = useState(false);
   const [isFeaturesOpen, setIsFeaturesOpen] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
-  const [aiContextTitle, setAiContextTitle] = useState<Title | null>(null);
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -159,7 +155,6 @@ function AppLayout() {
   // Hide Navbar, BottomNav, and Footer in player mode for true cinematic fullscreen
   const isPlayerMode = location.pathname.startsWith('/watch');
 
-  const [hasOpenedAI, setHasOpenedAI] = useState(false);
   const [hasOpenedFeatures, setHasOpenedFeatures] = useState(false);
   const [hasOpenedAuth, setHasOpenedAuth] = useState(false);
   const [isDonationOpen, setIsDonationOpen] = useState(false);
@@ -236,11 +231,6 @@ function AppLayout() {
     } catch {}
   };
 
-  const handleOpenAI = () => {
-    setHasOpenedAI(true);
-    setIsAIOpen(true);
-  };
-
   const handleOpenFeatures = () => {
     setHasOpenedFeatures(true);
     setIsFeaturesOpen(true);
@@ -249,12 +239,6 @@ function AppLayout() {
   const handleOpenAuth = () => {
     setHasOpenedAuth(true);
     setIsAuthOpen(true);
-  };
-
-  const handleOpenAIWithContext = (title: Title) => {
-    setAiContextTitle(title);
-    setHasOpenedAI(true);
-    setIsAIOpen(true);
   };
 
   return (
@@ -270,7 +254,6 @@ function AppLayout() {
 
       {!isPlayerMode && (
         <Navbar
-          onOpenAI={handleOpenAI}
           onOpenFeatures={handleOpenFeatures}
           onOpenAuth={handleOpenAuth}
         />
@@ -303,25 +286,11 @@ function AppLayout() {
                 <Route path="/search" element={<SearchPage />} />
                 <Route
                   path="/detail/:type/:id"
-                  element={
-                    <DetailPage
-                      onOpenAIWithContext={handleOpenAIWithContext}
-                      onOpenAuth={handleOpenAuth}
-                    />
-                  }
+                  element={<DetailPage onOpenAuth={handleOpenAuth} />}
                 />
-                <Route
-                  path="/watch/:type/:id"
-                  element={<PlayerPage onOpenAIWithContext={handleOpenAIWithContext} />}
-                />
-                <Route
-                  path="/watch/:type/:id/:episode"
-                  element={<PlayerPage onOpenAIWithContext={handleOpenAIWithContext} />}
-                />
-                <Route
-                  path="/watch/:type/:id/:season/:episode"
-                  element={<PlayerPage onOpenAIWithContext={handleOpenAIWithContext} />}
-                />
+                <Route path="/watch/:type/:id" element={<PlayerPage />} />
+                <Route path="/watch/:type/:id/:episode" element={<PlayerPage />} />
+                <Route path="/watch/:type/:id/:season/:episode" element={<PlayerPage />} />
                 <Route path="/history" element={<HistoryPage />} />
                 <Route path="/my-list" element={<MyListPage />} />
                 <Route path="/login" element={<AuthPage initialMode="login" />} />
@@ -345,22 +314,9 @@ function AppLayout() {
       {!isPlayerMode && <Footer />}
       {!isPlayerMode && (
         <BottomNav
-          onOpenAI={handleOpenAI}
           onOpenFeatures={handleOpenFeatures}
           onOpenAuth={handleOpenAuth}
         />
-      )}
-
-      {/* Tanya Zhafx AI Chat Drawer - Lazy loaded upon first click */}
-      {hasOpenedAI && (
-        <Suspense fallback={null}>
-          <AIChatDrawer
-            isOpen={isAIOpen}
-            onClose={() => setIsAIOpen(false)}
-            initialContextTitle={aiContextTitle}
-            onClearContext={() => setAiContextTitle(null)}
-          />
-        </Suspense>
       )}
 
       {/* Pusat Fitur Zhafx Modal - Lazy loaded upon first click */}
@@ -369,7 +325,6 @@ function AppLayout() {
           <QuickFeaturesModal
             isOpen={isFeaturesOpen}
             onClose={() => setIsFeaturesOpen(false)}
-            onOpenAI={handleOpenAI}
             onOpenAuth={handleOpenAuth}
           />
         </Suspense>

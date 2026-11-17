@@ -5,7 +5,6 @@ import {
   IoBookmarkOutline as Bookmark,
   IoBookmark as BookmarkCheck,
   IoShareSocialOutline as Share2,
-  IoSparkles as Sparkles,
   IoStar as Star,
   IoTimeOutline as Clock,
   IoCalendarOutline as Calendar,
@@ -35,11 +34,10 @@ import { translateToIndonesian, isIndonesian } from '../lib/translator';
 import { checkIsAdminEmail } from '../config';
 
 interface DetailPageProps {
-  onOpenAIWithContext: (title: Title) => void;
   onOpenAuth?: () => void;
 }
 
-export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext, onOpenAuth }) => {
+export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAuth }) => {
   const { type: rawType, id } = useParams<{ type?: string; id?: string }>();
   const navigate = useNavigate();
 
@@ -368,7 +366,7 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext, onO
     <div className="min-h-screen pb-20 space-y-12">
       <SEOHead
         title={title.title}
-        description={title.overview || `Nonton ${title.title} (${title.year}) di Zhafx dengan kualitas sinematik dan rekomendasi cerdas AI.`}
+        description={title.overview || `Nonton ${title.title} (${title.year}) di Zhafx dengan kualitas sinematik dan bebas iklan.`}
         canonicalPath={`/detail/${mediaType}/${id}`}
         ogType="video.movie"
       />
@@ -633,15 +631,6 @@ export const DetailPage: React.FC<DetailPageProps> = ({ onOpenAIWithContext, onO
             >
               <Share2 className="w-4 h-4" />
               <span className="hidden sm:inline">Bagikan</span>
-            </button>
-
-            {/* Tanya AI Pill */}
-            <button
-              onClick={() => onOpenAIWithContext(title)}
-              className="inline-flex items-center justify-center gap-2 px-3.5 sm:px-4 py-3 rounded-full liquid-glass liquid-specular text-white/80 hover:text-white text-xs sm:text-sm font-medium transition-all cursor-pointer min-h-[44px] ios-spring"
-            >
-              <Sparkles className="w-4 h-4 text-white" />
-              <span className="hidden sm:inline">Tanya AI</span>
             </button>
           </div>
         </div>

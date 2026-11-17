@@ -6,7 +6,6 @@ const KEYS = {
   MY_LIST: `zhafx_mylist_${SCHEMA_VERSION}`,
   SEARCH_HISTORY: `zhafx_search_history_${SCHEMA_VERSION}`,
   REPORTED_STREAMS: `zhafx_reported_${SCHEMA_VERSION}`,
-  AI_CHAT_SESSION: `zhafx_chat_history_${SCHEMA_VERSION}`,
   USER: `zhafx_user_${SCHEMA_VERSION}`,
   TOKEN: `zhafx_token_${SCHEMA_VERSION}`,
   PROGRESS: `zhafx_progress_${SCHEMA_VERSION}`,
@@ -239,34 +238,6 @@ export const storage = {
       return Array.isArray(current) && current.some((r: any) => r.id === id);
     } catch {
       return false;
-    }
-  },
-
-  // --- AI Chat in sessionStorage ---
-  getChatSession(): any[] {
-    try {
-      const data = sessionStorage.getItem(KEYS.AI_CHAT_SESSION);
-      if (!data) return [];
-      const parsed = JSON.parse(data);
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
-  },
-
-  saveChatSession(messages: any[]): void {
-    try {
-      sessionStorage.setItem(KEYS.AI_CHAT_SESSION, JSON.stringify(messages));
-    } catch {
-      // ignore
-    }
-  },
-
-  clearChatSession(): void {
-    try {
-      sessionStorage.removeItem(KEYS.AI_CHAT_SESSION);
-    } catch {
-      // ignore
     }
   },
 

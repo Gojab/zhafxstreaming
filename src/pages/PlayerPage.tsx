@@ -12,7 +12,6 @@ import {
   IoBookmarkOutline as Bookmark,
   IoBookmark as BookmarkCheck,
   IoShareSocialOutline as Share2,
-  IoSparkles as Sparkles,
   IoFilmOutline as Film,
   IoTvOutline as Tv,
   IoPlay as Play,
@@ -248,11 +247,7 @@ function formatTime(sec: number): string {
   return `${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
 }
 
-interface PlayerPageProps {
-  onOpenAIWithContext?: (title: Title) => void;
-}
-
-export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) => {
+export const PlayerPage: React.FC = () => {
   const { type: rawType, id, season: rawSeason, episode: rawEpisode } = useParams<{
     type?: string;
     id?: string;
@@ -1077,16 +1072,6 @@ export const PlayerPage: React.FC<PlayerPageProps> = ({ onOpenAIWithContext }) =
                 </span>
               )}
             </button>
-
-            {title && onOpenAIWithContext && (
-              <button
-                onClick={() => onOpenAIWithContext(title)}
-                className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/10 text-white font-semibold text-xs hover:bg-white/15 cursor-pointer transition-all"
-              >
-                <Sparkles className="w-3 h-3 text-[#FFB224]" />
-                <span>Tanya AI</span>
-              </button>
-            )}
 
             <button
               type="button"

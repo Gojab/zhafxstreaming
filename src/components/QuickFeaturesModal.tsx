@@ -9,7 +9,6 @@ import {
   IoSearchOutline as Search,
   IoBookmarkOutline as Bookmark,
   IoTimeOutline as History,
-  IoChevronForwardOutline as ChevronRight,
   IoVideocamOutline as Clapperboard,
   IoPersonOutline as UserIcon,
   IoLogOutOutline as LogOut,
@@ -18,7 +17,6 @@ import {
   IoPeopleOutline as PeopleIcon,
 } from 'react-icons/io5';
 import { HomeSimpleIcon } from './icons/HomeSimpleIcon';
-import { BotMessageSquareIcon } from './icons/BotMessageSquareIcon';
 import { Logo } from './Logo';
 import { storage } from '../lib/storage';
 import { supabase } from '../lib/supabase';
@@ -27,14 +25,12 @@ import { User } from '../types';
 interface QuickFeaturesModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onOpenAI: () => void;
   onOpenAuth: () => void;
 }
 
 export const QuickFeaturesModal: React.FC<QuickFeaturesModalProps> = ({
   isOpen,
   onClose,
-  onOpenAI,
   onOpenAuth,
 }) => {
   const navigate = useNavigate();
@@ -368,30 +364,6 @@ export const QuickFeaturesModal: React.FC<QuickFeaturesModalProps> = ({
               <span className="text-xs font-bold text-white block">Donasi QR</span>
               <span className="text-[10px] text-white/60">Saweria QRIS</span>
             </div>
-          </button>
-        </div>
-
-        {/* Bottom Action: Tanya Zhafx AI */}
-        <div className="pt-2 border-t border-white/[0.12]">
-          <button
-            onClick={() => {
-              onClose();
-              onOpenAI();
-            }}
-            className="w-full p-3.5 rounded-[22px] bg-white/[0.08] hover:bg-white/[0.14] border border-white/20 flex items-center justify-between text-left transition-all ios-spring cursor-pointer shadow-lg"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-full bg-white text-black flex items-center justify-center shadow-md">
-                <BotMessageSquareIcon size={20} className="text-black" />
-              </div>
-              <div>
-                <span className="text-xs font-bold text-white block">Tanya Zhafx AI</span>
-                <span className="text-[10px] text-white/60">
-                  Rekomendasi tayangan pintar sesuai seleramu
-                </span>
-              </div>
-            </div>
-            <ChevronRight className="w-4 h-4 text-white/60" />
           </button>
         </div>
       </div>

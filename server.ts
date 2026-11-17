@@ -33,7 +33,6 @@ import type {
   StoredFollow,
   StoredActivity,
 } from './server/authService.ts';
-import { executeMultiModelChat } from './server/aiPipeline.ts';
 
 dotenv.config();
 
@@ -259,52 +258,6 @@ function getUserIdFromAuthHeader(req: Request): string | null {
 }
 
 const apiKey = process.env.GEMINI_API_KEY || '';
-
-
-// Endpoint: AI Chat GET health check
-app.get(['/api/ai/chat', '/api/chat'], (_req: Request, res: Response) => {
-  res.status(200).json({
-    status: 'ok',
-    service: 'Zhafx Multi-Provider AI Engine (fallback aktif)',
-    configured: Boolean(process.env.GEMINI_API_KEY || process.env.GROQ_API_KEY || process.env.OPENROUTER_API_KEY),
-  });
-});
-
-// Endpoint: AI Chat with streaming
-app.post(['/api/ai/chat', '/api/chat'], async (req: Request, res: Response) => {
-  const currentKey = process.env.GEMINI_API_KEY || apiKey;
-  const { message, history, contextTitle } = req.body || {};
-  if (!message || typeof message !== 'string') {
-    return res.status(400).json({ error: 'Pesan tidak boleh kosong.' });
-  }
-
-  // Set SSE streaming headers
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Connection', 'keep-alive');
-  res.flushHeaders();
-
-  try {
-    await executeMultiModelChat(
-      {
-        message,
-        history,
-        contextTitle,
-        geminiApiKey: currentKey,
-      },
-      (chunk: string) => {
-        res.write(`data: ${JSON.stringify({ text: chunk })}\n\n`);
-      }
-    );
-    res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
-    res.end();
-  } catch (err: any) {
-    console.error('[Server AI Chat Error]:', err);
-    res.write(`data: ${JSON.stringify({ text: 'Maaf, terjadi gangguan pada pemrosesan AI.' })}\n\n`);
-    res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
-    res.end();
-  }
-});
 
 // Endpoint: Proxy to FrameX API (to prevent any CORS or network issues)
 app.all('/api/proxy', async (req: Request, res: Response) => {

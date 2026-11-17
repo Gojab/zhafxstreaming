@@ -16,7 +16,7 @@ export const Footer: React.FC = () => {
           <div className="space-y-2 max-w-sm">
             <Logo size="md" />
             <p className="text-xs text-zinc-300 leading-relaxed">
-              Zhafx menyajikan katalog film, serial TV, dan anime terkini dengan pemutar interaktif dan rekomendasi cerdas AI.
+              Zhafx menyajikan katalog film, serial TV, dan anime terkini dengan pemutar interaktif yang cepat, bebas iklan, dan nyaman.
             </p>
           </div>
 

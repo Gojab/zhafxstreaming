@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import {
   IoSearchOutline,
-  IoSparkles,
   IoPersonOutline,
   IoLogOutOutline,
   IoBookmarkOutline,
@@ -14,7 +13,6 @@ import {
 } from 'react-icons/io5';
 import { Logo } from './Logo';
 import { PillBase, NavItem } from '@/components/ui/3d-adaptive-navigation-bar';
-import { BotMessageSquareIcon } from './icons/BotMessageSquareIcon';
 
 const ProfileModal = React.lazy(() => import('./ProfileModal').then(m => ({ default: m.ProfileModal })));
 import { storage } from '../lib/storage';
@@ -22,7 +20,6 @@ import { User } from '../types';
 import { checkIsAdminEmail } from '../config';
 
 interface NavbarProps {
-  onOpenAI: () => void;
   onOpenFeatures: () => void;
   onOpenAuth: () => void;
 }
@@ -37,7 +34,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Riwayat', id: '/history' },
 ];
 
-export const Navbar: React.FC<NavbarProps> = ({ onOpenAI, onOpenFeatures, onOpenAuth }) => {
+export const Navbar: React.FC<NavbarProps> = ({ onOpenFeatures, onOpenAuth }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const currentPath = location.pathname;
@@ -221,20 +218,6 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAI, onOpenFeatures, onOpen
             <span className="leading-none transition-transform duration-300 group-hover:rotate-90 group-hover:scale-110 block">
               X
             </span>
-          </button>
-
-          {/* Tanya AI Glass Pill */}
-          <button
-            onClick={onOpenAI}
-            className={`group btn-ai-sparkle hidden sm:inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-full font-medium text-xs cursor-pointer min-h-[44px] min-w-[44px] transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${
-              hasScrolled
-                ? 'bg-white/[0.08] hover:bg-white/[0.16] border border-white/15 text-white shadow-sm nav-shimmer'
-                : 'bg-transparent hover:bg-white/10 border border-transparent hover:border-white/20 text-white/85 hover:text-white shadow-none'
-            }`}
-            title="Buka Tanya Zhafx AI"
-          >
-            <BotMessageSquareIcon size={17} className="text-amber-300 transition-transform duration-300 group-hover:scale-115" />
-            <span className="text-[12px] group-hover:text-amber-100 transition-colors">Tanya AI</span>
           </button>
 
           {/* Login Button or User Profile Dropdown */}

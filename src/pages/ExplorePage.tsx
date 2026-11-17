@@ -159,7 +159,7 @@ export const ExplorePage: React.FC = () => {
       <SEOHead
         title={pageTitle}
         canonicalPath={canonicalPath}
-        description={`Katalog lengkap ${pageTitle.toLowerCase()} di Zhafx. Tonton film, serial TV, dan anime favorit dengan filter kategori, tahun, dan rekomendasi AI.`}
+        description={`Katalog lengkap ${pageTitle.toLowerCase()} di Zhafx. Tonton film, serial TV, dan anime favorit dengan filter kategori, tahun, dan urutan popularitas.`}
       />
 
       {/* Page Header with Apple iOS 26 Segmented Control */}

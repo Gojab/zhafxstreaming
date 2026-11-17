@@ -1,6 +1,6 @@
 /**
  * Zhafx Configuration
- * All API paths, embed origins, AI models, and field mappings are centralized here.
+ * All API paths, embed origins, and field mappings are centralized here.
  */
 
 export const CONFIG = {
@@ -30,10 +30,6 @@ export const CONFIG = {
   // AniList GraphQL API (100% free, CORS open, high-res posters & details)
   ANILIST_GRAPHQL_URL: 'https://graphql.anilist.co',
 
-  // Gemini AI Models
-  AI_MODEL: 'gemini-3.8-flash',
-  AI_MODEL_FALLBACK: 'gemini-flash-latest',
-
   // API Endpoints
   ENDPOINTS: {
     HOME: '/api/home',
@@ -45,7 +41,6 @@ export const CONFIG = {
     SEASON: '/api/season',
     PROVIDERS: '/api/providers',
     META: '/api/meta',
-    AI_CHAT: '/api/ai/chat',
   },
 
   // Cache & Network Policy

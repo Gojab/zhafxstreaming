@@ -464,27 +464,6 @@
   }
 }
 
-/* Right Drawer Slide In (Tanya AI Drawer) */
-@keyframes drawerSlideIn {
-  0% {
-    opacity: 0.4;
-    transform: translate3d(100%, 0, 0);
-  }
-  100% {
-    opacity: 1;
-    transform: translate3d(0, 0, 0);
-  }
-}
-
-@keyframes drawerBackdropFade {
-  0% {
-    opacity: 0;
-  }
-  100% {
-    opacity: 1;
-  }
-}
-
 /* Smooth Shimmer Light Sweep */
 @keyframes shimmerLightSweep {
   0% {
@@ -514,18 +493,6 @@
 
 .animate-modal-backdrop {
   animation: modalBackdropFade 0.26s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  will-change: opacity;
-}
-
-.animate-drawer-sheet {
-  animation: drawerSlideIn 0.38s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  transform-gpu: translate3d(0, 0, 0);
-  will-change: transform;
-  backface-visibility: hidden;
-}
-
-.animate-drawer-backdrop {
-  animation: drawerBackdropFade 0.28s ease-out forwards;
   will-change: opacity;
 }
 

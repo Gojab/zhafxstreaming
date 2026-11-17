@@ -12,7 +12,7 @@ interface SEOHeadProps {
 const BASE_CANONICAL_DOMAIN = 'https://zhafxstreaming.web.id';
 const DEFAULT_TITLE = 'ZHAFX Streaming Nonton Anime, Film & Serial TV Gratis dan Bebas Iklan';
 const DEFAULT_DESC =
-  'ZHAFX Streaming adalah platform nonton anime, film, dan serial TV gratis tanpa iklan, dilengkapi AI cerdas untuk membantu menemukan tontonan favorit dengan mudah, cepat, dan personal.';
+  'ZHAFX Streaming adalah platform nonton anime, film, dan serial TV gratis tanpa iklan dengan katalog lengkap, cepat, dan nyaman.';
 const DEFAULT_IMAGE = 'https://zhafxstreaming.web.id/logo.png';
 
 export const SEOHead: React.FC<SEOHeadProps> = ({
