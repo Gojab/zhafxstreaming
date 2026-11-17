@@ -33,207 +33,17 @@ import { useMyList } from '../hooks/useMyList';
 import { useActiveMedia } from '../context/ActiveMediaContext';
 import { MediaRow } from '../components/MediaRow';
 import { SEOHead } from '../components/SEOHead';
+import {
+  type ServerOption,
+  MOVIE_SERVERS,
+  TV_SERVERS,
+  ANIME_SERVERS,
+  getServersForMediaType,
+  buildFrameXEmbedUrl,
+} from '../lib/servers';
 
-export interface ServerOption {
-  id: string;
-  name: string;
-  tagline: string;
-  type: 'movie_embed' | 'tv_embed' | 'anime_embed';
-  provider: string;
-  badge?: string;
-  serverParam?: string;
-}
-
-// =========================================================================
-// 1. Dedicated Servers Khusus FILM (Movie) — FrameX API Engine
-// =========================================================================
-// 1. Dedicated Servers Khusus FILM (Movie) — FrameX API Engine
-// =========================================================================
-export const MOVIE_SERVERS: ServerOption[] = [
-  {
-    id: 'server-movie-1',
-    name: 'Server 1',
-    tagline: 'Server Utama • Pemutaran Cepat & Stabil',
-    type: 'movie_embed',
-    provider: 'miner',
-    badge: 'Utama',
-  },
-  {
-    id: 'server-movie-2',
-    name: 'Server 2',
-    tagline: 'Server Cadangan • Multi-Subtitle',
-    type: 'movie_embed',
-    provider: 'headhunter',
-  },
-  {
-    id: 'server-movie-3',
-    name: 'Server 3',
-    tagline: 'Server Cadangan • Multi-Server',
-    type: 'movie_embed',
-    provider: 'valkyrie',
-  },
-  {
-    id: 'server-movie-4',
-    name: 'Server 4',
-    tagline: 'Server Cadangan • Direct Stream',
-    type: 'movie_embed',
-    provider: 'titan',
-  },
-  {
-    id: 'server-movie-5',
-    name: 'Server 5',
-    tagline: 'Server Cadangan • Jalur Cepat',
-    type: 'movie_embed',
-    provider: 'hog_rider',
-  },
-  {
-    id: 'server-movie-6',
-    name: 'Server 6',
-    tagline: 'Server Cadangan • Multi-CDN',
-    type: 'movie_embed',
-    provider: 'lavahound',
-  },
-  {
-    id: 'server-movie-7',
-    name: 'Server 7',
-    tagline: 'Server Cadangan • Auto Stream',
-    type: 'movie_embed',
-    provider: 'super_barbarian',
-  },
-  {
-    id: 'server-movie-8',
-    name: 'Server 8',
-    tagline: 'Server Cadangan • Multi-Bahasa',
-    type: 'movie_embed',
-    provider: 'bowler',
-  },
-  {
-    id: 'server-movie-9',
-    name: 'Server 9',
-    tagline: 'Server Cadangan • Multi-Audio',
-    type: 'movie_embed',
-    provider: 'giant',
-  },
-];
-
-// =========================================================================
-// 2. Dedicated Servers Khusus SERIAL TV — FrameX API Engine
-// =========================================================================
-export const TV_SERVERS: ServerOption[] = [
-  {
-    id: 'server-tv-1',
-    name: 'Server 1',
-    tagline: 'Server Utama • Serial TV Lengkap',
-    type: 'tv_embed',
-    provider: 'miner',
-    badge: 'Utama',
-  },
-  {
-    id: 'server-tv-2',
-    name: 'Server 2',
-    tagline: 'Server Cadangan • Multi-Subtitle & Episode Lengkap',
-    type: 'tv_embed',
-    provider: 'headhunter',
-  },
-  {
-    id: 'server-tv-3',
-    name: 'Server 3',
-    tagline: 'Server Cadangan • Multi-Server Stabil',
-    type: 'tv_embed',
-    provider: 'valkyrie',
-  },
-  {
-    id: 'server-tv-4',
-    name: 'Server 4',
-    tagline: 'Server Cadangan • Direct Stream',
-    type: 'tv_embed',
-    provider: 'titan',
-  },
-  {
-    id: 'server-tv-5',
-    name: 'Server 5',
-    tagline: 'Server Cadangan • Dedicated',
-    type: 'tv_embed',
-    provider: 'hog_rider',
-  },
-  {
-    id: 'server-tv-6',
-    name: 'Server 6',
-    tagline: 'Server Cadangan • Multi-CDN',
-    type: 'tv_embed',
-    provider: 'lavahound',
-  },
-  {
-    id: 'server-tv-7',
-    name: 'Server 7',
-    tagline: 'Server Cadangan • Auto Stream',
-    type: 'tv_embed',
-    provider: 'super_barbarian',
-  },
-  {
-    id: 'server-tv-8',
-    name: 'Server 8',
-    tagline: 'Server Cadangan • Multi-Bahasa',
-    type: 'tv_embed',
-    provider: 'bowler',
-  },
-  {
-    id: 'server-tv-9',
-    name: 'Server 9',
-    tagline: 'Server Cadangan • Multi-Audio',
-    type: 'tv_embed',
-    provider: 'giant',
-  },
-];
-
-// =========================================================================
-// 3. Dedicated Servers Khusus ANIME — FrameX TV Engine (Grand Warden, Wizard, dll.)
-// =========================================================================
-export const ANIME_SERVERS: ServerOption[] = [
-  {
-    id: 'server-anime-1',
-    name: 'Server 1 (Grand Warden)',
-    tagline: 'Server Utama • Multi-Source Cloud 1080p',
-    type: 'anime_embed',
-    provider: 'grand_warden',
-    badge: 'Utama',
-  },
-  {
-    id: 'server-anime-2',
-    name: 'Server 2 (Wizard)',
-    tagline: 'Server Cadangan • Dual Audio & Softsub Cepat',
-    type: 'anime_embed',
-    provider: 'wizard',
-  },
-  {
-    id: 'server-anime-3',
-    name: 'Server 3 (Valkyrie)',
-    tagline: 'Server Cadangan • FlixCloud HD',
-    type: 'anime_embed',
-    provider: 'valkyrie',
-  },
-  {
-    id: 'server-anime-4',
-    name: 'Server 4 (Super PEKKA)',
-    tagline: 'Server Cadangan • Direct Fast CDN 1080p',
-    type: 'anime_embed',
-    provider: 'super_pekka',
-  },
-  {
-    id: 'server-anime-5',
-    name: 'Server 5 (Goblin)',
-    tagline: 'Server Cadangan • Direct Fast Auto Stream',
-    type: 'anime_embed',
-    provider: 'goblin',
-  },
-  {
-    id: 'server-anime-6',
-    name: 'Server 6 (Giant)',
-    tagline: 'Server Cadangan • Ultra High Speed Server',
-    type: 'anime_embed',
-    provider: 'giant',
-  },
-];
+export type { ServerOption };
+export { MOVIE_SERVERS, TV_SERVERS, ANIME_SERVERS };
 
 function formatTime(sec: number): string {
   if (isNaN(sec) || sec < 0) return '00:00';
@@ -583,17 +393,8 @@ export const PlayerPage: React.FC = () => {
     };
   }, [saveProgressNow]);
 
-  // Primary supported playback source for every media type branded as ZHAFX.
-  const activeServerList: ServerOption[] = [
-    {
-      id: `zhafx-${mediaType}`,
-      name: 'ZHAFX',
-      tagline: 'Pemutaran resmi ZHAFX',
-      type: mediaType === 'anime' ? 'anime_embed' : mediaType === 'tv' ? 'tv_embed' : 'movie_embed',
-      provider: 'framex',
-      badge: 'Utama',
-    },
-  ];
+  // Primary active playback source for each media type without backup servers.
+  const activeServerList: ServerOption[] = getServersForMediaType(mediaType);
 
   const safeServerIndex = currentServerIndex < activeServerList.length ? currentServerIndex : 0;
   const activeServer = activeServerList[safeServerIndex] || activeServerList[0];
@@ -646,8 +447,15 @@ export const PlayerPage: React.FC = () => {
     }
   };
 
-  // Switch to next dedicated fallback server for this specific media type
+  // Reload primary server or cycle if multiple entries exist
   const handleNextServer = () => {
+    if (activeServerList.length <= 1) {
+      setFailoverNotice('Memuat ulang server utama...');
+      setTimeout(() => setFailoverNotice(null), 3000);
+      setIsIframeLoading(true);
+      setIframeKey((k) => k + 1);
+      return;
+    }
     const nextIdx = (safeServerIndex + 1) % activeServerList.length;
     setCurrentServerIndex(nextIdx);
     setFailoverNotice(`Beralih ke ${activeServerList[nextIdx].name}...`);
@@ -660,101 +468,21 @@ export const PlayerPage: React.FC = () => {
   const buildEmbedUrl = (): string => {
     if (!isPlayable) return '';
 
-    const cleanId = String(id).trim();
-    const validEp = Math.max(1, episodeNum);
-    const validSeason = Math.max(1, seasonNum);
-    let targetProvider = activeServer.provider || 'grand_warden';
     const resumeTimeSec =
       resumePrompt?.time && resumePrompt.time > 5 ? Math.floor(resumePrompt.time) : 0;
 
-    if (mediaType === 'anime') {
-      // Official FrameX Anime Embed (https://framextv.cc/)
-      let targetProv = activeServer.provider || 'grand_warden';
-      if (animeAudio === 'dub' && !targetProv.endsWith('_dub')) {
-        const dubCandidate = `${targetProv}_dub`;
-        if (['grand_warden_dub', 'wizard_dub', 'valkyrie_dub', 'goblin_dub'].includes(dubCandidate)) {
-          targetProv = dubCandidate;
-        }
-      } else if (animeAudio === 'sub' && targetProv.endsWith('_dub')) {
-        targetProv = targetProv.replace('_dub', '');
-      }
-
-      const baseUrl = `https://framextv.cc/embed/anime`;
-      const url = new URL(baseUrl);
-      url.searchParams.set('id', cleanId);
-      url.searchParams.set('anilist_id', cleanId);
-      url.searchParams.set('episode', String(validEp));
-      url.searchParams.set('season', '1');
-      url.searchParams.set('type', 'anime');
-      url.searchParams.set('sub_type', animeAudio);
-      url.searchParams.set('audio', animeAudio);
-      url.searchParams.set('provider', targetProv);
-      url.searchParams.set('autoplay', '1');
-      url.searchParams.set('muted', '0');
-      url.searchParams.set('no_ads', '1');
-      url.searchParams.set('adblock', '1');
-      url.searchParams.set('origin', 'internal');
-      url.searchParams.set('playsinline', '1');
-      url.searchParams.set('webkit-playsinline', '1');
-      url.searchParams.set('preload', 'auto');
-      if (resumeTimeSec > 0) {
-        url.searchParams.set('start', String(resumeTimeSec));
-        url.searchParams.set('time', String(resumeTimeSec));
-        url.searchParams.set('t', String(resumeTimeSec));
-      }
-      if (title?.title) {
-        url.searchParams.set('title', title.title.trim());
-      }
-      return url.toString();
-    }
-
-    if (mediaType === 'tv') {
-      // Official FrameX TV Series Embed (https://framextv.cc/)
-      const baseUrl = `https://framextv.cc/embed/tv/${encodeURIComponent(cleanId)}/${encodeURIComponent(String(validSeason))}/${encodeURIComponent(String(validEp))}`;
-      const url = new URL(baseUrl);
-      url.searchParams.set('id', cleanId);
-      url.searchParams.set('season', String(validSeason));
-      url.searchParams.set('episode', String(validEp));
-      url.searchParams.set('type', 'tv');
-      url.searchParams.set('provider', targetProvider);
-      url.searchParams.set('autoplay', '1');
-      url.searchParams.set('muted', '0');
-      url.searchParams.set('no_ads', '1'); // Disables popup ads on TV series
-      url.searchParams.set('playsinline', '1');
-      url.searchParams.set('webkit-playsinline', '1');
-      url.searchParams.set('preload', 'auto');
-      if (resumeTimeSec > 0) {
-        url.searchParams.set('start', String(resumeTimeSec));
-        url.searchParams.set('time', String(resumeTimeSec));
-        url.searchParams.set('t', String(resumeTimeSec));
-      }
-      if (title?.title) {
-        url.searchParams.set('title', title.title.trim());
-      }
-      return url.toString();
-    }
-
-    // Official FrameX Movie Embed (https://framextv.cc/)
-    const baseUrl = `https://framextv.cc/embed/movie/${encodeURIComponent(cleanId)}`;
-    const url = new URL(baseUrl);
-    url.searchParams.set('id', cleanId);
-    url.searchParams.set('type', 'movie');
-    url.searchParams.set('provider', targetProvider);
-    url.searchParams.set('autoplay', '1');
-    url.searchParams.set('muted', '0');
-    url.searchParams.set('no_ads', '1'); // Disables popup ads on Movies
-    url.searchParams.set('playsinline', '1');
-    url.searchParams.set('webkit-playsinline', '1');
-    url.searchParams.set('preload', 'auto');
-    if (resumeTimeSec > 0) {
-      url.searchParams.set('start', String(resumeTimeSec));
-      url.searchParams.set('time', String(resumeTimeSec));
-      url.searchParams.set('t', String(resumeTimeSec));
-    }
-    if (title?.title) {
-      url.searchParams.set('title', title.title.trim());
-    }
-    return url.toString();
+    return buildFrameXEmbedUrl({
+      type: mediaType,
+      id: String(id).trim(),
+      season: Math.max(1, seasonNum),
+      episode: Math.max(1, episodeNum),
+      provider: activeServer.provider,
+      autoplay: true,
+      muted: false,
+      title: title?.title,
+      audio: animeAudio,
+      resumeTimeSec,
+    });
   };
 
   const embedUrl = buildEmbedUrl();

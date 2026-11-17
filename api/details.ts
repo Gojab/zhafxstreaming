@@ -14,7 +14,38 @@ export default async function handler(req: any, res: any) {
     return res.status(400).json({ error: 'ID tayangan diperlukan.' });
   }
 
+  const framexHeaders = {
+    'User-Agent':
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    Referer: 'https://framextv.cc/',
+    Origin: 'https://framextv.cc',
+    Accept: 'application/json',
+  };
+
   if (type === 'anime') {
+    // 1. Check FrameX official anime metadata endpoint first
+    try {
+      const fxAnimeRes = await fetch(
+        `https://api.framextv.cc/anime/api/meta?id=${encodeURIComponent(id)}`,
+        { headers: framexHeaders, signal: AbortSignal.timeout(5000) }
+      );
+      if (fxAnimeRes.ok) {
+        const fxData = await fxAnimeRes.json();
+        const item = fxData?.data || fxData?.anime || fxData;
+        if (item && (item.title || item.name)) {
+          res.setHeader('Cache-Control', 'public, s-maxage=600, stale-while-revalidate=1200');
+          return res.status(200).json({
+            ...item,
+            success: true,
+            id: String(item.id || id),
+            type: 'anime',
+            title: item.title || item.name,
+          });
+        }
+      }
+    } catch {}
+
+    // 2. Fallback to AniList GraphQL
     try {
       const aniQuery = `query ($id: Int) {
         Media(id: $id, type: ANIME) {
@@ -60,31 +91,24 @@ export default async function handler(req: any, res: any) {
     } catch {}
   }
 
-  const backends = ['https://api.framextv.cc'];
   const q = new URLSearchParams();
   q.set('id', id);
   q.set('type', type);
 
-  for (const backend of backends) {
-    try {
-      const upstreamRes = await fetch(`${backend}/api/details?${q.toString()}`, {
-        headers: {
-          'User-Agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-          Referer: 'https://framextv.cc/',
-          Origin: 'https://framextv.cc',
-          Accept: 'application/json',
-        },
-        signal: AbortSignal.timeout(5000),
-      });
+  try {
+    const upstreamRes = await fetch(`https://api.framextv.cc/api/details?${q.toString()}`, {
+      headers: framexHeaders,
+      signal: AbortSignal.timeout(5000),
+    });
 
-      if (upstreamRes.ok) {
-        const data = await upstreamRes.json();
+    if (upstreamRes.ok) {
+      const data = await upstreamRes.json();
+      if (type !== 'anime' || data?.type === 'anime') {
         res.setHeader('Cache-Control', 'public, s-maxage=600, stale-while-revalidate=1200');
         return res.status(200).json(data);
       }
-    } catch {}
-  }
+    }
+  } catch {}
 
-  return res.status(502).json({ error: 'Gagal memuat detail tayangan.' });
+  return res.status(type === 'anime' ? 404 : 502).json({ error: 'Gagal memuat detail tayangan.' });
 }

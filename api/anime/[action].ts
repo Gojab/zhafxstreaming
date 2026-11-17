@@ -1,3 +1,12 @@
+function getSafeOrigin(urlStr?: string | null, fallback = 'https://megaplay.buzz'): string {
+  if (!urlStr || typeof urlStr !== 'string') return fallback;
+  try {
+    return new URL(urlStr).origin;
+  } catch {
+    return fallback;
+  }
+}
+
 export default async function handler(req: any, res: any) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, POST, OPTIONS');
@@ -13,22 +22,78 @@ export default async function handler(req: any, res: any) {
   const actionFromUrl = req.url?.split('?')[0].split('/').filter(Boolean).pop();
   const action = (actionFromQuery || actionFromUrl || '').toLowerCase();
 
-  // 1. GET /api/anime/providers
+  // 1. GET /api/anime/providers (primary active server only, no backup list)
   if (action === 'providers') {
     return res.status(200).json({
       providers: [
-        { id: 'grand_warden', name: 'Grand Warden XI', tagline: 'Multi-Source Cloud • 1080p Ultra Fast', audio: 'sub', category: 'anime', status: 'active' },
-        { id: 'grand_warden_dub', name: 'Grand Warden XI (Dub)', tagline: 'Multi-Source Cloud Dub', audio: 'dub', category: 'anime', status: 'active' },
-        { id: 'wizard', name: 'Wizard I', tagline: 'Dual Audio & Softsub • Ultra Fast', audio: 'sub', category: 'anime', status: 'active' },
-        { id: 'wizard_dub', name: 'Wizard I (Dub)', tagline: 'Dual Audio & Softsub • Ultra Fast', audio: 'dub', category: 'anime', status: 'active' },
-        { id: 'valkyrie', name: 'Valkyrie II', tagline: 'FlixCloud HD • Fast Stream', audio: 'sub', category: 'anime', status: 'active' },
-        { id: 'valkyrie_dub', name: 'Valkyrie II (Dub)', tagline: 'FlixCloud Dub HD', audio: 'dub', category: 'anime', status: 'active' },
-        { id: 'goblin', name: 'Goblin V', tagline: 'Direct Fast Auto Stream', audio: 'sub', category: 'anime', status: 'active' },
-        { id: 'goblin_dub', name: 'Goblin V (Dub)', tagline: 'Direct Fast Auto Stream Dub', audio: 'dub', category: 'anime', status: 'active' },
-        { id: 'giant', name: 'Giant IX', tagline: 'Ultra High Speed Cloud Server', audio: 'sub', category: 'anime', status: 'active' },
-        { id: 'super_pekka', name: 'Super PEKKA X', tagline: '1080p Ultra High Bitrate', audio: 'sub', category: 'anime', status: 'active' },
+        {
+          id: 'grand_warden',
+          name: 'ZHAFX',
+          tagline: 'Server Utama • Anime 1080p Sub & Dub',
+          audio: 'sub',
+          category: 'anime',
+          status: 'active',
+        },
       ],
     });
+  }
+
+  // 1b. GET /api/anime/discover
+  if (action === 'discover') {
+    try {
+      const qs = new URLSearchParams();
+      for (const [k, v] of Object.entries(req.query || {})) {
+        if (k === 'action' || v === undefined || v === null) continue;
+        qs.set(k, Array.isArray(v) ? String(v[0]) : String(v));
+      }
+      const upstreamRes = await fetch(`https://api.framextv.cc/anime/api/discover?${qs.toString()}`, {
+        signal: AbortSignal.timeout(7000),
+        headers: {
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+          Referer: 'https://framextv.cc/',
+          Origin: 'https://framextv.cc',
+          Accept: 'application/json',
+        },
+      });
+      if (upstreamRes.ok) {
+        const data = await upstreamRes.json();
+        return res.status(200).json(data);
+      }
+      return res.status(upstreamRes.status).json({ results: [], error: 'Gagal memuat katalog anime.' });
+    } catch {
+      return res.status(502).json({ results: [], error: 'Gagal menghubungi server anime.' });
+    }
+  }
+
+  // 1c. GET /api/anime/meta
+  if (action === 'meta') {
+    const id = req.query?.id ? String(req.query.id).trim() : '';
+    if (!id) {
+      return res.status(400).json({ error: 'ID anime wajib diisi.' });
+    }
+    try {
+      const upstreamRes = await fetch(
+        `https://api.framextv.cc/anime/api/meta?id=${encodeURIComponent(id)}`,
+        {
+          signal: AbortSignal.timeout(6000),
+          headers: {
+            'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+            Referer: 'https://framextv.cc/',
+            Origin: 'https://framextv.cc',
+            Accept: 'application/json',
+          },
+        }
+      );
+      if (upstreamRes.ok) {
+        const data = await upstreamRes.json();
+        return res.status(200).json(data);
+      }
+      return res.status(upstreamRes.status).json({ error: 'Metadata anime tidak ditemukan.' });
+    } catch {
+      return res.status(502).json({ error: 'Gagal memuat metadata anime.' });
+    }
   }
 
   // Helper: Query FrameX API directly to resolve anime title or ID (Strictly https://framextv.cc, no AniList)
@@ -92,48 +157,44 @@ export default async function handler(req: any, res: any) {
     throw new Error('No sources found');
   };
 
-  // Helper: Cascading fast parallel probe across priority servers
+  // Helper: Cascading probe across active upstream anime providers
   const probeMultiProviders = async (
     targetId: string,
     episode: string,
     audio: string,
     preferredProvider?: string
   ): Promise<any> => {
-    const backends = ['https://api.framextv.cc'];
-    const priorityList = audio === 'dub'
-      ? ['grand_warden_dub', 'wizard_dub', 'valkyrie_dub', 'goblin_dub', 'dragon_dub', 'archer_dub']
-      : ['grand_warden', 'wizard', 'super_pekka', 'giant', 'valkyrie', 'goblin', 'dragon', 'archer'];
+    const primaryOrigin = 'https://api.framextv.cc';
+    const priorityList =
+      audio === 'dub'
+        ? ['grand_warden_dub', 'wizard_dub', 'valkyrie_dub']
+        : ['grand_warden', 'wizard', 'valkyrie'];
 
-    // 1. Try specifically selected provider first
-    if (preferredProvider && preferredProvider !== 'auto' && preferredProvider !== 'direct_stream') {
-      for (const b of backends) {
-        try {
-          const directData = await probeSingleProvider(b, targetId, episode, preferredProvider, audio, 3800);
-          if (directData) return directData;
-        } catch {}
-      }
+    const normalizedPreferred = String(preferredProvider || '').trim().toLowerCase();
+    const isValidPreferred =
+      normalizedPreferred &&
+      normalizedPreferred !== 'auto' &&
+      normalizedPreferred !== 'direct_stream' &&
+      normalizedPreferred !== 'framex' &&
+      priorityList.includes(normalizedPreferred);
+
+    // 1. Try specifically selected valid provider first
+    if (isValidPreferred) {
+      try {
+        const directData = await probeSingleProvider(primaryOrigin, targetId, episode, normalizedPreferred, audio, 3800);
+        if (directData) return directData;
+      } catch {}
     }
 
-    // 2. Cascading Fast Parallel Probe across candidate servers in chunks of 2
-    const candidateList = priorityList.filter(p => p !== preferredProvider);
-    for (let i = 0; i < candidateList.length; i += 2) {
-      const chunk = candidateList.slice(i, i + 2);
+    // 2. Try primary active anime providers in priority order
+    const candidateList = priorityList.filter((p) => p !== normalizedPreferred);
+    for (const candidate of candidateList) {
       try {
-        const winner = await Promise.any(
-          chunk.map(p => probeSingleProvider(backends[0], targetId, episode, p, audio, 3500))
-        );
+        const winner = await probeSingleProvider(primaryOrigin, targetId, episode, candidate, audio, 3800);
         if (winner) return winner;
       } catch {
-        // Chunk failed, continue to next pair
+        // Continue to next active provider
       }
-    }
-
-    // 3. Fallback to secondary backend
-    for (const p of candidateList.slice(0, 3)) {
-      try {
-        const winner = await probeSingleProvider(backends[1], targetId, episode, p, audio, 3500);
-        if (winner) return winner;
-      } catch {}
     }
 
     return null;
@@ -194,7 +255,7 @@ export default async function handler(req: any, res: any) {
         rawUrl: directUrl,
         headers: {
           Referer: referer,
-          Origin: referer ? new URL(referer).origin : 'https://megaplay.buzz',
+          Origin: getSafeOrigin(referer),
         },
       };
     });
@@ -248,7 +309,7 @@ export default async function handler(req: any, res: any) {
       return res.status(400).json({ error: 'URL target tidak valid.' });
     }
 
-    const origin = referer ? new URL(referer).origin : 'https://megaplay.buzz';
+    const origin = getSafeOrigin(referer);
     const reqHeaders: Record<string, string> = {
       'User-Agent':
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',

@@ -1,6 +1,11 @@
 import { CONFIG } from '../config';
 import { Title, Episode, Season, Provider, MediaType, StreamData } from '../types';
 import { translateToIndonesian } from '../lib/translator';
+import {
+  getPrimaryProviderFallback,
+  selectPrimaryUpstreamProvider,
+  buildFrameXEmbedUrl,
+} from '../lib/servers';
 
 // In-memory TTL Cache
 interface CacheEntry<T> {
@@ -283,8 +288,8 @@ async function fetchWithRetry<T>(
       throw new DOMException('Permintaan dibatalkan.', 'AbortError');
     }
 
-    // Try server proxy once as ultimate fallback if not already tried
-    if (useProxyFallback && !url.includes(CONFIG.PROXY_URL)) {
+    // Try server proxy once as ultimate fallback if not already tried (external http URLs only)
+    if (useProxyFallback && url.startsWith('http') && !url.includes(CONFIG.PROXY_URL)) {
       try {
         const proxyUrl = `${CONFIG.PROXY_URL}?url=${encodeURIComponent(url)}`;
         const res = await fetch(proxyUrl);
@@ -646,8 +651,8 @@ export const api = {
 
       // 1. Fetch official anime meta from FrameX anime backend
       try {
-        const framexMetaUrl = `${CONFIG.API_ANIME_BASE_URL}${CONFIG.ENDPOINTS.META}?id=${encodeURIComponent(id)}`;
-        const metaRes = await fetchWithRetry<any>(framexMetaUrl, { signal, ttlMs: 15 * 60 * 1000, useProxyFallback: true });
+        const framexMetaUrl = `${CONFIG.API_ANIME_BASE_URL}/meta?id=${encodeURIComponent(id)}`;
+        const metaRes = await fetchWithRetry<any>(framexMetaUrl, { signal, ttlMs: 15 * 60 * 1000, useProxyFallback: false });
         if (metaRes && metaRes.meta) {
           aniMeta = metaRes.meta;
           if (typeof aniMeta.episodes === 'number') {
@@ -952,20 +957,28 @@ export const api = {
    */
   async getAnimeEpisodes(id: string, signal?: AbortSignal): Promise<Episode[]> {
     try {
-      // 1. In FrameX and TMDB, anime series (Attack on Titan, Solo Leveling, Demon Slayer, Jujutsu Kaisen, etc.)
-      // have full episodes with HD stills and episode titles via /api/season
-      const tmdbSeasonEpisodes = await this.getSeasonEpisodes(id, 1, signal).catch(() => []);
-      if (tmdbSeasonEpisodes && tmdbSeasonEpisodes.length > 0) {
-        return tmdbSeasonEpisodes;
-      }
-
-      // 2. Fallback to details if /api/season didn't return episodes
+      // 1. Resolve from anime metadata / AniList streaming episodes first (prevents invalid TMDB season calls on AniList IDs)
       const details = await this.getDetails(id, 'anime', signal);
       if (details.episodes && details.episodes.length > 0) {
         return details.episodes.map((ep) => ({
           ...ep,
           still: ep.still || ep.stillPath || details.backdrop || details.poster || CONFIG.PLACEHOLDER_BACKDROP,
           stillPath: ep.stillPath || ep.still || details.backdrop || details.poster || CONFIG.PLACEHOLDER_BACKDROP,
+        }));
+      }
+
+      // 2. Fallback to /api/season (resolves mapped anime IDs on server)
+      const url = `${CONFIG.API_BASE_URL}${CONFIG.ENDPOINTS.SEASON}?id=${encodeURIComponent(id)}&season=1&type=anime`;
+      const seasonData = await fetchWithRetry<any>(url, { signal, ttlMs: 15 * 60 * 1000, useProxyFallback: false }).catch(() => null);
+      if (seasonData && Array.isArray(seasonData.episodes) && seasonData.episodes.length > 0) {
+        return seasonData.episodes.map((ep: any) => ({
+          id: ep.id || `${id}-1-${ep.number ?? ep.episode_number ?? 1}`,
+          number: ep.number ?? ep.episode_number ?? 1,
+          seasonNumber: ep.season_number ?? 1,
+          name: ep.name || `Episode ${ep.number ?? ep.episode_number ?? 1}`,
+          overview: ep.overview || '',
+          still: ep.still || ep.still_path || details.backdrop || details.poster || CONFIG.PLACEHOLDER_BACKDROP,
+          stillPath: ep.still || ep.still_path || details.backdrop || details.poster || CONFIG.PLACEHOLDER_BACKDROP,
         }));
       }
 
@@ -989,103 +1002,35 @@ export const api = {
   },
 
   /**
-   * Get list of streaming providers (Miner, Headhunter, Valkyrie, etc.)
+   * Get primary active streaming provider without backup servers
    */
-  async getProviders(signal?: AbortSignal, type?: MediaType): Promise<Provider[]> {
+  async getProviders(signal?: AbortSignal, type: MediaType = 'movie'): Promise<Provider[]> {
     if (type === 'anime') {
       try {
         const data = await fetchWithRetry<any>('/api/anime/providers', { signal, ttlMs: 15 * 60 * 1000 });
         if (data && Array.isArray(data.providers) && data.providers.length > 0) {
-          return [
-            { id: 'auto', name: '⚡ ZHAFX AUTO (Otomatis)', tagline: 'Auto-Select Server Terbaik' },
-            ...data.providers.map((p: any, idx: number) => ({
-              id: p.id,
-              name: `ZHAFX ENTITY ${String(idx + 1).padStart(3, '0')}`,
-              tagline: p.tagline || (p.audio === 'dub' ? 'Audio English Dub' : 'Server Cepat 1080p Multi-Sub'),
-              category: p.category || 'anime',
-              status: p.status,
-            })),
-          ];
+          return selectPrimaryUpstreamProvider(data.providers, 'anime');
         }
       } catch {
-        // Fallback to official FrameX anime providers
+        // Fallback to primary active anime provider
       }
-
-      // Official FrameX Anime Servers
-      return [
-        { id: 'auto', name: '⚡ ZHAFX AUTO (Otomatis)', tagline: 'Auto-Select Server Terbaik' },
-        { id: 'grand_warden', name: 'ZHAFX ENTITY 001', tagline: '1080p Ultra Fast Multi-Source Cloud' },
-        { id: 'grand_warden_dub', name: 'ZHAFX ENTITY 002', tagline: 'Multi-Source Cloud Dub' },
-        { id: 'wizard', name: 'ZHAFX ENTITY 003', tagline: 'Dual Audio & Softsub' },
-        { id: 'wizard_dub', name: 'ZHAFX ENTITY 004', tagline: 'Dual Audio English Dub' },
-        { id: 'valkyrie', name: 'ZHAFX ENTITY 005', tagline: 'FlixCloud HD' },
-        { id: 'valkyrie_dub', name: 'ZHAFX ENTITY 006', tagline: 'FlixCloud HD Dub' },
-        { id: 'super_pekka', name: 'ZHAFX ENTITY 007', tagline: 'Direct Fast CDN' },
-        { id: 'dragon', name: 'ZHAFX ENTITY 008', tagline: 'VidNest Multi-Source' },
-        { id: 'archer', name: 'ZHAFX ENTITY 009', tagline: 'Multi-Audio' },
-        { id: 'giant', name: 'ZHAFX ENTITY 010', tagline: 'High Bitrate HD Stream' },
-      ];
+      return getPrimaryProviderFallback('anime');
     }
 
-    if (type === 'tv') {
-      try {
-        const url = `/api/providers?type=tv`;
-        const data = await fetchWithRetry<any>(url, { signal, ttlMs: 15 * 60 * 1000 });
-        if (data && Array.isArray(data.providers) && data.providers.length > 0) {
-          return [
-            { id: 'auto', name: '⚡ ZHAFX AUTO TV', tagline: 'Auto-Select Server Serial TV Terbaik' },
-            ...data.providers.map((p: any, idx: number) => ({
-              ...p,
-              name: `ZHAFX TV ENTITY ${String(idx + 1).padStart(3, '0')}`,
-            })),
-          ];
-        }
-      } catch {
-        // Fallback
-      }
-
-      return [
-        { id: 'auto', name: '⚡ ZHAFX AUTO TV', tagline: 'Auto-Select Server Serial TV Terbaik' },
-        { id: 'headhunter', name: 'ZHAFX TV ENTITY 001', tagline: 'VidLink TV Series Multi-Sub' },
-        { id: 'valkyrie', name: 'ZHAFX TV ENTITY 002', tagline: '4K Ultra TV Multi-Server' },
-        { id: 'miner', name: 'ZHAFX TV ENTITY 003', tagline: 'Movy Multi-City TV Series 4K' },
-        { id: 'super_barbarian', name: 'ZHAFX TV ENTITY 004', tagline: 'Direct Auto HLS TV Stream' },
-        { id: 'bowler', name: 'ZHAFX TV ENTITY 005', tagline: 'Multi-Language TV Episodes' },
-        { id: 'giant', name: 'ZHAFX TV ENTITY 006', tagline: 'Multi-Audio TV Stream Cepat' },
-        { id: 'lavahound', name: 'ZHAFX TV ENTITY 007', tagline: '4K Fast TV Series Stream' },
-        { id: 'hog_rider', name: 'ZHAFX TV ENTITY 008', tagline: '4K TV Server' },
-      ];
-    }
-
-    // Default: Movie (Film)
+    const mediaCategory: MediaType = type === 'tv' ? 'tv' : 'movie';
     try {
-      const url = `/api/providers?type=movie`;
-      const data = await fetchWithRetry<any>(url, { signal, ttlMs: 15 * 60 * 1000 });
+      const data = await fetchWithRetry<any>(`/api/providers?type=${mediaCategory}`, {
+        signal,
+        ttlMs: 15 * 60 * 1000,
+      });
       if (data && Array.isArray(data.providers) && data.providers.length > 0) {
-        return [
-          { id: 'auto', name: '⚡ ZHAFX AUTO FILM', tagline: 'Auto-Select Server Film Terbaik' },
-          ...data.providers.map((p: any, idx: number) => ({
-            ...p,
-            name: `ZHAFX FILM ENTITY ${String(idx + 1).padStart(3, '0')}`,
-          })),
-        ];
+        return selectPrimaryUpstreamProvider(data.providers, mediaCategory);
       }
     } catch {
-      // Default fallback providers list
+      // Fallback to primary active provider
     }
 
-    return [
-      { id: 'auto', name: '⚡ ZHAFX AUTO FILM', tagline: 'Auto-Select Server Film Terbaik' },
-      { id: 'miner', name: 'ZHAFX FILM ENTITY 001', tagline: 'Movy Multi-City 4K Server' },
-      { id: 'headhunter', name: 'ZHAFX FILM ENTITY 002', tagline: 'VidLink Server Multi-Sub' },
-      { id: 'valkyrie', name: 'ZHAFX FILM ENTITY 003', tagline: '4K Ultra Multi-Server' },
-      { id: 'titan', name: 'ZHAFX FILM ENTITY 004', tagline: 'Films365 Direct MP4 1080p Server' },
-      { id: 'hog_rider', name: 'ZHAFX FILM ENTITY 005', tagline: '4K Pilled Server' },
-      { id: 'lavahound', name: 'ZHAFX FILM ENTITY 006', tagline: '4K Fast Multi-Server Stream' },
-      { id: 'super_barbarian', name: 'ZHAFX FILM ENTITY 007', tagline: 'Direct Auto HLS Stream' },
-      { id: 'bowler', name: 'ZHAFX FILM ENTITY 008', tagline: 'Multi-Language' },
-      { id: 'giant', name: 'ZHAFX FILM ENTITY 009', tagline: 'Multi-Audio Direct Stream' },
-    ];
+    return getPrimaryProviderFallback(mediaCategory);
   },
 
   /**
@@ -1315,75 +1260,17 @@ export const api = {
     poster?: string;
     audio?: 'sub' | 'dub';
   }): string {
-    const {
-      type,
-      id,
-      season = 1,
-      episode = 1,
-      server,
-      autoplay = true,
-      muted = false,
-      title,
-      poster,
-      audio = 'sub',
-    } = params;
-
-    if (!id || String(id).trim() === '' || String(id) === 'undefined' || String(id) === 'null') {
-      return '';
-    }
-
-    const cleanId = encodeURIComponent(String(id).trim());
-    const ep = Math.max(1, Math.round(Number(episode) || 1));
-    const s = Math.max(1, Math.round(Number(season) || 1));
-
-    // Official FrameX Anime embed player (https://framextv.cc) - no_ads=1
-    if (type === 'anime') {
-      const q = new URLSearchParams();
-      q.set('id', String(id).trim());
-      q.set('anilist_id', String(id).trim());
-      q.set('episode', String(ep));
-      q.set('season', String(s));
-      q.set('type', 'anime');
-      q.set('sub_type', audio || 'sub');
-      q.set('audio', audio || 'sub');
-      q.set('autoplay', autoplay ? '1' : '0');
-      q.set('muted', muted ? '1' : '0');
-      q.set('no_ads', '1');
-      q.set('adblock', '1');
-      q.set('origin', 'internal');
-      if (server && server !== 'auto' && server !== 'direct_stream' && server !== 'framex') {
-        q.set('provider', server);
-      }
-      if (title) q.set('title', title);
-      if (poster) q.set('poster', poster);
-
-      // Official FrameX Anime Embed URL format: https://framextv.cc/embed/anime?id=...&episode=...
-      return `https://framextv.cc/embed/anime?${q.toString()}`;
-    }
-
-    let path = '';
-    if (type === 'tv') {
-      path = `https://framextv.cc/embed/tv/${cleanId}/${s}/${encodeURIComponent(String(ep))}`;
-    } else {
-      path = `https://framextv.cc/embed/movie/${cleanId}`;
-    }
-
-    const query = new URLSearchParams();
-    query.set('id', String(id).trim());
-    query.set('type', type);
-    if (type === 'tv') {
-      query.set('season', String(s));
-      query.set('episode', String(ep));
-    }
-    query.set('autoplay', autoplay ? '1' : '0');
-    query.set('muted', muted ? '1' : '0');
-    query.set('no_ads', '1');
-    if (server && server !== 'auto' && server !== 'direct_stream') {
-      query.set('server', server);
-    }
-    if (title) query.set('title', title);
-    if (poster) query.set('poster', poster);
-
-    return `${path}?${query.toString()}`;
+    return buildFrameXEmbedUrl({
+      type: params.type,
+      id: params.id,
+      season: params.season,
+      episode: params.episode,
+      provider: params.server,
+      autoplay: params.autoplay,
+      muted: params.muted,
+      title: params.title,
+      poster: params.poster,
+      audio: params.audio,
+    });
   },
 };

@@ -1,3 +1,52 @@
+const FRAMEX_ORIGIN = 'https://api.framextv.cc';
+const ACTIVE_MOVIE_TV_PROVIDERS = ['giant', 'bowler', 'executioner', 'root_rider', 'hog_rider'];
+const LEGACY_OR_DOWN_PROVIDERS = new Set([
+  '',
+  'auto',
+  'direct_stream',
+  'framex',
+  'miner',
+  'titan',
+  'lavahound',
+  'valkyrie',
+  'headhunter',
+  'druid',
+  'royal_champion',
+  'sparky',
+  'dragon_rider',
+  'barbarian_king',
+  'electro_dragon',
+  'minion_prince',
+  'monk',
+  'skeleton_king',
+  'bandit',
+  'archer_queen',
+  'little_prince',
+]);
+
+function getPrimaryProvider(type: string) {
+  if (type === 'anime') {
+    return [
+      {
+        id: 'grand_warden',
+        name: 'ZHAFX',
+        tagline: 'Server Utama • Anime 1080p Sub & Dub',
+        category: 'anime',
+        status: 'active',
+      },
+    ];
+  }
+  return [
+    {
+      id: 'giant',
+      name: 'ZHAFX',
+      tagline: type === 'tv' ? 'Server Utama • Serial TV Lengkap' : 'Server Utama • Pemutaran Cepat & Stabil',
+      category: type === 'tv' ? 'tv' : 'movie',
+      status: 'available',
+    },
+  ];
+}
+
 export default async function handler(req: any, res: any) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
@@ -11,92 +60,69 @@ export default async function handler(req: any, res: any) {
   const isSeason = action === 'season' || Boolean(req.query?.is_season) || req.url?.includes('/season');
   const isProviders = action === 'providers' || Boolean(req.query?.is_providers) || req.url?.includes('/providers');
 
-  const backends = ['https://api.framextv.cc'];
+  const framexHeaders = {
+    'User-Agent':
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    Referer: 'https://framextv.cc/',
+    Origin: 'https://framextv.cc',
+    Accept: 'application/json, text/plain, */*',
+  };
 
-  // 1. Handle Providers Requests
+  // 1. Handle Providers Requests (single active primary server, no backup list)
   if (isProviders) {
     const type = (req.query?.type as string) || 'movie';
+    const upstreamPath = type === 'anime' ? '/anime/api/providers' : '/api/providers';
 
-    if (type === 'anime') {
-      for (const backend of backends) {
-        try {
-          const upstreamRes = await fetch(`${backend}/anime/api/providers`, {
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-              'Referer': 'https://framextv.cc/',
-              'Origin': 'https://framextv.cc',
-            },
-            signal: AbortSignal.timeout(4000),
-          });
-          if (upstreamRes.ok) {
-            const data = await upstreamRes.json();
-            return res.status(200).json(data);
-          }
-        } catch {}
-      }
-
-      return res.status(200).json({
-        providers: [
-          { id: 'grand_warden', name: 'Server 1 (Grand Warden)', tagline: 'Server Utama • Multi-Source Cloud 1080p', category: 'anime', status: 'available' },
-          { id: 'wizard', name: 'Server 2 (Wizard)', tagline: 'Server Cadangan • Dual Audio & Softsub Cepat', category: 'anime', status: 'available' },
-          { id: 'valkyrie', name: 'Server 3 (Valkyrie)', tagline: 'Server Cadangan • FlixCloud HD', category: 'anime', status: 'available' },
-          { id: 'super_pekka', name: 'Server 4 (Super PEKKA)', tagline: 'Server Cadangan • Direct Fast CDN 1080p', category: 'anime', status: 'available' },
-          { id: 'goblin', name: 'Server 5 (Goblin)', tagline: 'Server Cadangan • Direct Fast Auto Stream', category: 'anime', status: 'available' },
-          { id: 'giant', name: 'Server 6 (Giant)', tagline: 'Server Cadangan • Ultra High Speed Server', category: 'anime', status: 'available' },
-        ],
+    try {
+      const upstreamRes = await fetch(`${FRAMEX_ORIGIN}${upstreamPath}`, {
+        headers: framexHeaders,
+        signal: AbortSignal.timeout(4500),
       });
-    }
-
-    for (const backend of backends) {
-      try {
-        const upstreamRes = await fetch(`${backend}/api/providers`, {
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-            'Referer': 'https://framextv.cc/',
-            'Origin': 'https://framextv.cc',
-          },
-          signal: AbortSignal.timeout(5000),
-        });
-        if (upstreamRes.ok) {
-          const data = await upstreamRes.json();
-          if (data && Array.isArray(data.providers)) {
-            return res.status(200).json(data);
+      if (upstreamRes.ok) {
+        const data = await upstreamRes.json();
+        const rawList = Array.isArray(data?.providers) ? data.providers : [];
+        if (type === 'anime') {
+          const picked =
+            rawList.find((p: any) => p?.id === 'grand_warden' && (p.status === 'active' || !p.status)) ||
+            rawList.find((p: any) => p?.id && (p.status === 'active' || !p.status) && (!p.audio || p.audio === 'sub'));
+          if (picked?.id) {
+            return res.status(200).json({
+              providers: [
+                {
+                  id: picked.id,
+                  name: 'ZHAFX',
+                  tagline: picked.tagline || 'Server Utama • Anime 1080p Sub & Dub',
+                  category: 'anime',
+                  status: picked.status || 'active',
+                },
+              ],
+            });
+          }
+        } else {
+          const available = rawList.filter((p: any) => p?.id && (p.status === 'available' || p.status === 'active'));
+          const picked =
+            ACTIVE_MOVIE_TV_PROVIDERS.map((id) => available.find((p: any) => p.id === id)).find(Boolean) ||
+            available[0];
+          if (picked?.id) {
+            return res.status(200).json({
+              providers: [
+                {
+                  id: picked.id,
+                  name: 'ZHAFX',
+                  tagline: picked.tagline || 'Server Utama • Pemutaran Cepat & Stabil',
+                  category: type === 'tv' ? 'tv' : 'movie',
+                  status: picked.status || 'available',
+                },
+              ],
+            });
           }
         }
-      } catch {
-        // try next backend
       }
+    } catch {
+      // Fall back to primary active server below
     }
 
-    if (type === 'tv') {
-      return res.status(200).json({
-        providers: [
-          { id: 'miner', name: 'Server 1', tagline: 'Server Utama', category: 'tv', status: 'available' },
-          { id: 'headhunter', name: 'Server 2', tagline: 'Server Cadangan Multi-Sub', category: 'tv', status: 'available' },
-          { id: 'valkyrie', name: 'Server 3', tagline: 'Server Cadangan Cepat', category: 'tv', status: 'available' },
-          { id: 'titan', name: 'Server 4', tagline: 'Server Cadangan Direct', category: 'tv', status: 'available' },
-          { id: 'hog_rider', name: 'Server 5', tagline: 'Server Cadangan Stabil', category: 'tv', status: 'available' },
-          { id: 'lavahound', name: 'Server 6', tagline: 'Server Cadangan Multi-CDN', category: 'tv', status: 'available' },
-          { id: 'super_barbarian', name: 'Server 7', tagline: 'Server Cadangan HLS', category: 'tv', status: 'available' },
-          { id: 'bowler', name: 'Server 8', tagline: 'Server Cadangan Multi-Bahasa', category: 'tv', status: 'available' },
-          { id: 'giant', name: 'Server 9', tagline: 'Server Cadangan Audio', category: 'tv', status: 'available' },
-        ],
-      });
-    }
-
-    return res.status(200).json({
-      providers: [
-        { id: 'miner', name: 'Server 1', tagline: 'Server Utama', category: 'movie', status: 'available' },
-        { id: 'headhunter', name: 'Server 2', tagline: 'Server Cadangan Multi-Sub', category: 'movie', status: 'available' },
-        { id: 'valkyrie', name: 'Server 3', tagline: 'Server Cadangan Cepat', category: 'movie', status: 'available' },
-        { id: 'titan', name: 'Server 4', tagline: 'Server Cadangan Direct', category: 'movie', status: 'available' },
-        { id: 'hog_rider', name: 'Server 5', tagline: 'Server Cadangan Stabil', category: 'movie', status: 'available' },
-        { id: 'lavahound', name: 'Server 6', tagline: 'Server Cadangan Multi-CDN', category: 'movie', status: 'available' },
-        { id: 'super_barbarian', name: 'Server 7', tagline: 'Server Cadangan HLS', category: 'movie', status: 'available' },
-        { id: 'bowler', name: 'Server 8', tagline: 'Server Cadangan Multi-Bahasa', category: 'movie', status: 'available' },
-        { id: 'giant', name: 'Server 9', tagline: 'Server Cadangan Audio', category: 'movie', status: 'available' },
-      ],
-    });
+    return res.status(200).json({ providers: getPrimaryProvider(type) });
   }
 
   // 2. Handle Season Episodes Requests
@@ -112,26 +138,18 @@ export default async function handler(req: any, res: any) {
     q.set('id', id);
     q.set('season', season);
 
-    for (const backend of backends) {
-      try {
-        const upstreamRes = await fetch(`${backend}/api/season?${q.toString()}`, {
-          headers: {
-            'User-Agent':
-              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-            Referer: 'https://framextv.cc/',
-            Origin: 'https://framextv.cc',
-            Accept: 'application/json',
-          },
-          signal: AbortSignal.timeout(6000),
-        });
+    try {
+      const upstreamRes = await fetch(`${FRAMEX_ORIGIN}/api/season?${q.toString()}`, {
+        headers: framexHeaders,
+        signal: AbortSignal.timeout(6000),
+      });
 
-        if (upstreamRes.ok) {
-          const data = await upstreamRes.json();
-          res.setHeader('Cache-Control', 'public, s-maxage=600, stale-while-revalidate=1200');
-          return res.status(200).json(data);
-        }
-      } catch {}
-    }
+      if (upstreamRes.ok) {
+        const data = await upstreamRes.json();
+        res.setHeader('Cache-Control', 'public, s-maxage=600, stale-while-revalidate=1200');
+        return res.status(200).json(data);
+      }
+    } catch {}
 
     return res.status(502).json({ error: 'Gagal memuat episode musim.' });
   }
@@ -141,35 +159,37 @@ export default async function handler(req: any, res: any) {
   const type = (req.query?.type as string) || 'movie';
   const season = req.query?.season ? String(req.query.season) : undefined;
   const episode = req.query?.episode ? String(req.query.episode) : undefined;
-  const provider = (req.query?.provider as string) || '';
+  const rawProvider = String(req.query?.provider || '').trim().toLowerCase();
+  const normalizedProvider = LEGACY_OR_DOWN_PROVIDERS.has(rawProvider) ? undefined : rawProvider;
 
   if (!id) {
     return res.status(400).json({ success: false, error: 'ID tayangan wajib diisi.' });
   }
 
-  const q = new URLSearchParams();
-  q.set('id', id);
-  q.set('type', type);
-  if (season) q.set('season', season);
-  if (episode) q.set('episode', episode);
-  if (provider && provider !== 'auto') q.set('provider', provider);
+  const candidateProviders: Array<string | undefined> = normalizedProvider
+    ? [normalizedProvider, undefined, 'giant', 'bowler']
+    : [undefined, 'giant', 'bowler'];
 
-  for (const backend of backends) {
+  const tried = new Set<string>();
+  for (const cand of candidateProviders) {
+    const key = cand ?? '__auto__';
+    if (tried.has(key)) continue;
+    tried.add(key);
+
+    const q = new URLSearchParams();
+    q.set('id', id);
+    q.set('type', type);
+    if (season) q.set('season', season);
+    if (episode) q.set('episode', episode);
+    if (cand) q.set('provider', cand);
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 7500);
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 7500);
-
-      const upstreamRes = await fetch(`${backend}/api/stream?${q.toString()}`, {
+      const upstreamRes = await fetch(`${FRAMEX_ORIGIN}/api/stream?${q.toString()}`, {
         signal: controller.signal,
-        headers: {
-          'User-Agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-          'Referer': 'https://framextv.cc/',
-          'Origin': 'https://framextv.cc',
-          'Accept': 'application/json, text/plain, */*',
-        },
+        headers: framexHeaders,
       });
-      clearTimeout(timeoutId);
 
       if (upstreamRes.ok) {
         const data = await upstreamRes.json();
@@ -178,7 +198,9 @@ export default async function handler(req: any, res: any) {
         }
       }
     } catch {
-      // try next backend
+      // try next active primary candidate
+    } finally {
+      clearTimeout(timeoutId);
     }
   }
 

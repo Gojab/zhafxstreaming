@@ -24,54 +24,49 @@ export default async function handler(req: any, res: any) {
 
   const isPost = req.method === 'POST';
   const isFrameX = normalizedUrl.includes('framextv.cc');
-  const candidateUrls = [normalizedUrl];
 
-  for (const candidate of candidateUrls) {
-    try {
-      const headers: Record<string, string> = {
-        'User-Agent':
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-        'Accept': 'application/json, text/plain, */*',
-        ...(isFrameX
-          ? {
-              'Referer': 'https://framextv.cc/',
-              'Origin': 'https://framextv.cc',
-            }
-          : {}),
-        ...(isPost ? { 'Content-Type': 'application/json' } : {}),
-      };
+  try {
+    const headers: Record<string, string> = {
+      'User-Agent':
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+      Accept: 'application/json, text/plain, */*',
+      ...(isFrameX
+        ? {
+            Referer: 'https://framextv.cc/',
+            Origin: 'https://framextv.cc',
+          }
+        : {}),
+      ...(isPost ? { 'Content-Type': 'application/json' } : {}),
+    };
 
-      const fetchOptions: RequestInit = {
-        method: req.method,
-        signal: controller.signal,
-        headers,
-        ...(isPost && req.body
-          ? { body: typeof req.body === 'string' ? req.body : JSON.stringify(req.body) }
-          : {}),
-      };
+    const hasBody =
+      isPost &&
+      req.body !== undefined &&
+      req.body !== null &&
+      !(typeof req.body === 'object' && Object.keys(req.body).length === 0);
 
-      const upstreamRes = await fetch(candidate, fetchOptions);
+    const fetchOptions: RequestInit = {
+      method: req.method,
+      signal: controller.signal,
+      headers,
+      ...(hasBody
+        ? { body: typeof req.body === 'string' ? req.body : JSON.stringify(req.body) }
+        : {}),
+    };
 
-      // If upstream is 502/503/504 and we have another candidate, try the next
-      if (upstreamRes.status >= 500 && candidateUrls.indexOf(candidate) < candidateUrls.length - 1) {
-        continue;
-      }
+    const upstreamRes = await fetch(normalizedUrl, fetchOptions);
+    const contentType = upstreamRes.headers.get('content-type') || 'application/json';
+    res.setHeader('Content-Type', contentType);
+    res.status(upstreamRes.status);
 
-      clearTimeout(timeoutId);
-      const contentType = upstreamRes.headers.get('content-type') || 'application/json';
-      res.setHeader('Content-Type', contentType);
-      res.status(upstreamRes.status);
-
-      const body = await upstreamRes.text();
-      return res.send(body);
-    } catch {
-      // Try next candidate
-    }
+    const body = await upstreamRes.text();
+    return res.send(body);
+  } catch {
+    return res.status(502).json({
+      error: 'Gagal menghubungi server hulu.',
+      details: 'Permintaan ke server utama FrameX gagal atau melebihi batas waktu.',
+    });
+  } finally {
+    clearTimeout(timeoutId);
   }
-
-  clearTimeout(timeoutId);
-  return res.status(502).json({
-    error: 'Gagal menghubungi server hulu.',
-    details: 'Semua server FrameX (xyz & tech) telah dicoba.',
-  });
 }

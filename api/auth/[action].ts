@@ -63,8 +63,8 @@ export default async function handler(req: any, res: any) {
     return res.status(200).json({ success: true, user });
   }
 
-  // 2. POST /api/auth/login
-  if (action === 'login') {
+  // 2. POST /api/auth/login or /api/auth/login-password
+  if (action === 'login' || action === 'login-password') {
     const { login, email, username, password, rememberMe } = body || {};
     const rawLogin = (login || email || username || '').trim();
     const result = await loginWithPassword({

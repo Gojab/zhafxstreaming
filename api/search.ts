@@ -73,7 +73,7 @@ export default async function handler(req: any, res: any) {
     'blue lok': 'Blue Lock',
     'stranger thing': 'Stranger Things',
     strangerthing: 'Stranger Things',
-    breking bad: 'Breaking Bad',
+    'breking bad': 'Breaking Bad',
     squidgame: 'Squid Game',
     peakyblinders: 'Peaky Blinders',
     gladiatr: 'Gladiator',

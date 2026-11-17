@@ -33,6 +33,17 @@ import type {
   StoredFollow,
   StoredActivity,
 } from './server/authService.ts';
+import {
+  FRAMEX_API_ORIGIN,
+  ACTIVE_MOVIE_TV_PROVIDERS,
+  ACTIVE_ANIME_SUB_PROVIDERS,
+  ACTIVE_ANIME_DUB_PROVIDERS,
+  selectPrimaryUpstreamProvider,
+  getPrimaryProviderFallback,
+  normalizeMovieTvStreamProvider,
+  resolveAnimeProvider,
+  getSafeOrigin,
+} from './src/lib/servers.ts';
 
 dotenv.config();
 
@@ -259,15 +270,12 @@ function getUserIdFromAuthHeader(req: Request): string | null {
 
 const apiKey = process.env.GEMINI_API_KEY || '';
 
-// Endpoint: Proxy to FrameX API (to prevent any CORS or network issues)
+// Endpoint: Proxy to FrameX / external API (to prevent CORS or network issues)
 app.all('/api/proxy', async (req: Request, res: Response) => {
   const targetUrl = (req.query.url as string) || (req.body?.targetUrl as string);
   if (!targetUrl || !targetUrl.startsWith('http')) {
     return res.status(400).json({ error: 'URL target tidak valid.' });
   }
-
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 10000);
 
   let normalizedUrl = targetUrl;
   if (normalizedUrl.includes('framextv.tech')) {
@@ -276,51 +284,44 @@ app.all('/api/proxy', async (req: Request, res: Response) => {
     normalizedUrl = normalizedUrl.replace(/framextv\.xyz/g, 'framextv.cc');
   }
 
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10000);
   const isPost = req.method === 'POST';
   const isFrameX = normalizedUrl.includes('framextv.cc');
-  const candidateUrls = [normalizedUrl];
 
-  for (const candidate of candidateUrls) {
-    try {
-      const upstreamRes = await fetch(candidate, {
-        method: req.method,
-        signal: controller.signal,
-        headers: {
-          'User-Agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-          'Accept': 'application/json, text/plain, */*',
-          ...(isFrameX
-            ? {
-                'Referer': 'https://framextv.cc/',
-                'Origin': 'https://framextv.cc',
-              }
-            : {}),
-          ...(isPost ? { 'Content-Type': 'application/json' } : {}),
-        },
-        ...(isPost && req.body ? { body: JSON.stringify(req.body) } : {}),
-      });
+  try {
+    const upstreamRes = await fetch(normalizedUrl, {
+      method: req.method,
+      signal: controller.signal,
+      headers: {
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Accept': 'application/json, text/plain, */*',
+        ...(isFrameX
+          ? {
+              'Referer': 'https://framextv.cc/',
+              'Origin': 'https://framextv.cc',
+            }
+          : {}),
+        ...(isPost ? { 'Content-Type': 'application/json' } : {}),
+      },
+      ...(isPost && req.body && Object.keys(req.body).length > 0 ? { body: JSON.stringify(req.body) } : {}),
+    });
 
-      if (upstreamRes.status >= 500 && candidateUrls.indexOf(candidate) < candidateUrls.length - 1) {
-        continue;
-      }
+    const contentType = upstreamRes.headers.get('content-type') || 'application/json';
+    res.setHeader('Content-Type', contentType);
+    res.status(upstreamRes.status);
 
-      clearTimeout(timeoutId);
-      const contentType = upstreamRes.headers.get('content-type') || 'application/json';
-      res.setHeader('Content-Type', contentType);
-      res.status(upstreamRes.status);
-
-      const body = await upstreamRes.text();
-      return res.send(body);
-    } catch {
-      // Try next candidate
-    }
+    const body = await upstreamRes.text();
+    return res.send(body);
+  } catch (err: any) {
+    return res.status(502).json({
+      error: 'Gagal menghubungi server hulu.',
+      details: err?.name === 'AbortError' ? 'Permintaan ke server hulu timeout.' : 'Koneksi ke server utama gagal.',
+    });
+  } finally {
+    clearTimeout(timeoutId);
   }
-
-  clearTimeout(timeoutId);
-  return res.status(502).json({
-    error: 'Gagal menghubungi server hulu.',
-    details: 'Semua server FrameX (xyz & tech) telah dicoba.',
-  });
 });
 
 // ==========================================
@@ -957,9 +958,30 @@ app.get('/api/details', async (req: Request, res: Response) => {
 
   if (type === 'anime') {
     const upstream = await fetchFromFrameXUpstream('/api/details', { id, type: 'anime' });
-    if (upstream && (upstream.success || upstream.title)) {
+    if (upstream && upstream.type === 'anime' && (upstream.success || upstream.title)) {
       return res.json(upstream);
     }
+    try {
+      const metaData = await fetchFromFrameXUpstream('/anime/api/meta', { id });
+      const m = metaData?.meta;
+      if (m && m.id) {
+        return res.json({
+          success: true,
+          id: String(m.id),
+          type: 'anime',
+          title: m.title?.english || m.title?.romaji || m.title?.native || 'Anime',
+          originalTitle: m.title?.native,
+          poster: m.coverImage?.extraLarge || m.coverImage?.large || '',
+          backdrop: m.bannerImage || m.coverImage?.extraLarge || '',
+          year: String(m.seasonYear || '2025'),
+          rating: m.averageScore ? (m.averageScore / 10).toFixed(1) : '8.5',
+          overview: m.description ? String(m.description).replace(/<[^>]*>/g, '').trim() : '',
+          genres: m.genres || ['Action', 'Fantasy'],
+          numberOfEpisodes: m.episodes || 24,
+          status: m.status,
+        });
+      }
+    } catch {}
     try {
       const aniQuery = `query ($id: Int) {
         Media(id: $id, type: ANIME) {
@@ -1452,13 +1474,18 @@ app.post('/api/translate/synopsis', async (req: Request, res: Response) => {
 app.get('/api/season', async (req: Request, res: Response) => {
   const rawId = String(req.query.id || '').trim();
   const season = (req.query.season as string) || '1';
+  const reqType = String(req.query.type || '').trim().toLowerCase();
 
   if (!rawId) {
     return res.status(400).json({ error: 'ID tayangan diperlukan.' });
   }
 
   // Resolve anime ID to TMDB TV ID if applicable (e.g. 16498 -> 1429 for Attack on Titan)
-  const id = ANIME_TMDB_MAP[rawId.toLowerCase()] || rawId;
+  const mappedId = ANIME_TMDB_MAP[rawId.toLowerCase()];
+  if (reqType === 'anime' && !mappedId) {
+    return res.status(200).json({ episodes: [] });
+  }
+  const id = mappedId || rawId;
 
   const upstreamData = await fetchFromFrameXUpstream('/api/season', { id, season });
   if (upstreamData) {
@@ -1479,20 +1506,25 @@ app.get('/api/season', async (req: Request, res: Response) => {
     return res.status(200).json(upstreamData);
   }
 
+  if (reqType === 'anime') {
+    return res.status(200).json({ episodes: [] });
+  }
+
   return res.status(502).json({ error: 'Gagal memuat episode musim dari FrameX.' });
 });
 
 // ==========================================
-// FrameX Streaming Providers (Separated by Movie, TV, & Anime)
+// FrameX Streaming Providers (Primary Active Server Only)
 // ==========================================
 
-// Get Movie & TV Providers directly from FrameX API
+// Get Primary Movie, TV, or Anime Provider directly from FrameX API
 app.get('/api/providers', async (req: Request, res: Response) => {
-  const type = (req.query.type as string) || 'movie';
+  const rawType = (req.query.type as string) || 'movie';
+  const type = rawType === 'tv' || rawType === 'anime' ? rawType : 'movie';
 
   if (type === 'anime') {
     try {
-      const upstreamRes = await fetch('https://api.framextv.cc/anime/api/providers', {
+      const upstreamRes = await fetch(`${FRAMEX_API_ORIGIN}/anime/api/providers`, {
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
           'Referer': 'https://framextv.cc/',
@@ -1502,66 +1534,38 @@ app.get('/api/providers', async (req: Request, res: Response) => {
       });
       if (upstreamRes.ok) {
         const data = await upstreamRes.json();
-        return res.json(data);
+        return res.json({
+          providers: selectPrimaryUpstreamProvider(data?.providers || [], 'anime'),
+        });
       }
     } catch (err) {
       console.warn('[Providers Anime Error]:', err);
     }
+    return res.json({ providers: getPrimaryProviderFallback('anime') });
   }
 
-  // Fetch Movie & TV Providers from FrameX upstream
-  const backends = ['https://api.framextv.cc'];
-  for (const backend of backends) {
-    try {
-      const upstreamRes = await fetch(`${backend}/api/providers`, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-          'Referer': 'https://framextv.cc/',
-          'Origin': 'https://framextv.cc',
-        },
-        signal: AbortSignal.timeout(4000),
-      });
-      if (upstreamRes.ok) {
-        const data = await upstreamRes.json();
-        if (data && Array.isArray(data.providers)) {
-          return res.json(data);
-        }
-      }
-    } catch {
-      // try next backend
-    }
-  }
-
-  // Fallback catalogue if upstream is slow
-  if (type === 'tv') {
-    return res.json({
-      providers: [
-        { id: 'miner', name: 'Server 1', tagline: 'Server Utama', category: 'tv', status: 'available' },
-        { id: 'headhunter', name: 'Server 2', tagline: 'Server Cadangan Multi-Sub', category: 'tv', status: 'available' },
-        { id: 'valkyrie', name: 'Server 3', tagline: 'Server Cadangan Cepat', category: 'tv', status: 'available' },
-        { id: 'titan', name: 'Server 4', tagline: 'Server Cadangan Direct', category: 'tv', status: 'available' },
-        { id: 'hog_rider', name: 'Server 5', tagline: 'Server Cadangan Stabil', category: 'tv', status: 'available' },
-        { id: 'lavahound', name: 'Server 6', tagline: 'Server Cadangan Multi-CDN', category: 'tv', status: 'available' },
-        { id: 'super_barbarian', name: 'Server 7', tagline: 'Server Cadangan HLS', category: 'tv', status: 'available' },
-        { id: 'bowler', name: 'Server 8', tagline: 'Server Cadangan Multi-Bahasa', category: 'tv', status: 'available' },
-        { id: 'giant', name: 'Server 9', tagline: 'Server Cadangan Audio', category: 'tv', status: 'available' },
-      ],
+  try {
+    const upstreamRes = await fetch(`${FRAMEX_API_ORIGIN}/api/providers`, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Referer': 'https://framextv.cc/',
+        'Origin': 'https://framextv.cc',
+      },
+      signal: AbortSignal.timeout(4000),
     });
+    if (upstreamRes.ok) {
+      const data = await upstreamRes.json();
+      if (data && Array.isArray(data.providers)) {
+        return res.json({
+          providers: selectPrimaryUpstreamProvider(data.providers, type),
+        });
+      }
+    }
+  } catch (err) {
+    console.warn('[Providers Error]:', err);
   }
 
-  return res.json({
-    providers: [
-      { id: 'miner', name: 'Server 1', tagline: 'Server Utama', category: 'movie', status: 'available' },
-      { id: 'headhunter', name: 'Server 2', tagline: 'Server Cadangan Multi-Sub', category: 'movie', status: 'available' },
-      { id: 'valkyrie', name: 'Server 3', tagline: 'Server Cadangan Cepat', category: 'movie', status: 'available' },
-      { id: 'titan', name: 'Server 4', tagline: 'Server Cadangan Direct', category: 'movie', status: 'available' },
-      { id: 'hog_rider', name: 'Server 5', tagline: 'Server Cadangan Stabil', category: 'movie', status: 'available' },
-      { id: 'lavahound', name: 'Server 6', tagline: 'Server Cadangan Multi-CDN', category: 'movie', status: 'available' },
-      { id: 'super_barbarian', name: 'Server 7', tagline: 'Server Cadangan HLS', category: 'movie', status: 'available' },
-      { id: 'bowler', name: 'Server 8', tagline: 'Server Cadangan Multi-Bahasa', category: 'movie', status: 'available' },
-      { id: 'giant', name: 'Server 9', tagline: 'Server Cadangan Audio', category: 'movie', status: 'available' },
-    ],
-  });
+  return res.json({ providers: getPrimaryProviderFallback(type) });
 });
 
 // ==========================================
@@ -1986,10 +1990,10 @@ app.delete('/api/notes/:id', async (req: Request, res: Response) => {
 // Native Anime Stream & Proxy (FrameX API Engine)
 // ==========================================
 
-// Get FrameX Anime Providers
+// Get FrameX Primary Anime Provider
 app.get('/api/anime/providers', async (_req: Request, res: Response) => {
   try {
-    const upstreamRes = await fetch('https://api.framextv.cc/anime/api/providers', {
+    const upstreamRes = await fetch(`${FRAMEX_API_ORIGIN}/anime/api/providers`, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
         'Referer': 'https://framextv.cc/',
@@ -1999,35 +2003,90 @@ app.get('/api/anime/providers', async (_req: Request, res: Response) => {
     });
     if (upstreamRes.ok) {
       const data = await upstreamRes.json();
-      if (data && Array.isArray(data.providers)) {
-        data.providers = data.providers.map((p: any, idx: number) => ({
-          ...p,
-          name: `ZHAFX ENTITY ${String(idx + 1).padStart(3, '0')}`,
-        }));
-        return res.json(data);
-      }
-      return res.json(data);
+      return res.json({
+        providers: selectPrimaryUpstreamProvider(data?.providers || [], 'anime'),
+      });
     }
   } catch (err) {
     console.warn('[Anime Providers Error]:', err);
   }
 
-  // Fallback providers catalogue if upstream is slow
   return res.json({
-    providers: [
-      { id: 'grand_warden', name: 'ZHAFX ENTITY 001', tagline: '1080p Ultra Fast Multi-Source Cloud', audio: 'sub', category: 'anime' },
-      { id: 'grand_warden_dub', name: 'ZHAFX ENTITY 002', tagline: 'Multi-Source Cloud Dub', audio: 'dub', category: 'anime' },
-      { id: 'wizard', name: 'ZHAFX ENTITY 003', tagline: 'Dual Audio & Softsub', audio: 'sub', category: 'anime' },
-      { id: 'wizard_dub', name: 'ZHAFX ENTITY 004', tagline: 'Dual Audio English Dub', audio: 'dub', category: 'anime' },
-      { id: 'super_pekka', name: 'ZHAFX ENTITY 005', tagline: '1080p Ultra High Bitrate CDN', audio: 'sub', category: 'anime' },
-      { id: 'giant', name: 'ZHAFX ENTITY 006', tagline: 'High Bitrate HD Cloud Stream', audio: 'sub', category: 'anime' },
-      { id: 'valkyrie', name: 'ZHAFX ENTITY 007', tagline: 'FlixCloud HD Fast Stream', audio: 'sub', category: 'anime' },
-      { id: 'valkyrie_dub', name: 'ZHAFX ENTITY 008', tagline: 'FlixCloud HD Dub', audio: 'dub', category: 'anime' },
-      { id: 'goblin', name: 'ZHAFX ENTITY 009', tagline: 'Direct Fast Auto Stream', audio: 'sub', category: 'anime' },
-      { id: 'dragon', name: 'ZHAFX ENTITY 010', tagline: 'VidNest Multi-Source', audio: 'sub', category: 'anime' },
-      { id: 'archer', name: 'ZHAFX ENTITY 011', tagline: 'Multi-Audio Stream', audio: 'sub', category: 'anime' },
-    ],
+    providers: getPrimaryProviderFallback('anime'),
   });
+});
+
+// Anime Discover endpoint (mirrors FrameX /anime/api/discover)
+app.get('/api/anime/discover', async (req: Request, res: Response) => {
+  const q = new URLSearchParams();
+  for (const [k, v] of Object.entries(req.query)) {
+    if (v !== undefined && v !== null && String(v) !== '' && String(v) !== 'all') {
+      q.set(k, String(v));
+    }
+  }
+
+  try {
+    const upstreamRes = await fetch(`${FRAMEX_API_ORIGIN}/anime/api/discover?${q.toString()}`, {
+      headers: {
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        Referer: 'https://framextv.cc/',
+        Origin: 'https://framextv.cc',
+        Accept: 'application/json',
+      },
+      signal: AbortSignal.timeout(4500),
+    });
+
+    if (upstreamRes.ok) {
+      const animeData = await upstreamRes.json();
+      const items = Array.isArray(animeData.results) ? animeData.results : [];
+      const deduplicated = deduplicateTitles(
+        items.map((a: any) => ({
+          id: String(a.id),
+          type: 'anime',
+          title: a.title,
+          poster: formatPosterUrl(a.poster, 'w500'),
+          backdrop: formatBackdropUrl(a.backdrop || a.poster),
+          year: String(a.year || '2024'),
+          rating: a.rating || '8.5',
+          overview: a.synopsis || a.overview || 'Anime terpopuler di Zhafx.',
+          genres: a.genres || ['Action', 'Fantasy'],
+        }))
+      );
+      res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
+      return res.json({
+        success: true,
+        page: animeData.page || parseInt(String(req.query.page || '1'), 10),
+        totalPages: animeData.totalPages || 50,
+        totalResults: animeData.totalResults || deduplicated.length,
+        results: deduplicated,
+      });
+    }
+  } catch (err: any) {
+    console.warn('[Anime Discover Error]:', err?.message || err);
+  }
+
+  return res.status(502).json({
+    success: false,
+    error: 'Gagal memuat katalog anime dari FrameX API.',
+    results: [],
+  });
+});
+
+// Anime Meta endpoint (mirrors FrameX /anime/api/meta)
+app.get('/api/anime/meta', async (req: Request, res: Response) => {
+  const id = String(req.query.id || '').trim();
+  if (!id) {
+    return res.status(400).json({ success: false, error: 'ID anime diperlukan.' });
+  }
+
+  const upstream = await fetchFromFrameXUpstream('/anime/api/meta', { id }, 4500);
+  if (upstream) {
+    res.setHeader('Cache-Control', 'public, s-maxage=600, stale-while-revalidate=1200');
+    return res.status(200).json(upstream);
+  }
+
+  return res.status(404).json({ success: false, error: 'Metadata anime tidak ditemukan.' });
 });
 
 // Helper: Query FrameX API directly to resolve anime ID or title (Strictly https://framextv.cc, no AniList)
@@ -2123,46 +2182,38 @@ async function probeSingleProvider(
   throw new Error('No sources found');
 }
 
-// Helper: Cascading fast parallel probe across priority servers
+// Helper: Active anime provider probe (no dead/backup provider lists)
 async function probeMultiProviders(
   targetId: string,
   episode: string,
   audio: string,
   preferredProvider?: string
 ): Promise<any> {
-  const backends = ['https://api.framextv.cc'];
-  const priorityList = audio === 'dub'
-    ? ['grand_warden_dub', 'wizard_dub', 'valkyrie_dub', 'goblin_dub', 'dragon_dub', 'archer_dub']
-    : ['grand_warden', 'wizard', 'super_pekka', 'giant', 'valkyrie', 'goblin', 'dragon', 'archer'];
+  const normalizedAudio = audio === 'dub' ? 'dub' : 'sub';
+  const primaryProvider = resolveAnimeProvider(preferredProvider, normalizedAudio);
+  const activeCandidates =
+    normalizedAudio === 'dub'
+      ? [...ACTIVE_ANIME_DUB_PROVIDERS]
+      : [...ACTIVE_ANIME_SUB_PROVIDERS];
 
-  // 1. If user specifically selected a provider, probe it first
-  if (preferredProvider && preferredProvider !== 'auto' && preferredProvider !== 'direct_stream') {
-    for (const b of backends) {
-      try {
-        const directData = await probeSingleProvider(b, targetId, episode, preferredProvider, audio, 3800);
-        if (directData) return directData;
-      } catch {}
-    }
-  }
+  const ordered = [
+    primaryProvider,
+    ...activeCandidates.filter((p) => p !== primaryProvider),
+  ];
 
-  // 2. Cascading Fast Parallel Probe across remaining priority servers in chunks of 2
-  const candidateList = priorityList.filter(p => p !== preferredProvider);
-  for (let i = 0; i < candidateList.length; i += 2) {
-    const chunk = candidateList.slice(i, i + 2);
+  for (const prov of ordered) {
     try {
-      const winner = await Promise.any(
-        chunk.map(p => probeSingleProvider(backends[0], targetId, episode, p, audio, 3200))
-      );
-      if (winner) return winner;
+      const data = await probeSingleProvider(FRAMEX_API_ORIGIN, targetId, episode, prov, normalizedAudio, 4000);
+      if (data) return data;
     } catch {
-      // Chunk failed, continue to next server pair
+      // try next active provider
     }
   }
 
   return null;
 }
 
-// Get Direct Anime Stream from FrameX API with server-side proxy transformation & auto failover
+// Get Direct Anime Stream from FrameX API with server-side proxy transformation
 app.get('/api/anime/stream', async (req: Request, res: Response) => {
   const id = req.query.id as string;
   const episode = req.query.episode ? String(req.query.episode) : '1';
@@ -2177,7 +2228,7 @@ app.get('/api/anime/stream', async (req: Request, res: Response) => {
   // Phase 1: Probe with requested ID
   let finalData = await probeMultiProviders(id, episode, audio, provider);
 
-  // Phase 2: If no sources found with raw ID, attempt AniList ID resolution via title or TMDB lookup
+  // Phase 2: If no sources found with raw ID, attempt ID resolution via title
   if (!finalData) {
     const resolvedId = await resolveAnimeId(id, title);
     if (resolvedId && resolvedId !== id) {
@@ -2188,14 +2239,14 @@ app.get('/api/anime/stream', async (req: Request, res: Response) => {
   if (!finalData) {
     return res.status(404).json({
       success: false,
-      error: `Stream anime tidak tersedia untuk episode ${episode}. Semua server HLS telah dicoba.`.trim(),
+      error: `Stream anime tidak tersedia untuk episode ${episode}.`,
     });
   }
 
-  const actualProvider = finalData.provider || provider || 'grand_warden';
-  const fallbackApplied = provider && provider !== 'auto' && provider !== actualProvider;
+  const actualProvider = finalData.provider || resolveAnimeProvider(provider, audio === 'dub' ? 'dub' : 'sub');
+  const fallbackApplied = Boolean(provider && provider !== 'auto' && provider !== 'framex' && provider !== actualProvider);
 
-  // Provide local proxied HLS stream pointing directly to the origin CDN with direct CDN fallback
+  // Provide local proxied HLS stream pointing directly to the origin CDN
   const rewrittenSources = finalData.sources.map((src: any) => {
     const defaultRef = src.headers?.Referer || src.headers?.referer || 'https://megaplay.buzz/';
     const { realUrl, referer } = extractRealUrl(src.url || '', defaultRef);
@@ -2204,18 +2255,18 @@ app.get('/api/anime/stream', async (req: Request, res: Response) => {
 
     return {
       ...src,
-      url: proxiedUrl, // Primary stream URL goes directly through our web app proxy to origin CDN
+      url: proxiedUrl,
       directUrl: realUrl,
       proxiedUrl,
       rawUrl: realUrl,
       headers: {
         Referer: referer,
-        Origin: referer ? new URL(referer).origin : 'https://megaplay.buzz',
+        Origin: getSafeOrigin(referer, 'https://megaplay.buzz'),
       },
     };
   });
 
-  // Resolve subtitles to local converted WebVTT with direct CDN fallback
+  // Resolve subtitles to local converted WebVTT
   const rewrittenSubtitles = Array.isArray(finalData.subtitles)
     ? finalData.subtitles.map((sub: any) => {
         const { realUrl } = extractRealUrl(sub.url || '', 'https://megaplay.buzz/');
@@ -2223,7 +2274,7 @@ app.get('/api/anime/stream', async (req: Request, res: Response) => {
 
         return {
           ...sub,
-          url: proxiedSubUrl, // Primary subtitle URL converted to WebVTT
+          url: proxiedSubUrl,
           directUrl: realUrl,
           proxiedUrl: proxiedSubUrl,
           rawUrl: realUrl,
@@ -2246,7 +2297,6 @@ app.get('/api/anime/stream', async (req: Request, res: Response) => {
 
 // Proxy and rewrite HLS Playlists (.m3u8) & video segments (.ts/.jpg/.mp4) directly from Origin CDNs
 app.all('/api/anime/proxy', async (req: Request, res: Response) => {
-  // If client already disconnected, exit immediately
   if (req.destroyed || res.writableEnded) return;
 
   const rawTargetUrl = req.query.url as string;
@@ -2256,7 +2306,6 @@ app.all('/api/anime/proxy', async (req: Request, res: Response) => {
     return res.status(400).json({ error: 'URL target tidak valid.' });
   }
 
-  // Always unwrap any nested proxy URLs to fetch straight from the actual CDN
   const { realUrl: targetUrl, referer } = extractRealUrl(rawTargetUrl, rawReferer);
 
   if (!targetUrl.startsWith('http')) {
@@ -2268,7 +2317,7 @@ app.all('/api/anime/proxy', async (req: Request, res: Response) => {
     clientAbortController.abort();
   });
 
-  const origin = referer ? new URL(referer).origin : 'https://megaplay.buzz';
+  const origin = getSafeOrigin(referer, 'https://megaplay.buzz');
   const reqHeaders: Record<string, string> = {
     'User-Agent':
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
@@ -2472,26 +2521,32 @@ app.get('/api/stream', async (req: Request, res: Response) => {
   const type = (req.query.type as string) || 'movie';
   const season = req.query.season ? String(req.query.season) : undefined;
   const episode = req.query.episode ? String(req.query.episode) : undefined;
-  const provider = (req.query.provider as string) || '';
+  const requestedProvider = normalizeMovieTvStreamProvider(req.query.provider as string);
 
   if (!id) {
     return res.status(400).json({ success: false, error: 'ID tayangan wajib diisi.' });
   }
 
-  const backends = ['https://api.framextv.cc'];
-  const q = new URLSearchParams();
-  q.set('id', id);
-  q.set('type', type);
-  if (season) q.set('season', season);
-  if (episode) q.set('episode', episode);
-  if (provider && provider !== 'auto') q.set('provider', provider);
+  const buildQuery = (prov?: string) => {
+    const q = new URLSearchParams();
+    q.set('id', id);
+    q.set('type', type);
+    if (season) q.set('season', season);
+    if (episode) q.set('episode', episode);
+    if (prov) q.set('provider', prov);
+    return q.toString();
+  };
 
-  for (const backend of backends) {
+  // Try requested active provider first (if valid), then FrameX auto-selection, then active primary providers
+  const candidates: Array<string | undefined> = requestedProvider
+    ? [requestedProvider, undefined, ...ACTIVE_MOVIE_TV_PROVIDERS.filter((p) => p !== requestedProvider).slice(0, 2)]
+    : [undefined, ...ACTIVE_MOVIE_TV_PROVIDERS.slice(0, 2)];
+
+  for (const candProvider of candidates) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 7000);
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 6000);
-
-      const upstreamRes = await fetch(`${backend}/api/stream?${q.toString()}`, {
+      const upstreamRes = await fetch(`${FRAMEX_API_ORIGIN}/api/stream?${buildQuery(candProvider)}`, {
         signal: controller.signal,
         headers: {
           'User-Agent':
@@ -2501,8 +2556,6 @@ app.get('/api/stream', async (req: Request, res: Response) => {
           'Accept': 'application/json, text/plain, */*',
         },
       });
-      clearTimeout(timeoutId);
-
       if (upstreamRes.ok) {
         const data = await upstreamRes.json();
         if (data && data.success && Array.isArray(data.sources) && data.sources.length > 0) {
@@ -2510,7 +2563,9 @@ app.get('/api/stream', async (req: Request, res: Response) => {
         }
       }
     } catch {
-      // try next backend
+      // try next active provider
+    } finally {
+      clearTimeout(timeoutId);
     }
   }
 
@@ -2630,7 +2685,7 @@ app.post('/api/auth/register', async (req: Request, res: Response) => {
 });
 
 // Login with Email/Username & Password
-app.post('/api/auth/login', async (req: Request, res: Response) => {
+app.post(['/api/auth/login', '/api/auth/login-password'], async (req: Request, res: Response) => {
   try {
     const { login, email, username, password, rememberMe } = req.body || {};
     const rawLogin = (login || email || username || '').trim();
@@ -3577,6 +3632,14 @@ app.get(['/ai-catalog.json', '/.well-known/ai-catalog.json'], (_req: Request, re
 // Setup Vite middleware in dev or static files in prod
 async function startServer() {
   const isProd = process.env.NODE_ENV === 'production';
+
+  // Ensure unmatched /api/* routes return JSON 404 instead of SPA HTML
+  app.use('/api', (req: Request, res: Response) => {
+    res.status(404).json({
+      success: false,
+      error: `Endpoint API tidak ditemukan: ${req.method} ${req.originalUrl}`,
+    });
+  });
 
   // Serve static assets from public directly with efficient caching headers
   app.use(
